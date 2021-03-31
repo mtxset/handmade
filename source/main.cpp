@@ -1,16 +1,36 @@
 #include <windows.h>
+// https://youtu.be/GAi_nTx1zG8?t=1842
+#define static_function static
+#define static_global static
+#define static_local static
 
-LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
+static_global auto GameRunning = true;
+
+// DIB - device independant section
+static void Win32ResizeDIBSection(int width, int height) {
+  
+}
+
+static void Win32UpdateWindow(HWND window, int x, int y, int width, int height) {
+  
+}
+
+LRESULT CALLBACK Win32WindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
   LRESULT result = 0;
   switch (message) {
   case WM_SIZE: {
-    OutputDebugStringA("WM_SIZE\n");
+    RECT clientRect;
+    GetClientRect(window, &clientRect);
+    
+    auto height = clientRect.bottom - clientRect.top;
+    auto width = clientRect.right - clientRect.left;
+    Win32ResizeDIBSection(width, height);
   } break;
   case WM_DESTROY: {
-    OutputDebugStringA("WM_DESTROY\n");
+    GameRunning = false;
   } break;
   case WM_CLOSE: {
-    OutputDebugStringA("WM_CLOSE\n");
+    GameRunning = false;
   } break;
   case WM_ACTIVATEAPP: {
     OutputDebugStringA("WM_ACTIVATEAPP\n");
@@ -18,18 +38,13 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
   case WM_PAINT: {
     PAINTSTRUCT paint;
     auto deviceContext = BeginPaint(window, &paint);
+
     auto x = paint.rcPaint.left;
     auto y = paint.rcPaint.top;
-    auto height = paint.rcPaint.bottom - paint.rcPaint.top;
     auto width = paint.rcPaint.right - paint.rcPaint.left;
-
-    static auto operation = WHITENESS;
-    PatBlt(deviceContext, x, y, width, height, operation);
-    if (operation == WHITENESS)
-      operation = BLACKNESS;
-    else
-      operation = WHITENESS;
+    auto height = paint.rcPaint.bottom - paint.rcPaint.top;
     
+    Win32UpdateWindow(window, x, y, width, height);
     EndPaint(window, &paint);
   } break;
   default: {
@@ -45,7 +60,7 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
   WNDCLASS windowClass = {};
 
   windowClass.style = CS_OWNDC | CS_HREDRAW | CS_HREDRAW;
-  windowClass.lpfnWndProc = WindowProc;
+  windowClass.lpfnWndProc = Win32WindowProc;
   windowClass.hInstance = currentInstance;
   //WindowClass.hIcon = 0;
   windowClass.lpszClassName = "GG";
@@ -59,8 +74,9 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
     OutputDebugStringA("CreateWindow failed");
 
   MSG message;
-  while (true) {
-    BOOL windowMessage = GetMessage(&message, 0, 0, 0);
+  BOOL windowMessage;
+  while (GameRunning) {
+    windowMessage = GetMessage(&message, 0, 0, 0);
 
     if (windowMessage < 0)
       break;
