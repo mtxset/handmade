@@ -1,0 +1,1 @@
+powershell -noexit "& ""./other/dev.ps1"""
