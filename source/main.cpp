@@ -1,84 +1,102 @@
 #include <windows.h>
 #include <stdint.h>
-// https://www.youtube.com/watch?v=w7ay7QXmo_o
+// https://youtu.be/w7ay7QXmo_o?t=2901
 
 static auto Global_GameRunning = true;
 
-static BITMAPINFO Global_BitmapInfo;
-static void *Global_BitmapMemory;
+struct Win32_bitmap_buffer {
+  BITMAPINFO info;
+  void* memory;
+  int width;
+  int height;
+  int pitch;
+  int bytes_per_pixel;
+};
+
+struct win32_window_dimensions {
+  int width;
+  int height;
+};
+
+static Win32_bitmap_buffer Global_backbuffer;
+
 static HBITMAP Global_BitmapHandle;
 static HDC Global_BitmapDeviceContext;
 
-static int Global_Bitmap_Width;
-static int Global_Bitmap_Height;
-static int Global_Bytes_Per_Pixel = 4;
+win32_window_dimensions get_window_dimensions(HWND window) {
 
-static void render_255_gradient(int x_offset, int y_offset) {
-  auto pitch = Global_Bitmap_Width * Global_Bytes_Per_Pixel;
-  auto row = (uint8_t*)Global_BitmapMemory;
+  win32_window_dimensions result;
   
-  for (int y = 0; y < Global_Bitmap_Height; y++) {
+  RECT clientRect;
+  GetClientRect(window, &clientRect);
+  
+  result.height = clientRect.bottom - clientRect.top;
+  result.width = clientRect.right - clientRect.left;
+
+  return result;
+}
+						    
+static void render_255_gradient(Win32_bitmap_buffer bitmap_buffer, int blue_offset, int green_offset) {
+
+  auto row = (uint8_t*)bitmap_buffer.memory;
+  
+  for (int y = 0; y < bitmap_buffer.height; y++) {
     auto pixel = (uint32_t*)row;
-    for (int x = 0; x < Global_Bitmap_Width; x++) {
+    for (int x = 0; x < bitmap_buffer.width; x++) {
       // pixel bytes       1  2  3  4
       // pixel in memory:  BB GG RR xx (so it looks in registers 0x xxRRGGBB)
       // little endian
       
-      uint8_t blue = x + x_offset;
-      uint8_t green = y + y_offset;
+      uint8_t blue = x + blue_offset;
+      uint8_t green = y + green_offset;
 
       // 0x 00 00 00 00 -> 0x xx rr gg bb
       // | composites bytes
-      // green << 8 shifts by 8 bits
+      // green << 8 - shifts by 8 bits
       // other stay 00
       // * dereference pixel
       // pixel++ - pointer arithmetic - jumps by it's size (32 bits in this case)
       *pixel++ = (green << 8) | blue;
     }
     
-    row += pitch;
+    row += bitmap_buffer.pitch;
   }
 }
 
 // DIB - device independant section
-static void Win32ResizeDIBSection(int width, int height) {
+static void Win32ResizeDIBSection(Win32_bitmap_buffer *bitmap_buffer, int width, int height) {
 
-  if (Global_BitmapMemory) {
-    VirtualFree(Global_BitmapMemory, 0, MEM_RELEASE);
+  if (bitmap_buffer->memory) {
+    VirtualFree(bitmap_buffer->memory, 0, MEM_RELEASE);
   }
 
-  Global_Bitmap_Width = width;
-  Global_Bitmap_Height = height;
+  bitmap_buffer->width = width;
+  bitmap_buffer->height = height;
+  bitmap_buffer->bytes_per_pixel = 4;
+  bitmap_buffer->pitch = bitmap_buffer->bytes_per_pixel * width;
 
-  Global_BitmapInfo.bmiHeader.biSize = sizeof(Global_BitmapInfo.bmiHeader);
-  Global_BitmapInfo.bmiHeader.biWidth = width;
-  Global_BitmapInfo.bmiHeader.biHeight = -height; // so we draw left-to-right, top-to-bottom
-  Global_BitmapInfo.bmiHeader.biPlanes = 1;
-  Global_BitmapInfo.bmiHeader.biBitCount = 32;
-  Global_BitmapInfo.bmiHeader.biCompression = BI_RGB;
+  bitmap_buffer->info.bmiHeader.biSize = sizeof(bitmap_buffer->info.bmiHeader);
+  bitmap_buffer->info.bmiHeader.biWidth = width;
+  bitmap_buffer->info.bmiHeader.biHeight = -height; // draw left-to-right, top-to-bottom
+  bitmap_buffer->info.bmiHeader.biPlanes = 1;
+  bitmap_buffer->info.bmiHeader.biBitCount = 32;
+  bitmap_buffer->info.bmiHeader.biCompression = BI_RGB;
 
   // we are taking 4 bytes (8 bits for each color (rgb) + aligment 8 bits = 32 bits) for each pixel
-  auto bitmap_memory_size = width * height * Global_Bytes_Per_Pixel;
-  Global_BitmapMemory = VirtualAlloc(0, bitmap_memory_size, MEM_COMMIT, PAGE_READWRITE);
+  auto bitmap_memory_size = width * height * bitmap_buffer->bytes_per_pixel;
+  bitmap_buffer->memory = VirtualAlloc(0, bitmap_memory_size, MEM_COMMIT, PAGE_READWRITE);
 }
 
-static void Win32UpdateWindow(HDC deviceContext, RECT *window_rect, int x, int y, int width, int height) {
-  int window_width = window_rect->right - window_rect->left;
-  int window_height = window_rect->bottom - window_rect->top;
+inline static void Win32_display_buffer_to_window(Win32_bitmap_buffer bitmap_buffer, HDC deviceContext, int window_width, int window_height, int x, int y, int width, int height) {
   // StretchDIBits(deviceContext, x, y, width, height, x, y, width, height, Global_BitmapMemory, &Global_BitmapInfo, DIB_RGB_COLORS, SRCCOPY);
-  StretchDIBits(deviceContext, 0, 0, Global_Bitmap_Width, Global_Bitmap_Height, 0, 0, window_width, window_height, Global_BitmapMemory, &Global_BitmapInfo, DIB_RGB_COLORS, SRCCOPY);
+  StretchDIBits(deviceContext, 0, 0, window_width, window_height, 0, 0, bitmap_buffer.width, bitmap_buffer.height, bitmap_buffer.memory, &bitmap_buffer.info, DIB_RGB_COLORS, SRCCOPY);
 }
 
 LRESULT CALLBACK Win32WindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
   LRESULT result = 0;
   switch (message) {
   case WM_SIZE: {
-    RECT clientRect;
-    GetClientRect(window, &clientRect);
-    
-    auto height = clientRect.bottom - clientRect.top;
-    auto width = clientRect.right - clientRect.left;
-    Win32ResizeDIBSection(width, height);
+
   } break;
   case WM_DESTROY: {
     Global_GameRunning = false;
@@ -98,10 +116,8 @@ LRESULT CALLBACK Win32WindowProc(HWND window, UINT message, WPARAM wParam, LPARA
     auto width = paint.rcPaint.right - paint.rcPaint.left;
     auto height = paint.rcPaint.bottom - paint.rcPaint.top;
 
-    RECT clientRect;
-    GetClientRect(window, &clientRect);
-    
-    Win32UpdateWindow(deviceContext, &clientRect, x, y, width, height);
+    auto dimensions = get_window_dimensions(window);
+    Win32_display_buffer_to_window(Global_backbuffer, deviceContext, dimensions.width, dimensions.height, x, y, width, height);
     EndPaint(window, &paint);
   } break;
   default: {
@@ -116,7 +132,9 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
 
   WNDCLASS windowClass = {};
 
-  windowClass.style = CS_OWNDC | CS_HREDRAW | CS_HREDRAW;
+  Win32ResizeDIBSection(&Global_backbuffer, 1280, 720);
+
+  windowClass.style = CS_HREDRAW | CS_HREDRAW; // redraw full window (vertical/horizontal) (streches)
   windowClass.lpfnWndProc = Win32WindowProc;
   windowClass.hInstance = currentInstance;
   //WindowClass.hIcon = 0;
@@ -145,15 +163,13 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
       DispatchMessage(&message);
     }
     
-    render_255_gradient(x_offset++, y_offset++);
+    render_255_gradient(Global_backbuffer, x_offset++, y_offset++);
       
     deviceContext = GetDC(windowHandle);
-    GetClientRect(windowHandle, &clientRect);
-
-    height = clientRect.bottom - clientRect.top;
-    width = clientRect.right - clientRect.left;
     
-    Win32UpdateWindow(deviceContext, &clientRect, 0, 0, width, height);
+    auto dimensions = get_window_dimensions(windowHandle);
+    Win32_display_buffer_to_window(Global_backbuffer, deviceContext, dimensions.width, dimensions.height, 0, 0, dimensions.width, dimensions.height);
+    
     ReleaseDC(windowHandle, deviceContext);
   }
   
