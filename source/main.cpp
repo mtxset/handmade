@@ -1,10 +1,11 @@
 #include <windows.h>
 #include <stdint.h>
-// https://youtu.be/w7ay7QXmo_o?t=2901
+// https://www.youtube.com/watch?v=J3y1x54vyIQ
 
 static auto Global_GameRunning = true;
 
 struct Win32_bitmap_buffer {
+  // pixels are alywas 32 bit, memory order BB GG RR XX (padding)
   BITMAPINFO info;
   void* memory;
   int width;
@@ -22,6 +23,8 @@ static Win32_bitmap_buffer Global_backbuffer;
 
 static HBITMAP Global_BitmapHandle;
 static HDC Global_BitmapDeviceContext;
+
+// pointer aliasing
 
 win32_window_dimensions get_window_dimensions(HWND window) {
 
