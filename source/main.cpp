@@ -1,6 +1,7 @@
 #include <windows.h>
 #include <stdint.h>
-// https://www.youtube.com/watch?v=J3y1x54vyIQ
+#include <xinput.h>
+// https://youtu.be/J3y1x54vyIQ?t=2270
 
 static auto Global_GameRunning = true;
 
@@ -24,9 +25,28 @@ static Win32_bitmap_buffer Global_backbuffer;
 static HBITMAP Global_BitmapHandle;
 static HDC Global_BitmapDeviceContext;
 
-// pointer aliasing
+// making sure that if we don't have links to functions we don't crash because we use stubs
+typedef DWORD WINAPI x_input_get_state(DWORD dwUserIndex, XINPUT_STATE* pState);
+typedef DWORD WINAPI x_input_set_state(DWORD dwUserIndex, XINPUT_VIBRATION* pVibration);
+static x_input_get_state* XInputGetState_;
+static x_input_set_state* XInputSetState_;
+#define XInputGetState XInputGetState_
+#define XInputSetState XInputSetState_
 
-win32_window_dimensions get_window_dimensions(HWND window) {
+static bool win32_load_xinput() {
+  auto xinput_lib = LoadLibraryA("xinput1_3.dll");
+
+  if (xinput_lib) {
+    XInputGetState = (x_input_get_state*)GetProcAddress(xinput_lib, "XInputGetState");
+    XInputSetState = (x_input_set_state*)GetProcAddress(xinput_lib, "XInputSetState");
+  } else {
+    return false;
+  }
+
+  return true;
+}
+
+static win32_window_dimensions get_window_dimensions(HWND window) {
 
   win32_window_dimensions result;
   
@@ -67,7 +87,7 @@ static void render_255_gradient(Win32_bitmap_buffer bitmap_buffer, int blue_offs
 }
 
 // DIB - device independant section
-static void Win32ResizeDIBSection(Win32_bitmap_buffer *bitmap_buffer, int width, int height) {
+static void Win32ResizeDIBSection(Win32_bitmap_buffer* bitmap_buffer, int width, int height) {
 
   if (bitmap_buffer->memory) {
     VirtualFree(bitmap_buffer->memory, 0, MEM_RELEASE);
@@ -133,6 +153,8 @@ LRESULT CALLBACK Win32WindowProc(HWND window, UINT message, WPARAM wParam, LPARA
 
 int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLineParams, int nothing) {
 
+  auto xinput_ready = win32_load_xinput();
+
   WNDCLASS windowClass = {};
 
   Win32ResizeDIBSection(&Global_backbuffer, 1280, 720);
@@ -165,8 +187,48 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
       TranslateMessage(&message);
       DispatchMessage(&message);
     }
+
+    // managing controller
+    if (xinput_ready) {
+      for (DWORD i = 0; i < XUSER_MAX_COUNT; i++) {
+	XINPUT_STATE state;
+	ZeroMemory(&state, sizeof(XINPUT_STATE));
+
+	// Simply get the state of the controller from XInput.
+	auto dwResult = XInputGetState(i, &state);
+
+	if (dwResult == ERROR_SUCCESS) {
+	  // Controller is connected
+	  auto* pad = &state.Gamepad;
+	    
+	  // button is enabled if pad->wButton dword (32 bits - 4 bytes) and (&) with some bytes (0x0001 0x0002 ..)
+	  auto button_up = pad->wButtons & XINPUT_GAMEPAD_DPAD_UP;
+	  auto button_down = pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN;
+	  auto button_left = pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT;
+	  auto button_right = pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT;
+	  auto button_start = pad->wButtons & XINPUT_GAMEPAD_START;
+	  auto button_back = pad->wButtons & XINPUT_GAMEPAD_BACK;	
+	  auto button_left_thumb  = pad->wButtons & XINPUT_GAMEPAD_LEFT_THUMB;
+	  auto button_right_thumb = pad->wButtons & XINPUT_GAMEPAD_RIGHT_THUMB;
+	  auto button_left_shoulder = pad->wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER;
+	  auto button_right_shoulder = pad->wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER;
+	  auto button_a = pad->wButtons & XINPUT_GAMEPAD_A;
+	  auto button_b = pad->wButtons & XINPUT_GAMEPAD_B;
+	  auto button_x = pad->wButtons & XINPUT_GAMEPAD_X;
+	  auto button_y = pad->wButtons & XINPUT_GAMEPAD_Y;
+
+	  auto stick_x = pad->sThumbLX;
+	  auto stick_y = pad->sThumbLY;
+
+	  if (button_up) y_offset++;
+	}
+	else {
+	  // Controller is not connected
+	}
+      }
+    }
     
-    render_255_gradient(Global_backbuffer, x_offset++, y_offset++);
+    render_255_gradient(Global_backbuffer, x_offset++, 0 y_offset++);
       
     deviceContext = GetDC(windowHandle);
     
