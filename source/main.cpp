@@ -1,7 +1,8 @@
 #include <windows.h>
 #include <stdint.h>
 #include <xinput.h>
-// https://www.youtube.com/watch?v=qGC3xiliJW8
+#include <dsound.h>
+// https://youtu.be/qGC3xiliJW8?t=3180
 
 static auto Global_GameRunning = true;
 
@@ -33,9 +34,61 @@ static x_input_set_state* XInputSetState_;
 #define XInputGetState XInputGetState_
 #define XInputSetState XInputSetState_
 
+typedef HRESULT WINAPI direct_sound_create(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter); // define delegate
+static direct_sound_create* DirectSoundCreate_;                                                             // define variable to hold it
+#define DirectSoundCreate DirectSoundCreate_                                                                // change name by which we reference upper-line mentioned variable
+
+static bool win32_init_direct_sound(HWND window, int buffer_size, int samples_per_second) {
+  auto d_sound_lib = LoadLibraryA("dsound.dll");
+
+  if (!d_sound_lib) {
+    // TODO: log 
+    return false;
+  }
+
+  DirectSoundCreate = (direct_sound_create*)GetProcAddress(d_sound_lib, "DirectSoundCreate");
+
+  LPDIRECTSOUND direct_sound;
+  if (DirectSoundCreate && SUCCEEDED(DirectSoundCreate(0, &direct_sound, 0))) {
+    if (!SUCCEEDED(direct_sound->SetCooperativeLevel(window, DSSCL_PRIORITY))) {
+      // TODO: log
+      return false;
+    }
+
+    BUFFERDESC buffer_desc = { };
+    buffer_desc.dwSize = sizeof(buffer_desc);
+    buffer_desc.flags = DSBCAPS_PRIMARYBUFFER;
+    buffer_desc.dwBufferBytes = buffer_size;
+      
+    LPDIRECTSOUNDBUFFER primary_buffer;
+    if (!SUCCEEDED(CreateSoundBuffer(&buffer_dec, &primary_buffer, 0))) {
+      // TODO: log
+      return false;
+    }
+
+    WAVEFORMATEX wave_format = {};
+    wave_format.wFormatTag = WAVE_FORMAT_PCM;
+    wave_format.nChannels = 2;
+    wave_format.wBitsPerSample = 16;
+    wave_format.nSamplesPerSec = samples_per_second;
+    wave_format.nBlockAlign = wave_format.nChannels * wave_format.wBitsPerSample / 8;
+    wave_format.nAvgBytesPerSec = samples_per_second * wave_format.nBlockAlign; 
+    wave_format.cbSize = 0;
+
+    primary_buffer->SetFormat(&wave_format);
+  }
+
+  // TODO: log
+  return false;
+}
+
 static bool win32_load_xinput() {
   // looks locally, looks in windows
-  auto xinput_lib = LoadLibraryA("xinput1_3.dll");
+  // support only for some windows
+  auto xinput_lib = LoadLibraryA("xinput1_4.dll");
+
+  if (!xinput_lib)
+    xinput_lib = LoadLibraryA("xinput1_3.dll");
 
   if (xinput_lib) {
     XInputGetState = (x_input_get_state*)GetProcAddress(xinput_lib, "XInputGetState");
@@ -128,11 +181,12 @@ LRESULT CALLBACK win32_window_proc(HWND window, UINT message, WPARAM wParam, LPA
   case WM_SYSKEYUP:
   case WM_SYSKEYDOWN: {
     auto vk_key = wParam;
-    auto previous_state = lParam & (1 << 30); // will return 0 or bit 30
-    bool was_down = lParam & (1 << 30) != 0; // if I get 0 I get true if I get something besides zero I compare it to zero and I will get false
-    bool is_down = lParam & (1 << 31) == 0;
+    auto previous_state = lParam & (1 << 30);        // will return 0 or bit 30
+    bool was_down       = (lParam & (1 << 30)) != 0; // if I get 0 I get true if I get something besides zero I compare it to zero and I will get false
+    bool is_down        = (lParam & (1 << 31)) == 0; // parenthesis required because == has precedence over &
+    bool alt_is_down    = (lParam & (1 << 29)) != 0; // will return 0 or bit 29; if I get 29 alt is down - if 0 it's not so I compare it to 0
 
-    if (vk_key == 'W') {
+           if (vk_key == 'W') {
     } else if (vk_key == 'S') {
     } else if (vk_key == 'A') {
     } else if (vk_key == 'D') {
@@ -142,6 +196,8 @@ LRESULT CALLBACK win32_window_proc(HWND window, UINT message, WPARAM wParam, LPA
     } else if (vk_key == VK_RIGHT) {
     } else if (vk_key == VK_ESCAPE) {
     } else if (vk_key == VK_SPACE) {
+    } else if (vk_key == VK_F4 && alt_is_down) {
+      Global_GameRunning = false;
     }
   } break;
   case WM_SIZE: {
@@ -195,13 +251,17 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
   //WindowClass.hIcon = 0;
   window_class.lpszClassName = "GG";
 
-  if (RegisterClass(&window_class) != 0)
+  if (RegisterClass(&window_class) != 0) {
     OutputDebugStringA("RegisterClass failed");
+    return -1;
+  }
 
   auto windowHandle = CreateWindowEx(0, window_class.lpszClassName, "GG", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, currentInstance, 0);
 
-  if (windowHandle == 0)
+  if (windowHandle == 0) {
     OutputDebugStringA("CreateWindow failed");
+    return -1;
+  }
 
   MSG message;
   BOOL windowMessage;
