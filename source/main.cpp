@@ -1,6 +1,7 @@
 #include <windows.h>
 #include <stdint.h>
 #include <xinput.h>
+#include <dsound.h>
 // https://www.youtube.com/watch?v=qGC3xiliJW8
 
 static auto Global_GameRunning = true;
@@ -33,9 +34,74 @@ static x_input_set_state* XInputSetState_;
 #define XInputGetState XInputGetState_
 #define XInputSetState XInputSetState_
 
+typedef HRESULT WINAPI direct_sound_create(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter); // define delegate
+static direct_sound_create* DirectSoundCreate_;                                                             // define variable to hold it
+#define DirectSoundCreate DirectSoundCreate_                                                                // change name by which we reference upper-line mentioned variable
+
+static bool win32_init_direct_sound(HWND window, int buffer_size, int samples_per_second) {
+  auto d_sound_lib = LoadLibraryA("dsound.dll");
+
+  if (!d_sound_lib) {
+    // TODO: log 
+    return false;
+  }
+
+  DirectSoundCreate = (direct_sound_create*)GetProcAddress(d_sound_lib, "DirectSoundCreate");
+
+  LPDIRECTSOUND direct_sound;
+  if (DirectSoundCreate && SUCCEEDED(DirectSoundCreate(0, &direct_sound, 0))) {
+    if (!SUCCEEDED(direct_sound->SetCooperativeLevel(window, DSSCL_PRIORITY))) {
+      // TODO: log
+      return false;
+    }
+
+    DSBUFFERDESC buffer_desc = { };
+    buffer_desc.dwSize = sizeof(buffer_desc);
+    buffer_desc.dwFlags = DSBCAPS_PRIMARYBUFFER;
+      
+    LPDIRECTSOUNDBUFFER primary_buffer;
+    if (!SUCCEEDED(direct_sound->CreateSoundBuffer(&buffer_desc, &primary_buffer, 0))) {
+      // TODO: log
+      return false;
+    }
+
+    WAVEFORMATEX wave_format = {};
+    wave_format.wFormatTag = WAVE_FORMAT_PCM;
+    wave_format.nChannels = 2;
+    wave_format.wBitsPerSample = 16;
+    wave_format.nSamplesPerSec = samples_per_second;
+    wave_format.nBlockAlign = wave_format.nChannels * wave_format.wBitsPerSample / 8;
+    wave_format.nAvgBytesPerSec = samples_per_second * wave_format.nBlockAlign; 
+    wave_format.cbSize = 0;
+    
+    primary_buffer->SetFormat(&wave_format);
+    
+    // actually this is the main buffer which will be used to play sound?
+    LPDIRECTSOUNDBUFFER secondary_buffer;
+    buffer_desc.lpwfxFormat = &wave_format;
+    buffer_desc.dwFlags = 0;
+    buffer_desc.dwBufferBytes = buffer_size;
+    if (!SUCCEEDED(direct_sound->CreateSoundBuffer(&buffer_desc, &secondary_buffer, 0))) {
+      // TODO: log
+      return false;
+    }
+    
+    // we can play sound?
+  } else {
+    // TODO: log ?
+    return false;
+  }
+
+  return true;
+}
+
 static bool win32_load_xinput() {
   // looks locally, looks in windows
-  auto xinput_lib = LoadLibraryA("xinput1_3.dll");
+  // support only for some windows
+  auto xinput_lib = LoadLibraryA("xinput1_4.dll");
+
+  if (!xinput_lib)
+    xinput_lib = LoadLibraryA("xinput1_3.dll");
 
   if (xinput_lib) {
     XInputGetState = (x_input_get_state*)GetProcAddress(xinput_lib, "XInputGetState");
@@ -112,7 +178,7 @@ static void win32_resize_dib_section(win32_bitmap_buffer* bitmap_buffer, int wid
   // we are taking 4 bytes (8 bits for each color (rgb) + aligment 8 bits = 32 bits) for each pixel
   auto bitmap_memory_size = width * height * bitmap_buffer->bytes_per_pixel;
   // virtual alloc allocates region of page which, one page size is 1 mb? GetSystemInfo can output that info
-  bitmap_buffer->memory = VirtualAlloc(0, bitmap_memory_size, MEM_COMMIT, PAGE_READWRITE);
+  bitmap_buffer->memory = VirtualAlloc(0, bitmap_memory_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 }
 
 inline static void win32_display_buffer_to_window(win32_bitmap_buffer* bitmap_buffer, HDC deviceContext, int window_width, int window_height, int x, int y, int width, int height) {
@@ -128,11 +194,12 @@ LRESULT CALLBACK win32_window_proc(HWND window, UINT message, WPARAM wParam, LPA
   case WM_SYSKEYUP:
   case WM_SYSKEYDOWN: {
     auto vk_key = wParam;
-    auto previous_state = lParam & (1 << 30); // will return 0 or bit 30
-    bool was_down = lParam & (1 << 30) != 0; // if I get 0 I get true if I get something besides zero I compare it to zero and I will get false
-    bool is_down = lParam & (1 << 31) == 0;
+    auto previous_state = lParam & (1 << 30);        // will return 0 or bit 30
+    bool was_down       = (lParam & (1 << 30)) != 0; // if I get 0 I get true if I get something besides zero I compare it to zero and I will get false
+    bool is_down        = (lParam & (1 << 31)) == 0; // parenthesis required because == has precedence over &
+    bool alt_is_down    = (lParam & (1 << 29)) != 0; // will return 0 or bit 29; if I get 29 alt is down - if 0 it's not so I compare it to 0
 
-    if (vk_key == 'W') {
+           if (vk_key == 'W') {
     } else if (vk_key == 'S') {
     } else if (vk_key == 'A') {
     } else if (vk_key == 'D') {
@@ -142,6 +209,8 @@ LRESULT CALLBACK win32_window_proc(HWND window, UINT message, WPARAM wParam, LPA
     } else if (vk_key == VK_RIGHT) {
     } else if (vk_key == VK_ESCAPE) {
     } else if (vk_key == VK_SPACE) {
+    } else if (vk_key == VK_F4 && alt_is_down) {
+      Global_GameRunning = false;
     }
   } break;
   case WM_SIZE: {
@@ -195,19 +264,28 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
   //WindowClass.hIcon = 0;
   window_class.lpszClassName = "GG";
 
-  if (RegisterClass(&window_class) != 0)
+  if (RegisterClass(&window_class) == 0) {
     OutputDebugStringA("RegisterClass failed");
+    return -1;
+  }
 
-  auto windowHandle = CreateWindowEx(0, window_class.lpszClassName, "GG", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, currentInstance, 0);
+  auto window_handle = CreateWindowEx(0, window_class.lpszClassName, "GG", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, currentInstance, 0);
 
-  if (windowHandle == 0)
+  if (window_handle == 0) {
     OutputDebugStringA("CreateWindow failed");
+    return -1;
+  }
 
   MSG message;
   BOOL windowMessage;
   HDC deviceContext;
   RECT clientRect;
   int height, width, x_offset = 0, y_offset = 0;
+
+  if (!win32_init_direct_sound(window_handle, 48000, 48000 * sizeof(int16_t) * 2)) {
+    OutputDebugStringA("direct sound init failed");
+    return -1;
+  }
 
   while (Global_GameRunning) {
     while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
@@ -257,19 +335,19 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
 	  XInputSetState(i, &vibration); 
 	}
 	else {
-	  // Controller is not connected
-	}
+    	  // TODO: log: Controller is not connected
+     	}
       }
     }
     
     render_255_gradient(&Global_backbuffer, x_offset++, y_offset);
       
-    deviceContext = GetDC(windowHandle);
+    deviceContext = GetDC(window_handle);
     
-    auto dimensions = get_window_dimensions(windowHandle);
+    auto dimensions = get_window_dimensions(window_handle);
     win32_display_buffer_to_window(&Global_backbuffer, deviceContext, dimensions.width, dimensions.height, 0, 0, dimensions.width, dimensions.height);
     
-    ReleaseDC(windowHandle, deviceContext);
+    ReleaseDC(window_handle, deviceContext);
   }
   
   return 0;
