@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <xinput.h>
 #include <dsound.h>
-// https://youtu.be/qGC3xiliJW8?t=3180
+// https://www.youtube.com/watch?v=qGC3xiliJW8
 
 static auto Global_GameRunning = true;
 
@@ -55,13 +55,12 @@ static bool win32_init_direct_sound(HWND window, int buffer_size, int samples_pe
       return false;
     }
 
-    BUFFERDESC buffer_desc = { };
+    DSBUFFERDESC buffer_desc = { };
     buffer_desc.dwSize = sizeof(buffer_desc);
-    buffer_desc.flags = DSBCAPS_PRIMARYBUFFER;
-    buffer_desc.dwBufferBytes = buffer_size;
+    buffer_desc.dwFlags = DSBCAPS_PRIMARYBUFFER;
       
     LPDIRECTSOUNDBUFFER primary_buffer;
-    if (!SUCCEEDED(CreateSoundBuffer(&buffer_dec, &primary_buffer, 0))) {
+    if (!SUCCEEDED(direct_sound->CreateSoundBuffer(&buffer_desc, &primary_buffer, 0))) {
       // TODO: log
       return false;
     }
@@ -74,12 +73,26 @@ static bool win32_init_direct_sound(HWND window, int buffer_size, int samples_pe
     wave_format.nBlockAlign = wave_format.nChannels * wave_format.wBitsPerSample / 8;
     wave_format.nAvgBytesPerSec = samples_per_second * wave_format.nBlockAlign; 
     wave_format.cbSize = 0;
-
+    
     primary_buffer->SetFormat(&wave_format);
+    
+    // actually this is the main buffer which will be used to play sound?
+    LPDIRECTSOUNDBUFFER secondary_buffer;
+    buffer_desc.lpwfxFormat = &wave_format;
+    buffer_desc.dwFlags = 0;
+    buffer_desc.dwBufferBytes = buffer_size;
+    if (!SUCCEEDED(direct_sound->CreateSoundBuffer(&buffer_desc, &secondary_buffer, 0))) {
+      // TODO: log
+      return false;
+    }
+    
+    // we can play sound?
+  } else {
+    // TODO: log ?
+    return false;
   }
 
-  // TODO: log
-  return false;
+  return true;
 }
 
 static bool win32_load_xinput() {
@@ -165,7 +178,7 @@ static void win32_resize_dib_section(win32_bitmap_buffer* bitmap_buffer, int wid
   // we are taking 4 bytes (8 bits for each color (rgb) + aligment 8 bits = 32 bits) for each pixel
   auto bitmap_memory_size = width * height * bitmap_buffer->bytes_per_pixel;
   // virtual alloc allocates region of page which, one page size is 1 mb? GetSystemInfo can output that info
-  bitmap_buffer->memory = VirtualAlloc(0, bitmap_memory_size, MEM_COMMIT, PAGE_READWRITE);
+  bitmap_buffer->memory = VirtualAlloc(0, bitmap_memory_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 }
 
 inline static void win32_display_buffer_to_window(win32_bitmap_buffer* bitmap_buffer, HDC deviceContext, int window_width, int window_height, int x, int y, int width, int height) {
@@ -251,14 +264,14 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
   //WindowClass.hIcon = 0;
   window_class.lpszClassName = "GG";
 
-  if (RegisterClass(&window_class) != 0) {
+  if (RegisterClass(&window_class) == 0) {
     OutputDebugStringA("RegisterClass failed");
     return -1;
   }
 
-  auto windowHandle = CreateWindowEx(0, window_class.lpszClassName, "GG", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, currentInstance, 0);
+  auto window_handle = CreateWindowEx(0, window_class.lpszClassName, "GG", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, currentInstance, 0);
 
-  if (windowHandle == 0) {
+  if (window_handle == 0) {
     OutputDebugStringA("CreateWindow failed");
     return -1;
   }
@@ -268,6 +281,11 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
   HDC deviceContext;
   RECT clientRect;
   int height, width, x_offset = 0, y_offset = 0;
+
+  if (!win32_init_direct_sound(window_handle, 48000, 48000 * sizeof(int16_t) * 2)) {
+    OutputDebugStringA("direct sound init failed");
+    return -1;
+  }
 
   while (Global_GameRunning) {
     while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
@@ -317,19 +335,19 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
 	  XInputSetState(i, &vibration); 
 	}
 	else {
-	  // Controller is not connected
-	}
+    	  // TODO: log: Controller is not connected
+     	}
       }
     }
     
     render_255_gradient(&Global_backbuffer, x_offset++, y_offset);
       
-    deviceContext = GetDC(windowHandle);
+    deviceContext = GetDC(window_handle);
     
-    auto dimensions = get_window_dimensions(windowHandle);
+    auto dimensions = get_window_dimensions(window_handle);
     win32_display_buffer_to_window(&Global_backbuffer, deviceContext, dimensions.width, dimensions.height, 0, 0, dimensions.width, dimensions.height);
     
-    ReleaseDC(windowHandle, deviceContext);
+    ReleaseDC(window_handle, deviceContext);
   }
   
   return 0;
