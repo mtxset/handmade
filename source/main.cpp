@@ -2,12 +2,10 @@
 #include <stdint.h>
 #include <xinput.h>
 #include <dsound.h>
-// https://www.youtube.com/watch?v=qGC3xiliJW8
-
-static auto Global_GameRunning = true;
+// https://www.youtube.com/watch?v=uiW1D1Vc7IQ
 
 struct win32_bitmap_buffer {
-  // pixels are alywas 32 bit, memory order BB GG RR XX (padding)
+  // pixels are always 32 bit, memory order BB GG RR XX (padding)
   BITMAPINFO info;
   void* memory;
   int width;
@@ -21,10 +19,12 @@ struct win32_window_dimensions {
   int height;
 };
 
-static win32_bitmap_buffer Global_backbuffer;
+static auto Global_game_running = true;
 
-static HBITMAP Global_BitmapHandle;
-static HDC Global_BitmapDeviceContext;
+static win32_bitmap_buffer Global_backbuffer;
+static HBITMAP Global_bitmap_handle;
+static HDC Global_bitmap_device_context;
+static LPDIRECTSOUNDBUFFER Global_sound_buffer;
 
 // making sure that if we don't have links to functions we don't crash because we use stubs
 typedef DWORD WINAPI x_input_get_state(DWORD dwUserIndex, XINPUT_STATE* pState);
@@ -76,12 +76,12 @@ static bool win32_init_direct_sound(HWND window, int buffer_size, int samples_pe
     
     primary_buffer->SetFormat(&wave_format);
     
-    // actually this is the main buffer which will be used to play sound?
-    LPDIRECTSOUNDBUFFER secondary_buffer;
+    // actually this is the main buffer which will be used to play sound? primary buffer is handle so something
+    
     buffer_desc.lpwfxFormat = &wave_format;
     buffer_desc.dwFlags = 0;
     buffer_desc.dwBufferBytes = buffer_size;
-    if (!SUCCEEDED(direct_sound->CreateSoundBuffer(&buffer_desc, &secondary_buffer, 0))) {
+    if (!SUCCEEDED(direct_sound->CreateSoundBuffer(&buffer_desc, &Global_sound_buffer, 0))) {
       // TODO: log
       return false;
     }
@@ -210,18 +210,18 @@ LRESULT CALLBACK win32_window_proc(HWND window, UINT message, WPARAM wParam, LPA
     } else if (vk_key == VK_ESCAPE) {
     } else if (vk_key == VK_SPACE) {
     } else if (vk_key == VK_F4 && alt_is_down) {
-      Global_GameRunning = false;
+      Global_game_running = false;
     }
   } break;
   case WM_SIZE: {
   } break;
     
   case WM_DESTROY: {
-    Global_GameRunning = false;
+    Global_game_running = false;
   } break;
     
   case WM_CLOSE: {
-    Global_GameRunning = false;
+    Global_game_running = false;
   } break;
     
   case WM_ACTIVATEAPP: {
@@ -265,14 +265,14 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
   window_class.lpszClassName = "GG";
 
   if (RegisterClass(&window_class) == 0) {
-    OutputDebugStringA("RegisterClass failed");
+    OutputDebugStringA("RegisterClass failed\n");
     return -1;
   }
 
   auto window_handle = CreateWindowEx(0, window_class.lpszClassName, "GG", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, currentInstance, 0);
 
   if (window_handle == 0) {
-    OutputDebugStringA("CreateWindow failed");
+    OutputDebugStringA("CreateWindow failed\n");
     return -1;
   }
 
@@ -282,15 +282,29 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
   RECT clientRect;
   int height, width, x_offset = 0, y_offset = 0;
 
-  if (!win32_init_direct_sound(window_handle, 48000, 48000 * sizeof(int16_t) * 2)) {
-    OutputDebugStringA("direct sound init failed");
+  // sound stuff
+  int sound_sample_rate = 48000;
+  int bytes_per_sound_sample = sizeof(int16_t) * 2;
+  // samples - one sample [left right]
+  // int16 int16 ..
+  // [left  right] [left right] .. two channels
+  int square_wave_counter = 0;
+  int square_wave_period = sound_sample_rate / 1024;
+  int half_square_wave_period = square_wave_period / 2;
+  uint32_t running_sample_index = 0;
+  int sound_buffer_size = sound_sample_rate * bytes_per_sound_sample;
+  int tone_volume = 1000;
+  auto play_sound = false;
+  
+  if (!win32_init_direct_sound(window_handle, sound_sample_rate, sound_sample_rate * bytes_per_sound_sample)) {
+    OutputDebugStringA("direct sound init failed\n");
     return -1;
   }
 
-  while (Global_GameRunning) {
+  while (Global_game_running) {
     while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
 
-      if (message.message == WM_QUIT) Global_GameRunning = false;
+      if (message.message == WM_QUIT) Global_game_running = false;
 
       TranslateMessage(&message);
       DispatchMessage(&message);
@@ -346,6 +360,61 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
     
     auto dimensions = get_window_dimensions(window_handle);
     win32_display_buffer_to_window(&Global_backbuffer, deviceContext, dimensions.width, dimensions.height, 0, 0, dimensions.width, dimensions.height);
+
+    // play sound
+    {
+      DWORD play_cursor;
+      DWORD write_cursor;
+      if (SUCCEEDED(Global_sound_buffer->GetCurrentPosition(&play_cursor, &write_cursor))) {
+
+	DWORD byte_to_lock = running_sample_index * bytes_per_sound_sample % sound_buffer_size;
+	DWORD bytes_to_write;
+	// if we have two chunks to write (play cursor is further than "bytes to write" cursor
+	if (byte_to_lock == play_cursor) {
+	  bytes_to_write = sound_buffer_size;
+	} else if (byte_to_lock > play_cursor) {
+	  bytes_to_write = sound_buffer_size - byte_to_lock;
+	  bytes_to_write += play_cursor;
+	} else {
+	  bytes_to_write = play_cursor - byte_to_lock;
+	}
+
+	void* region_one;
+	DWORD region_one_size;
+	void* region_two;
+	DWORD region_two_size;
+	
+	auto lock_result = Global_sound_buffer->Lock(byte_to_lock, bytes_to_write, &region_one, &region_one_size, &region_two, &region_two_size, 0);
+
+	if (lock_result == DS_OK) {
+	  auto sample_out = (int16_t*)region_one;
+	  DWORD region_sample_count = region_one_size / bytes_per_sound_sample;
+	  for (DWORD sample_index = 0; sample_index < region_sample_count; sample_index++) {
+	    // on even numbers 
+	    int16_t sample_value = (running_sample_index++ / half_square_wave_period) % 2 ? tone_volume : -tone_volume;
+	    *sample_out++ = sample_value;
+	    *sample_out++ = sample_value;
+	  }
+
+	  sample_out = (int16_t*)region_two;
+	  region_sample_count = region_two_size / bytes_per_sound_sample;
+	  for (DWORD sample_index = 0; sample_index < region_sample_count; sample_index++) {
+	    int16_t sample_value = (running_sample_index++ / half_square_wave_period) % 2 ? tone_volume : -tone_volume;
+	    *sample_out++ = sample_value;
+	    *sample_out++ = sample_value;
+	  }
+	} else {	  
+	  OutputDebugStringA("Failed to lock global sound buffer\n");
+	}
+
+	Global_sound_buffer->Unlock(region_one, region_one_size, region_two, region_two_size);
+      }
+
+      if (!play_sound) {
+	play_sound = true;
+	Global_sound_buffer->Play(0, 0, DSBPLAY_LOOPING);
+      }
+    }
     
     ReleaseDC(window_handle, deviceContext);
   }
