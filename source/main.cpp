@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <xinput.h>
 #include <dsound.h>
-// https://www.youtube.com/watch?v=uiW1D1Vc7IQ
+// https://youtu.be/8y9nPk1c45c?t=873
 
 struct win32_bitmap_buffer {
   // pixels are always 32 bit, memory order BB GG RR XX (padding)
@@ -365,8 +365,8 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
     {
       DWORD play_cursor;
       DWORD write_cursor;
+      
       if (SUCCEEDED(Global_sound_buffer->GetCurrentPosition(&play_cursor, &write_cursor))) {
-
 	DWORD byte_to_lock = running_sample_index * bytes_per_sound_sample % sound_buffer_size;
 	DWORD bytes_to_write;
 	// if we have two chunks to write (play cursor is further than "bytes to write" cursor
@@ -403,13 +403,14 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
 	    *sample_out++ = sample_value;
 	    *sample_out++ = sample_value;
 	  }
+	  
+	  Global_sound_buffer->Unlock(region_one, region_one_size, region_two, region_two_size);
 	} else {	  
 	  OutputDebugStringA("Failed to lock global sound buffer\n");
 	}
-
-	Global_sound_buffer->Unlock(region_one, region_one_size, region_two, region_two_size);
       }
 
+      // play sound only after we populate buffer, but it should actually check if we really did it
       if (!play_sound) {
 	play_sound = true;
 	Global_sound_buffer->Play(0, 0, DSBPLAY_LOOPING);
