@@ -3,7 +3,7 @@
 #include <xinput.h>
 #include <dsound.h>
 #include <math.h>
-// https://www.youtube.com/watch?v=tAcUIEoy2Yk
+// https://www.youtube.com/watch?v=_4vnV2Eng7M
 
 #define PI 3.14159265358979323846f
 
@@ -199,7 +199,7 @@ static void render_255_gradient(win32_bitmap_buffer* bitmap_buffer, int blue_off
     for (int y = 0; y < bitmap_buffer->height; y++) {
         auto pixel = (uint32_t*)row;
         for (int x = 0; x < bitmap_buffer->width; x++) {
-            // pixel bytes	   1  2	 3  4
+            // pixel bytes	   1  2  3  4
             // pixel in memory:  BB GG RR xx (so it looks in registers 0x xxRRGGBB)
             // little endian
             
@@ -357,7 +357,15 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
     win32_fill_sound_buffer(&sound_output, 0, sound_output.latency_sample_count*sound_output.bytes_per_sample);
     Global_sound_buffer->Play(0, 0, DSBPLAY_LOOPING);
     
+    LARGE_INTEGER performance_freq, start_counter, end_counter, elapsed_counter;
+    QueryPerformanceFrequency(&performance_freq);
+    QueryPerformanceCounter(&start_counter);
+    
+    auto begin_cycle_count = __rdtsc();
+    // SIMD - single instruction multiple data
+    
     while (Global_game_running) {
+        
         while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
             
             if (message.message == WM_QUIT) Global_game_running = false;
@@ -417,12 +425,16 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
             }
         }
         
-        render_255_gradient(&Global_backbuffer, x_offset, y_offset);
-        
-        deviceContext = GetDC(window_handle);
-        
-        auto dimensions = get_window_dimensions(window_handle);
-        win32_display_buffer_to_window(&Global_backbuffer, deviceContext, dimensions.width, dimensions.height, 0, 0, dimensions.width, dimensions.height);
+        // draw
+        {
+            render_255_gradient(&Global_backbuffer, x_offset, y_offset);
+            
+            deviceContext = GetDC(window_handle);
+            
+            auto dimensions = get_window_dimensions(window_handle);
+            win32_display_buffer_to_window(&Global_backbuffer, deviceContext, dimensions.width, dimensions.height, 0, 0, dimensions.width, dimensions.height);
+            ReleaseDC(window_handle, deviceContext);
+        }
         
         // play sound
         {
@@ -449,7 +461,26 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
             win32_fill_sound_buffer(&sound_output, bytes_to_lock, bytes_to_write);
         }
         
-        ReleaseDC(window_handle, deviceContext);
+        
+        // clock
+        {
+            QueryPerformanceCounter(&end_counter);
+            
+            elapsed_counter.QuadPart = end_counter.QuadPart - start_counter.QuadPart;
+            auto elapsed_ms = (int32_t)((1000 * elapsed_counter.QuadPart) / performance_freq.QuadPart);
+            auto fps = (int32_t)(performance_freq.QuadPart / elapsed_counter.QuadPart);
+            
+            auto end_cycle_count = __rdtsc();
+            auto cycles_elapsed = (uint32_t)(end_cycle_count - begin_cycle_count);
+            
+            char buffer[256];
+            wsprintf(buffer, "%d ms/f; fps: %d, megacycles/f: %d \n", elapsed_ms, fps, cycles_elapsed / 1000000);
+            OutputDebugStringA(buffer);
+            // approx. cpu speed - fps * (cycles_elapsed / 1000000)
+            
+            start_counter = end_counter;
+            begin_cycle_count = end_cycle_count;
+        }
     }
     
     return 0;
