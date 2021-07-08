@@ -3,9 +3,25 @@
 #include <xinput.h>
 #include <dsound.h>
 #include <math.h>
-// https://www.youtube.com/watch?v=_4vnV2Eng7M
+#include "game.cpp"
+// https://youtu.be/_4vnV2Eng7M?t=756
 
 #define PI 3.14159265358979323846f
+
+/* Add to win32 layer
+- save games locations
+- getting handle of our own executable
+- asset loading path
+- raw input
+- threading
+- sleep/timeBeginPeriod
+- ClipCursor()
+- fullscreen support
+- WM_SETCURSOR (cursor visibility)
+- QueryCancelAutoplay 
+- Hardware acceleration opengl or dx
+...
+*/
 
 struct win32_bitmap_buffer {
     // pixels are always 32 bit, memory order BB GG RR XX (padding)
@@ -190,33 +206,6 @@ static win32_window_dimensions get_window_dimensions(HWND window) {
     result.width = clientRect.right - clientRect.left;
     
     return result;
-}
-
-static void render_255_gradient(win32_bitmap_buffer* bitmap_buffer, int blue_offset, int green_offset) {
-    
-    auto row = (uint8_t*)bitmap_buffer->memory;
-    
-    for (int y = 0; y < bitmap_buffer->height; y++) {
-        auto pixel = (uint32_t*)row;
-        for (int x = 0; x < bitmap_buffer->width; x++) {
-            // pixel bytes	   1  2  3  4
-            // pixel in memory:  BB GG RR xx (so it looks in registers 0x xxRRGGBB)
-            // little endian
-            
-            uint8_t blue = x + blue_offset;
-            uint8_t green = y + green_offset;
-            
-            // 0x 00 00 00 00 -> 0x xx rr gg bb
-            // | composites bytes
-            // green << 8 - shifts by 8 bits
-            // other stay 00
-            // * dereference pixel
-            // pixel++ - pointer arithmetic - jumps by it's size (32 bits in this case)
-            *pixel++ = (green << 8) | blue;
-        }
-        
-        row += bitmap_buffer->pitch;
-    }
 }
 
 // DIB - device independant section
@@ -427,7 +416,13 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
         
         // draw
         {
-            render_255_gradient(&Global_backbuffer, x_offset, y_offset);
+            game_bitmap_buffer game_buffer = {};
+            game_buffer.memory = Global_backbuffer.memory;
+            game_buffer.width = Global_backbuffer.width;
+            game_buffer.height = Global_backbuffer.height;
+            game_buffer.pitch = Global_backbuffer.pitch;
+            game_buffer.bytes_per_pixel = Global_backbuffer.bytes_per_pixel;
+            game_update_render(&game_buffer, x_offset, y_offset);
             
             deviceContext = GetDC(window_handle);
             
