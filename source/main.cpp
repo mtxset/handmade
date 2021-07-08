@@ -3,7 +3,6 @@
 #include <xinput.h>
 #include <dsound.h>
 #include <math.h>
-
 #include "game.cpp"
 // https://youtu.be/_4vnV2Eng7M?t=756
 
