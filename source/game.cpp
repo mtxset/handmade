@@ -27,6 +27,22 @@ static void render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offs
     }
 }
 
-static void game_update_render(game_bitmap_buffer* buffer, int x_offset, int y_offset) {
-    render_255_gradient(buffer, x_offset, y_offset);
+static void game_output_sound(game_sound_buffer* sound_buffer, int tone_hz) {
+    static float t_sine;
+    int16_t tone_volume = 3000;
+    int wave_period = sound_buffer->samples_per_second / tone_hz;
+    
+    auto sample_out = sound_buffer->samples;
+    for (int sample_index = 0; sample_index < sound_buffer->sample_count; sample_index++) {
+        float sine_val = sinf(t_sine);
+        int16_t sample_value = (int16_t)(sine_val * tone_volume);
+        *sample_out++ = sample_value;
+        *sample_out++ = sample_value;
+        t_sine += PI * 2.0f * ((float)1.0 / (float)wave_period);
+    }
+}
+
+static void game_update_render(game_bitmap_buffer* bitmap_buffer, int blue_offset, int green_offset, game_sound_buffer* sound_buffer, int tone_hz) {
+    game_output_sound(sound_buffer, tone_hz);
+    render_255_gradient(bitmap_buffer, blue_offset, green_offset);
 }
