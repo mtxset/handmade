@@ -10,7 +10,13 @@ struct game_bitmap_buffer {
     int pitch;
     int bytes_per_pixel;
 };
-// 
-void game_update_render(game_bitmap_buffer* buffer, int blue_offset, int green_offset);
+
+struct game_sound_buffer {
+    int sample_count;
+    int samples_per_second;
+    int16_t* samples;
+};
+
+static void game_update_render(game_bitmap_buffer* bitamp_buffer, int blue_offset, int green_offset, game_sound_buffer* sound_buffer);
 
 #endif //GAME_H
