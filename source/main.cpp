@@ -1,3 +1,4 @@
+// https://youtu.be/Lt9DfMzZ9sI?t=3940
 #define PI 3.14159265358979323846f
 
 #include <windows.h>
@@ -6,9 +7,8 @@
 #include <dsound.h>
 #include <math.h>
 #include <malloc.h>
+#include "main.h"
 #include "game.cpp"
-// https://youtu.be/5YhR2zAkQmo?t=3162
-
 
 /* Add to win32 layer
 - save games locations
@@ -24,33 +24,6 @@
 - Hardware acceleration opengl or dx
 ...
 */
-
-struct win32_bitmap_buffer {
-    // pixels are always 32 bit, memory order BB GG RR XX (padding)
-    BITMAPINFO info;
-    void* memory;
-    int width;
-    int height;
-    int pitch;
-    int bytes_per_pixel;
-};
-
-struct win32_window_dimensions {
-    int width;
-    int height;
-};
-
-struct win32_sound_output {
-    int samples_per_second;
-    int tone_hz;
-    int wave_period;
-    int latency_sample_count;
-    float sine_val;
-    int16_t tone_volume;
-    int32_t bytes_per_sample;
-    int32_t buffer_size;
-    uint32_t running_sample_index;
-};
 
 static auto Global_game_running = true;
 
@@ -261,6 +234,11 @@ inline static void win32_display_buffer_to_window(win32_bitmap_buffer* bitmap_bu
     StretchDIBits(deviceContext, 0, 0, window_width, window_height, 0, 0, bitmap_buffer->width, bitmap_buffer->height, bitmap_buffer->memory, &bitmap_buffer->info, DIB_RGB_COLORS, SRCCOPY);
 }
 
+static void win32_process_xinput_button(DWORD xinput_button_state, DWORD button_bit, game_button_state* new_state, game_button_state* old_state) {
+    new_state->ended_down = (xinput_button_state & button_bit) == button_bit;
+    new_state->half_transition_count = old_state->ended_down != new_state->ended_down ? 1 : 0;
+}
+
 LRESULT CALLBACK win32_window_proc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
     LRESULT result = 0;
     switch (message) {
@@ -353,17 +331,12 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
     
     MSG message;
     HDC deviceContext;
-    int x_offset = 0, y_offset = 0;
     
     // sound stuff
-    
     win32_sound_output sound_output = {};
     sound_output.samples_per_second = 48000;
-    sound_output.tone_hz = 256;
-    sound_output.tone_volume = 3000;
     sound_output.bytes_per_sample = sizeof(int16_t) * 2;
     sound_output.latency_sample_count = sound_output.samples_per_second / 15;
-    sound_output.wave_period = sound_output.samples_per_second / sound_output.tone_hz;
     sound_output.buffer_size = sound_output.samples_per_second * sound_output.bytes_per_sample;
     
     auto samples = (int16_t*)VirtualAlloc(0, sound_output.buffer_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
@@ -378,9 +351,11 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
     
     auto begin_cycle_count = __rdtsc();
     // SIMD - single instruction multiple data
+    game_input input[2] = {};
+    game_input* new_input = &input[0];
+    game_input* old_input = &input[1];
     
     while (Global_game_running) {
-        
         while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
             
             if (message.message == WM_QUIT) Global_game_running = false;
@@ -391,7 +366,16 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
         
         // managing controller
         if (xinput_ready) {
-            for (DWORD i = 0; i < XUSER_MAX_COUNT; i++) {
+            DWORD max_gamepad_count = XUSER_MAX_COUNT;
+            if (max_gamepad_count > macro_array_count(new_input->gamepad))
+            {
+                max_gamepad_count = macro_array_count(new_input->gamepad);
+            }
+            
+            for (DWORD i = 0; i < max_gamepad_count; i++) {
+                auto old_gamepad = &old_input->gamepad[i];
+                auto new_gamepad = &new_input->gamepad[i];
+                
                 XINPUT_STATE state;
                 ZeroMemory(&state, sizeof(XINPUT_STATE));
                 
@@ -399,8 +383,6 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
                 auto dwResult = XInputGetState(i, &state);
                 
                 if (dwResult == ERROR_SUCCESS) {
-                    sound_output.tone_hz = 256;
-                    sound_output.wave_period = sound_output.samples_per_second / sound_output.tone_hz;
                     // Controller is connected
                     auto* pad = &state.Gamepad;
                     
@@ -409,25 +391,43 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
                     auto button_down = pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN;
                     auto button_left = pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT;
                     auto button_right = pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT;
+                    
                     auto button_start = pad->wButtons & XINPUT_GAMEPAD_START;
                     auto button_back = pad->wButtons & XINPUT_GAMEPAD_BACK;
                     auto button_left_thumb  = pad->wButtons & XINPUT_GAMEPAD_LEFT_THUMB;
                     auto button_right_thumb = pad->wButtons & XINPUT_GAMEPAD_RIGHT_THUMB;
                     auto button_left_shoulder = pad->wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER;
                     auto button_right_shoulder = pad->wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER;
-                    auto button_a = pad->wButtons & XINPUT_GAMEPAD_A;
-                    auto button_b = pad->wButtons & XINPUT_GAMEPAD_B;
-                    auto button_x = pad->wButtons & XINPUT_GAMEPAD_X;
-                    auto button_y = pad->wButtons & XINPUT_GAMEPAD_Y;
+                    //auto button_a = pad->wButtons & XINPUT_GAMEPAD_A;
+                    //auto button_b = pad->wButtons & XINPUT_GAMEPAD_B;
+                    //auto button_x = pad->wButtons & XINPUT_GAMEPAD_X;
+                    //auto button_y = pad->wButtons & XINPUT_GAMEPAD_Y;
+                    
+                    new_gamepad->start_x = old_gamepad->start_x;
+                    new_gamepad->start_y = old_gamepad->start_y;
+                    new_gamepad->is_analog = true;
+                    
+                    float x;
+                    if (pad->sThumbLX > 0)
+                        x = pad->sThumbLX / 32767.0f;
+                    else
+                        x = pad->sThumbLX / 32768.0f;
+                    new_gamepad->min_x = new_gamepad->max_x = new_gamepad->end_x = x;
+                    
+                    float y;
+                    if (pad->sThumbLY > 0)
+                        y = pad->sThumbLY / 32767.0f;
+                    else
+                        y = pad->sThumbLY / 32768.0f;
+                    new_gamepad->min_y = new_gamepad->max_y = new_gamepad->end_y = y;
                     
                     auto stick_x = pad->sThumbLX;
                     auto stick_y = pad->sThumbLY;
                     
-                    x_offset += stick_x / 4096;
-                    y_offset -= stick_y / 4096;
-                    
-                    sound_output.tone_hz = 512 + (int)(256.0f*((float)stick_y / 30000.f));
-                    sound_output.wave_period = sound_output.samples_per_second / sound_output.tone_hz;
+                    win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_A, &old_gamepad->up, &new_gamepad->up);
+                    win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_B, &old_gamepad->right, &new_gamepad->right);
+                    win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_X, &old_gamepad->left, &new_gamepad->left);
+                    win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_Y, &old_gamepad->up, &new_gamepad->up);
                     
                     XINPUT_VIBRATION vibration;
                     vibration.wLeftMotorSpeed = 60000;
@@ -484,7 +484,7 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
             win32_fill_sound_buffer(&sound_output, bytes_to_lock, bytes_to_write, &sound_buffer);
         }
         
-        game_update_render(&game_buffer, x_offset, y_offset, &sound_buffer, sound_output.tone_hz);
+        game_update_render(new_input, &game_buffer, &sound_buffer);
         // clock
         
         QueryPerformanceCounter(&end_counter);
@@ -503,6 +503,10 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
         
         start_counter = end_counter;
         begin_cycle_count = end_cycle_count;
+        
+        auto temp = new_input;
+        new_input = old_input;
+        old_input = temp;
     }
     
     return 0;
