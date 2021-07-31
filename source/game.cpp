@@ -42,7 +42,24 @@ static void game_output_sound(game_sound_buffer* sound_buffer, int tone_hz) {
     }
 }
 
-static void game_update_render(game_bitmap_buffer* bitmap_buffer, int blue_offset, int green_offset, game_sound_buffer* sound_buffer, int tone_hz) {
+static void game_update_render(game_input* input, game_bitmap_buffer* bitmap_buffer, game_sound_buffer* sound_buffer) {
+    static int blue_offset = 0;
+    static int green_offset = 0;
+    static int tone_hz = 256;
+    
+    auto input_0 = &input->gamepad[0];
+    
+    if (input_0->is_analog) {
+        blue_offset += 4 * (int)input_0->end_x;
+        tone_hz = 256 + (int)(128.0f * input_0->end_y);
+    } else {
+        // digital
+    }
+    
+    if (input_0->up.ended_down) {
+        green_offset += 1;
+    }
+    
     game_output_sound(sound_buffer, tone_hz);
     render_255_gradient(bitmap_buffer, blue_offset, green_offset);
 }
