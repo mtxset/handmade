@@ -2,6 +2,16 @@
 #ifndef GAME_H
 #define GAME_H
 
+#if DEBUG
+#define macro_assert(expr) if (!(expr)) {*(int*)0 = 0;}
+#else
+#define macro_assert(expr)
+#endif 
+
+#define macro_kilobytes(value) ((uint64_t)value)*1024
+#define macro_megabytes(value) (macro_kilobytes(value)*1024)
+#define macro_gigabytes(value) (macro_megabytes(value)*1024)
+#define macro_terabytes(value) (macro_gigabytes(value)*1024)
 #define macro_array_count(array) sizeof(array) / sizeof((array)[0]) // array is in parenthesis because we can pass x + y and we want to have (x + y)[0]
 
 struct game_bitmap_buffer {
@@ -16,7 +26,7 @@ struct game_bitmap_buffer {
 struct game_sound_buffer {
     int sample_count;
     int samples_per_second;
-    int16_t* samples;
+    i16* samples;
 };
 
 struct game_button_state {
@@ -26,17 +36,17 @@ struct game_button_state {
 
 struct game_controller_input {
     bool is_analog;
-    float start_x;
-    float start_y;
+    f32 start_x;
+    f32 start_y;
     
-    float min_x;
-    float min_y;
+    f32 min_x;
+    f32 min_y;
     
-    float max_x;
-    float max_y;
+    f32 max_x;
+    f32 max_y;
     
-    float end_x;
-    float end_y;
+    f32 end_x;
+    f32 end_y;
     
     union {
         game_button_state buttons[6];
@@ -53,6 +63,21 @@ struct game_controller_input {
 
 struct game_input {
     game_controller_input gamepad[4];
+};
+
+struct game_memory {
+    bool is_initialized;
+    ui64 permanent_storage_size;
+    ui64 transient_storage_size;
+    
+    void* permanent_storage;
+    void* transient_storage;
+};
+
+struct game_state {
+    int tone_hz;
+    int blue_offset;
+    int green_offset;
 };
 
 #endif //GAME_H

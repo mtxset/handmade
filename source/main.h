@@ -21,10 +21,10 @@ struct win32_window_dimensions {
 struct win32_sound_output {
     int samples_per_second;
     int latency_sample_count;
-    float sine_val;
-    int32_t bytes_per_sample;
-    int32_t buffer_size;
-    uint32_t running_sample_index;
+    f32 sine_val;
+    i32 bytes_per_sample;
+    i32 buffer_size;
+    ui32 running_sample_index;
 };
 
 #endif //MAIN_H
