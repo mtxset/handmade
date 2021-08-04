@@ -2,17 +2,17 @@
 
 static void render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offset, int green_offset) {
     
-    auto row = (uint8_t*)bitmap_buffer->memory;
+    auto row = (ui8*)bitmap_buffer->memory;
     
     for (int y = 0; y < bitmap_buffer->height; y++) {
-        auto pixel = (uint32_t*)row;
+        auto pixel = (ui32*)row;
         for (int x = 0; x < bitmap_buffer->width; x++) {
             // pixel bytes	   1  2  3  4
             // pixel in memory:  BB GG RR xx (so it looks in registers 0x xxRRGGBB)
             // little endian
             
-            uint8_t blue = x + blue_offset;
-            uint8_t green = y + green_offset;
+            ui8 blue = x + blue_offset;
+            ui8 green = y + green_offset;
             
             // 0x 00 00 00 00 -> 0x xx rr gg bb
             // | composites bytes
@@ -42,24 +42,34 @@ static void game_output_sound(game_sound_buffer* sound_buffer, int tone_hz) {
     }
 }
 
-static void game_update_render(game_input* input, game_bitmap_buffer* bitmap_buffer, game_sound_buffer* sound_buffer) {
-    static int blue_offset = 0;
-    static int green_offset = 0;
-    static int tone_hz = 256;
+static void game_update_render(game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer, game_sound_buffer* sound_buffer) {
+    macro_assert(sizeof(game_state) <= memory->permanent_storage_size);
+    
+    auto state = (game_state*)memory->permanent_storage;
+    if (!memory->is_initialized) {
+        state->blue_offset = 0;
+        state->green_offset = 0;
+        state->tone_hz = 256;
+        
+        memory->is_initialized = true;
+    }
     
     auto input_0 = &input->gamepad[0];
     
     if (input_0->is_analog) {
-        blue_offset += 4 * (int)input_0->end_x;
-        tone_hz = 256 + (int)(128.0f * input_0->end_y);
+        state->blue_offset += 4 * (int)input_0->end_x;
+        state->tone_hz = 128 + (int)(64.0f * input_0->end_y);
+        
+        if (state->tone_hz == 0) // in case we want to set different tone_hz we accidentaly may get to 0
+            state->tone_hz = 1;
     } else {
         // digital
     }
     
     if (input_0->up.ended_down) {
-        green_offset += 1;
+        state->green_offset += 1;
     }
     
-    game_output_sound(sound_buffer, tone_hz);
-    render_255_gradient(bitmap_buffer, blue_offset, green_offset);
+    game_output_sound(sound_buffer, state->tone_hz);
+    render_255_gradient(bitmap_buffer, state->blue_offset, state->green_offset);
 }

@@ -1,11 +1,25 @@
-// https://youtu.be/Lt9DfMzZ9sI?t=3940
+// https://youtu.be/tcENxzeTjbI?t=3880
 #define PI 3.14159265358979323846f
 
-#include <windows.h>
+#include <math.h>
 #include <stdint.h>
+
+typedef signed char        i8;
+typedef short              i16;
+typedef int                i32;
+typedef long long          i64;
+
+typedef unsigned char      ui8;
+typedef unsigned short     ui16;
+typedef unsigned int       ui32;
+typedef unsigned long long ui64;
+
+typedef float              f32;
+typedef double             f64;
+
+#include <windows.h>
 #include <xinput.h>
 #include <dsound.h>
-#include <math.h>
 #include <malloc.h>
 #include "main.h"
 #include "game.cpp"
@@ -44,7 +58,7 @@ typedef HRESULT WINAPI direct_sound_create(LPCGUID pcGuidDevice, LPDIRECTSOUND* 
 static direct_sound_create* DirectSoundCreate_;                                                             // define variable to hold it
 #define DirectSoundCreate DirectSoundCreate_                                                                // change name by which we reference upper-line mentioned variable
 
-static void win32_init_direct_sound(HWND window, int32_t samples_per_second, int32_t buffer_size) {
+static void win32_init_direct_sound(HWND window, i32 samples_per_second, i32 buffer_size) {
     // NOTE: Load the library
     HMODULE DSoundLibrary = LoadLibrary("dsound.dll");
     
@@ -118,12 +132,12 @@ static void win32_clear_sound_buffer(win32_sound_output* sound_output) {
         return;
     }
     
-    auto sample_out = (int8_t*)region_one;
+    auto sample_out = (i8*)region_one;
     for (DWORD index = 0; index < region_one_size; index++) {
         *sample_out++ = 0;
     }
     
-    sample_out = (int8_t*)region_two;
+    sample_out = (i8*)region_two;
     for (DWORD index = 0; index < region_two_size; index++) {
         *sample_out++ = 0;
     }
@@ -143,8 +157,8 @@ static void win32_fill_sound_buffer(win32_sound_output* sound_output, DWORD byte
         return;
     }
     
-    auto sample_out = (int16_t*)region_one;
-    auto source_out = (int16_t*)source_buffer->samples;
+    auto sample_out = (i16*)region_one;
+    auto source_out = (i16*)source_buffer->samples;
     DWORD region_sample_count = region_one_size / sound_output->bytes_per_sample;
     
     for (DWORD sample_index = 0; sample_index < region_sample_count; sample_index++) {
@@ -154,7 +168,7 @@ static void win32_fill_sound_buffer(win32_sound_output* sound_output, DWORD byte
         sound_output->running_sample_index++;
     }
     
-    sample_out = (int16_t*)region_two;
+    sample_out = (i16*)region_two;
     DWORD region_sample_count_two = region_two_size / sound_output->bytes_per_sample;
     
     for (DWORD sample_index = 0; sample_index < region_sample_count_two; sample_index++) {
@@ -304,7 +318,6 @@ LRESULT CALLBACK win32_window_proc(HWND window, UINT message, WPARAM wParam, LPA
 }
 
 int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLineParams, int nothing) {
-    
     auto xinput_ready = win32_load_xinput();
     
     WNDCLASSA window_class = {};
@@ -335,11 +348,30 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
     // sound stuff
     win32_sound_output sound_output = {};
     sound_output.samples_per_second = 48000;
-    sound_output.bytes_per_sample = sizeof(int16_t) * 2;
+    sound_output.bytes_per_sample = sizeof(i16) * 2;
     sound_output.latency_sample_count = sound_output.samples_per_second / 15;
     sound_output.buffer_size = sound_output.samples_per_second * sound_output.bytes_per_sample;
     
-    auto samples = (int16_t*)VirtualAlloc(0, sound_output.buffer_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+    auto samples = (i16*)VirtualAlloc(0, sound_output.buffer_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+    
+#if INTERNAL
+    LPVOID base_address = (LPVOID)macro_terabytes(2);
+#else
+    LPVOID base_address = 0;
+#endif
+    
+    game_memory memory = {};
+    memory.permanent_storage_size = macro_megabytes(64);
+    memory.transient_storage_size = macro_gigabytes(4);
+    auto total_memory_size = memory.permanent_storage_size + memory.transient_storage_size;
+    
+    memory.permanent_storage = VirtualAlloc(base_address, total_memory_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+    memory.transient_storage = (ui8*)memory.permanent_storage + memory.permanent_storage_size;
+    
+    if (!samples || !memory.permanent_storage || !memory.transient_storage) {
+        OutputDebugStringA("Failed to allocate memory: samples or game");
+        return -1;
+    }
     
     win32_init_direct_sound(window_handle, sound_output.samples_per_second, sound_output.buffer_size);
     win32_clear_sound_buffer(&sound_output);
@@ -407,14 +439,14 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
                     new_gamepad->start_y = old_gamepad->start_y;
                     new_gamepad->is_analog = true;
                     
-                    float x;
+                    f32 x;
                     if (pad->sThumbLX > 0)
                         x = pad->sThumbLX / 32767.0f;
                     else
                         x = pad->sThumbLX / 32768.0f;
                     new_gamepad->min_x = new_gamepad->max_x = new_gamepad->end_x = x;
                     
-                    float y;
+                    f32 y;
                     if (pad->sThumbLY > 0)
                         y = pad->sThumbLY / 32767.0f;
                     else
@@ -474,7 +506,7 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
         } 
         
         
-        // int16_t samples[48000 * 2];
+        // i16 samples[48000 * 2];
         game_sound_buffer sound_buffer = {};
         sound_buffer.samples_per_second = sound_output.samples_per_second;
         sound_buffer.sample_count = bytes_to_write / sound_output.bytes_per_sample;
@@ -484,17 +516,17 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
             win32_fill_sound_buffer(&sound_output, bytes_to_lock, bytes_to_write, &sound_buffer);
         }
         
-        game_update_render(new_input, &game_buffer, &sound_buffer);
-        // clock
+        game_update_render(&memory, new_input, &game_buffer, &sound_buffer);
         
+        // clock
         QueryPerformanceCounter(&end_counter);
         
         elapsed_counter.QuadPart = end_counter.QuadPart - start_counter.QuadPart;
-        auto elapsed_ms = (int32_t)((1000 * elapsed_counter.QuadPart) / performance_freq.QuadPart);
-        auto fps = (int32_t)(performance_freq.QuadPart / elapsed_counter.QuadPart);
+        auto elapsed_ms = (i32)((1000 * elapsed_counter.QuadPart) / performance_freq.QuadPart);
+        auto fps = (i32)(performance_freq.QuadPart / elapsed_counter.QuadPart);
         
         auto end_cycle_count = __rdtsc();
-        auto cycles_elapsed = (uint32_t)(end_cycle_count - begin_cycle_count);
+        auto cycles_elapsed = (ui32)(end_cycle_count - begin_cycle_count);
         
         char buffer[256];
         wsprintf(buffer, "%d ms/f; fps: %d, megacycles/f: %d \n", elapsed_ms, fps, cycles_elapsed / 1000000);
