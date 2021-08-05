@@ -2,17 +2,17 @@
 
 static void render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offset, int green_offset) {
     
-    auto row = (ui8*)bitmap_buffer->memory;
+    auto row = (u8*)bitmap_buffer->memory;
     
     for (int y = 0; y < bitmap_buffer->height; y++) {
-        auto pixel = (ui32*)row;
+        auto pixel = (u32*)row;
         for (int x = 0; x < bitmap_buffer->width; x++) {
             // pixel bytes	   1  2  3  4
             // pixel in memory:  BB GG RR xx (so it looks in registers 0x xxRRGGBB)
             // little endian
             
-            ui8 blue = x + blue_offset;
-            ui8 green = y + green_offset;
+            u8 blue = x + blue_offset;
+            u8 green = y + green_offset;
             
             // 0x 00 00 00 00 -> 0x xx rr gg bb
             // | composites bytes
@@ -28,17 +28,17 @@ static void render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offs
 }
 
 static void game_output_sound(game_sound_buffer* sound_buffer, int tone_hz) {
-    static float t_sine;
-    int16_t tone_volume = 3000;
+    static f32 t_sine;
+    i16 tone_volume = 3000;
     int wave_period = sound_buffer->samples_per_second / tone_hz;
     
     auto sample_out = sound_buffer->samples;
     for (int sample_index = 0; sample_index < sound_buffer->sample_count; sample_index++) {
-        float sine_val = sinf(t_sine);
-        int16_t sample_value = (int16_t)(sine_val * tone_volume);
+        f32 sine_val = sinf(t_sine);
+        i16 sample_value = (i16)(sine_val * tone_volume);
         *sample_out++ = sample_value;
         *sample_out++ = sample_value;
-        t_sine += PI * 2.0f * ((float)1.0 / (float)wave_period);
+        t_sine += PI * 2.0f * ((f32)1.0 / (f32)wave_period);
     }
 }
 
@@ -47,6 +47,14 @@ static void game_update_render(game_memory* memory, game_input* input, game_bitm
     
     auto state = (game_state*)memory->permanent_storage;
     if (!memory->is_initialized) {
+        
+        char* file_name = __FILE__;
+        auto bitmap_read = debug_read_entire_file(file_name);
+        if (bitmap_read.content) {
+            debug_write_entire_file("temp.cpp", bitmap_read.bytes_read, bitmap_read.content);
+            debug_free_file(bitmap_read.content);
+        }
+        
         state->blue_offset = 0;
         state->green_offset = 0;
         state->tone_hz = 256;

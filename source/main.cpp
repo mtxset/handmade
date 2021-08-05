@@ -1,27 +1,16 @@
-// https://youtu.be/tcENxzeTjbI?t=3880
+// https://youtu.be/kdAte9pdLv8?t=278
 #define PI 3.14159265358979323846f
 
 #include <math.h>
 #include <stdint.h>
-
-typedef signed char        i8;
-typedef short              i16;
-typedef int                i32;
-typedef long long          i64;
-
-typedef unsigned char      ui8;
-typedef unsigned short     ui16;
-typedef unsigned int       ui32;
-typedef unsigned long long ui64;
-
-typedef float              f32;
-typedef double             f64;
-
 #include <windows.h>
 #include <xinput.h>
 #include <dsound.h>
 #include <malloc.h>
+
 #include "main.h"
+#include "utils.cpp"
+#include "file_io.cpp"
 #include "game.cpp"
 
 /* Add to win32 layer
@@ -266,7 +255,7 @@ LRESULT CALLBACK win32_window_proc(HWND window, UINT message, WPARAM wParam, LPA
             bool is_down        = (lParam & (1 << 31)) == 0; // parenthesis required because == has precedence over &
             bool alt_is_down    = (lParam & (1 << 29)) != 0; // will return 0 or bit 29; if I get 29 alt is down - if 0 it's not so I compare it to 0
             
-            if (vk_key == 'W') {
+            if        (vk_key == 'W') {
             } else if (vk_key == 'S') {
             } else if (vk_key == 'A') {
             } else if (vk_key == 'D') {
@@ -366,7 +355,7 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
     auto total_memory_size = memory.permanent_storage_size + memory.transient_storage_size;
     
     memory.permanent_storage = VirtualAlloc(base_address, total_memory_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
-    memory.transient_storage = (ui8*)memory.permanent_storage + memory.permanent_storage_size;
+    memory.transient_storage = (u8*)memory.permanent_storage + memory.permanent_storage_size;
     
     if (!samples || !memory.permanent_storage || !memory.transient_storage) {
         OutputDebugStringA("Failed to allocate memory: samples or game");
@@ -526,7 +515,7 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
         auto fps = (i32)(performance_freq.QuadPart / elapsed_counter.QuadPart);
         
         auto end_cycle_count = __rdtsc();
-        auto cycles_elapsed = (ui32)(end_cycle_count - begin_cycle_count);
+        auto cycles_elapsed = (u32)(end_cycle_count - begin_cycle_count);
         
         char buffer[256];
         wsprintf(buffer, "%d ms/f; fps: %d, megacycles/f: %d \n", elapsed_ms, fps, cycles_elapsed / 1000000);
@@ -536,6 +525,7 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
         start_counter = end_counter;
         begin_cycle_count = end_cycle_count;
         
+        //swap(new_input, old_input);
         auto temp = new_input;
         new_input = old_input;
         old_input = temp;
