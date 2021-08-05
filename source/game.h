@@ -2,18 +2,6 @@
 #ifndef GAME_H
 #define GAME_H
 
-#if DEBUG
-#define macro_assert(expr) if (!(expr)) {*(int*)0 = 0;}
-#else
-#define macro_assert(expr)
-#endif 
-
-#define macro_kilobytes(value) ((uint64_t)value)*1024
-#define macro_megabytes(value) (macro_kilobytes(value)*1024)
-#define macro_gigabytes(value) (macro_megabytes(value)*1024)
-#define macro_terabytes(value) (macro_gigabytes(value)*1024)
-#define macro_array_count(array) sizeof(array) / sizeof((array)[0]) // array is in parenthesis because we can pass x + y and we want to have (x + y)[0]
-
 struct game_bitmap_buffer {
     // pixels are always 32 bit, memory order BB GG RR XX (padding)
     void* memory;
@@ -67,8 +55,8 @@ struct game_input {
 
 struct game_memory {
     bool is_initialized;
-    ui64 permanent_storage_size;
-    ui64 transient_storage_size;
+    u64 permanent_storage_size;
+    u64 transient_storage_size;
     
     void* permanent_storage;
     void* transient_storage;
