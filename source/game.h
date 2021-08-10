@@ -2,6 +2,8 @@
 #ifndef GAME_H
 #define GAME_H
 
+#include "types.h"
+
 struct game_bitmap_buffer {
     // pixels are always 32 bit, memory order BB GG RR XX (padding)
     void* memory;
@@ -67,5 +69,9 @@ struct game_state {
     int blue_offset;
     int green_offset;
 };
+
+static void render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offset, int green_offset);
+static void game_output_sound(game_sound_buffer* sound_buffer, int tone_hz);
+static void game_update_render(game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer, game_sound_buffer* sound_buffer);
 
 #endif //GAME_H

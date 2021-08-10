@@ -9,8 +9,23 @@ for /F "tokens=1-4 delims=:.," %%a in ("%time%") do (
    set /A "start=(((%%a*60)+1%%b %% 100)*60+1%%c %% 100)*100+1%%d %% 100"
 )
 
-cl.exe -DINTERNAL=1 -DDEBUG=1 /W3 -FC -Zi -nologo "..\source\main.cpp" user32.lib gdi32.lib
+cl.exe -Od -MT -EHa- -Gm- -GR- -Oi -DINTERNAL=1 -DDEBUG=1 -WX -W4 -wd4201 -wd4459 -wd4100 -wd4189 -FC -Fm -Z7 -nologo "..\source\main.cpp" /link -opt:ref user32.lib gdi32.lib
 popd
+
+:: -Od   - disable all optimizations
+:: -WX   - treat each warning as error
+:: -W4   - warning level 4
+:: -Oi   - let compiler use CPU intrinsic functions (like cpu's asm sine instead of c/cpp sine)
+:: -wd*  - supressing specific error
+:: -FC   - outputs full (instead of relative) soure code path
+:: -Fm   - enables map file which has every function showing it's source (function name - module name)
+:: -Z7   - debug file format (some old one)
+:: -GR-  - disables checking object types during run time
+:: -Gm-  - disable any incremental build
+:: -EHa- - disables exceptions
+:: -opt-ref - removes all imports which are not needed
+:: /link - subsytem:windows,5.1 - support xp
+:: -MT   - package everything instead of expecting user to have dll which does laoding of exe into windows
 
 rem Get end time:
 for /F "tokens=1-4 delims=:.," %%a in ("%time%") do (
