@@ -1,3 +1,6 @@
+#include <stdint.h>
+#include "types.h"
+
 template <typename T> void swap(T& a, T& b) {
     T c(a);
     a = b;

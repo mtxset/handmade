@@ -1,4 +1,4 @@
-// https://youtu.be/kdAte9pdLv8?t=278
+// https://youtu.be/zN7llTrMMBU?t=2812
 #define PI 3.14159265358979323846f
 
 #include <math.h>
@@ -9,8 +9,9 @@
 #include <malloc.h>
 
 #include "main.h"
+#include "utils.h"
 #include "utils.cpp"
-#include "file_io.cpp"
+#include "game.h"
 #include "game.cpp"
 
 /* Add to win32 layer
@@ -232,14 +233,63 @@ static void win32_resize_dib_section(win32_bitmap_buffer* bitmap_buffer, int wid
     bitmap_buffer->memory = VirtualAlloc(0, bitmap_memory_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 }
 
-inline static void win32_display_buffer_to_window(win32_bitmap_buffer* bitmap_buffer, HDC deviceContext, int window_width, int window_height, int x, int y, int width, int height) {
+inline static void win32_display_buffer_to_window(win32_bitmap_buffer* bitmap_buffer, HDC deviceContext, int window_width, int window_height) {
     // StretchDIBits(deviceContext, x, y, width, height, x, y, width, height, Global_BitmapMemory, &Global_BitmapInfo, DIB_RGB_COLORS, SRCCOPY);
     StretchDIBits(deviceContext, 0, 0, window_width, window_height, 0, 0, bitmap_buffer->width, bitmap_buffer->height, bitmap_buffer->memory, &bitmap_buffer->info, DIB_RGB_COLORS, SRCCOPY);
 }
 
-static void win32_process_xinput_button(DWORD xinput_button_state, DWORD button_bit, game_button_state* new_state, game_button_state* old_state) {
+static void win32_process_xinput_button(DWORD xinput_button_state, DWORD button_bit, game_button_state* old_state, game_button_state* new_state) {
     new_state->ended_down = (xinput_button_state & button_bit) == button_bit;
     new_state->half_transition_count = old_state->ended_down != new_state->ended_down ? 1 : 0;
+}
+
+static void win32_process_keyboard_input(game_button_state* new_state, bool is_down) {
+    new_state->ended_down = is_down;
+    new_state->half_transition_count++;
+}
+
+static void win32_handle_messages(game_controller_input* keyboard_input) {
+    MSG message;
+    while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
+        switch (message.message) {
+            case WM_QUIT: {
+                Global_game_running = false;
+            } break;
+            case WM_KEYUP:
+            case WM_KEYDOWN:
+            case WM_SYSKEYUP:
+            case WM_SYSKEYDOWN: {
+                auto vk_key = message.wParam;
+                auto previous_state = message.lParam & (1 << 30);        // will return 0 or bit 30
+                bool was_down       = (message.lParam & (1 << 30)) != 0; // if I get 0 I get true if I get something besides zero I compare it to zero and I will get false
+                bool is_down        = (message.lParam & (1 << 31)) == 0; // parenthesis required because == has precedence over &
+                bool alt_is_down    = (message.lParam & (1 << 29)) != 0; // will return 0 or bit 29; if I get 29 alt is down - if 0 it's not so I compare it to 0
+                
+                if        (vk_key == 'W') {
+                    win32_process_keyboard_input(&keyboard_input->up, is_down);
+                } else if (vk_key == 'S') {
+                    win32_process_keyboard_input(&keyboard_input->down, is_down);
+                } else if (vk_key == 'A') {
+                    win32_process_keyboard_input(&keyboard_input->left, is_down);
+                } else if (vk_key == 'D') {
+                    win32_process_keyboard_input(&keyboard_input->right, is_down);
+                } else if (vk_key == VK_UP) {
+                } else if (vk_key == VK_LEFT) {
+                } else if (vk_key == VK_DOWN) {
+                } else if (vk_key == VK_RIGHT) {
+                } else if (vk_key == VK_ESCAPE) {
+                } else if (vk_key == VK_SPACE) {
+                } else if (vk_key == VK_F4 && alt_is_down) {
+                    Global_game_running = false;
+                }
+            } break;
+            default: {
+                TranslateMessage(&message);
+                DispatchMessage(&message);
+            } break;
+        }
+        
+    }
 }
 
 LRESULT CALLBACK win32_window_proc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -249,25 +299,7 @@ LRESULT CALLBACK win32_window_proc(HWND window, UINT message, WPARAM wParam, LPA
         case WM_KEYDOWN:
         case WM_SYSKEYUP:
         case WM_SYSKEYDOWN: {
-            auto vk_key = wParam;
-            auto previous_state = lParam & (1 << 30);        // will return 0 or bit 30
-            bool was_down       = (lParam & (1 << 30)) != 0; // if I get 0 I get true if I get something besides zero I compare it to zero and I will get false
-            bool is_down        = (lParam & (1 << 31)) == 0; // parenthesis required because == has precedence over &
-            bool alt_is_down    = (lParam & (1 << 29)) != 0; // will return 0 or bit 29; if I get 29 alt is down - if 0 it's not so I compare it to 0
-            
-            if        (vk_key == 'W') {
-            } else if (vk_key == 'S') {
-            } else if (vk_key == 'A') {
-            } else if (vk_key == 'D') {
-            } else if (vk_key == VK_UP) {
-            } else if (vk_key == VK_LEFT) {
-            } else if (vk_key == VK_DOWN) {
-            } else if (vk_key == VK_RIGHT) {
-            } else if (vk_key == VK_ESCAPE) {
-            } else if (vk_key == VK_SPACE) {
-            } else if (vk_key == VK_F4 && alt_is_down) {
-                Global_game_running = false;
-            }
+            macro_assert(!"Should never hit it here");
         } break;
         case WM_SIZE: {
         } break;
@@ -294,7 +326,7 @@ LRESULT CALLBACK win32_window_proc(HWND window, UINT message, WPARAM wParam, LPA
             auto height = paint.rcPaint.bottom - paint.rcPaint.top;
             
             auto dimensions = get_window_dimensions(window);
-            win32_display_buffer_to_window(&Global_backbuffer, deviceContext, dimensions.width, dimensions.height, x, y, width, height);
+            win32_display_buffer_to_window(&Global_backbuffer, deviceContext, dimensions.width, dimensions.height);
             EndPaint(window, &paint);
         } break;
         
@@ -331,7 +363,6 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
         return -1;
     }
     
-    MSG message;
     HDC deviceContext;
     
     // sound stuff
@@ -354,7 +385,7 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
     memory.transient_storage_size = macro_gigabytes(4);
     auto total_memory_size = memory.permanent_storage_size + memory.transient_storage_size;
     
-    memory.permanent_storage = VirtualAlloc(base_address, total_memory_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+    memory.permanent_storage = VirtualAlloc(base_address, (size_t)total_memory_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
     memory.transient_storage = (u8*)memory.permanent_storage + memory.permanent_storage_size;
     
     if (!samples || !memory.permanent_storage || !memory.transient_storage) {
@@ -377,13 +408,11 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
     game_input* old_input = &input[1];
     
     while (Global_game_running) {
-        while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
-            
-            if (message.message == WM_QUIT) Global_game_running = false;
-            
-            TranslateMessage(&message);
-            DispatchMessage(&message);
-        }
+        auto keyboard_input = &new_input->gamepad[0];
+        game_controller_input temp_zero = {};
+        *keyboard_input = temp_zero;
+        
+        win32_handle_messages(keyboard_input);
         
         // managing controller
         if (xinput_ready) {
@@ -472,7 +501,7 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
         deviceContext = GetDC(window_handle);
         
         auto dimensions = get_window_dimensions(window_handle);
-        win32_display_buffer_to_window(&Global_backbuffer, deviceContext, dimensions.width, dimensions.height, 0, 0, dimensions.width, dimensions.height);
+        win32_display_buffer_to_window(&Global_backbuffer, deviceContext, dimensions.width, dimensions.height);
         ReleaseDC(window_handle, deviceContext);
         
         // play sound

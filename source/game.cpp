@@ -1,3 +1,5 @@
+#include "file_io.h"
+#include "file_io.cpp"
 #include "game.h"
 
 static void render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offset, int green_offset) {
@@ -11,8 +13,8 @@ static void render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offs
             // pixel in memory:  BB GG RR xx (so it looks in registers 0x xxRRGGBB)
             // little endian
             
-            u8 blue = x + blue_offset;
-            u8 green = y + green_offset;
+            u8 blue = (u8)(x + blue_offset);
+            u8 green = (u8)(y + green_offset);
             
             // 0x 00 00 00 00 -> 0x xx rr gg bb
             // | composites bytes
@@ -75,7 +77,13 @@ static void game_update_render(game_memory* memory, game_input* input, game_bitm
     }
     
     if (input_0->up.ended_down) {
-        state->green_offset += 1;
+        state->green_offset += 10;
+    } else if (input_0->down.ended_down) {
+        state->green_offset -= 10;
+    } else if (input_0->left.ended_down) {
+        state->blue_offset += 10;
+    } else if (input_0->right.ended_down) {
+        state->blue_offset -= 10;
     }
     
     game_output_sound(sound_buffer, state->tone_hz);
