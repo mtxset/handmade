@@ -1,5 +1,8 @@
 @echo off
 
+set common_compiler_flags=-Od -MT -EHa- -Gm- -GR- -Oi -DINTERNAL=1 -DDEBUG=1 -WX -W4 -wd4201 -wd4459 -wd4100 -wd4189 -FC -Fm -Z7 -nologo
+set common_linker_flags=-opt:ref user32.lib gdi32.lib
+
 if not exist build mkdir build
 pushd build
 call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
@@ -8,8 +11,11 @@ rem Get start time:
 for /F "tokens=1-4 delims=:.," %%a in ("%time%") do (
    set /A "start=(((%%a*60)+1%%b %% 100)*60+1%%c %% 100)*100+1%%d %% 100"
 )
+:: 32-bit
+:: cl.exe %common_compiler_flags% "..\source\main.cpp" /link -subsystem:windows,5.1  %common_linker_flags%
 
-cl.exe -Od -MT -EHa- -Gm- -GR- -Oi -DINTERNAL=1 -DDEBUG=1 -WX -W4 -wd4201 -wd4459 -wd4100 -wd4189 -FC -Fm -Z7 -nologo "..\source\main.cpp" /link -opt:ref user32.lib gdi32.lib
+:: 64-bit
+cl.exe %common_compiler_flags% "..\source\main.cpp" /link %common_linker_flags%
 popd
 
 :: -Od   - disable all optimizations
