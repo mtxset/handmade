@@ -46,6 +46,7 @@ static void game_output_sound(game_sound_buffer* sound_buffer, int tone_hz) {
 
 static void game_update_render(game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer, game_sound_buffer* sound_buffer) {
     macro_assert(sizeof(game_state) <= memory->permanent_storage_size);
+    macro_assert(&input->gamepad[0].back - &input->gamepad[0].buttons[0] == macro_array_count(input->gamepad[0].buttons) - 1); // we need to ensure that we take last element in union
     
     auto state = (game_state*)memory->permanent_storage;
     if (!memory->is_initialized) {
@@ -64,28 +65,40 @@ static void game_update_render(game_memory* memory, game_input* input, game_bitm
         memory->is_initialized = true;
     }
     
-    auto input_0 = &input->gamepad[0];
-    
-    if (input_0->is_analog) {
-        state->blue_offset += 4 * (int)input_0->end_x;
-        state->tone_hz = 128 + (int)(64.0f * input_0->end_y);
+    for (int i = 0; i < macro_array_count(input->gamepad); i++) {
+        auto input_state = get_gamepad(input, i);
         
-        if (state->tone_hz == 0) // in case we want to set different tone_hz we accidentaly may get to 0
-            state->tone_hz = 1;
-    } else {
-        // digital
-    }
-    
-    if (input_0->up.ended_down) {
-        state->green_offset += 10;
-    } else if (input_0->down.ended_down) {
-        state->green_offset -= 10;
-    } else if (input_0->left.ended_down) {
-        state->blue_offset += 10;
-    } else if (input_0->right.ended_down) {
-        state->blue_offset -= 10;
+        if (input_state->is_analog) {
+            state->blue_offset += 4 * (int)input_state->stick_avg_x;
+            state->tone_hz = 128 + (int)(64.0f * input_state->stick_avg_y);
+            
+            if (state->tone_hz == 0) // in case we want to set different tone_hz we accidentaly may get to 0
+                state->tone_hz = 1;
+        } else {
+            // digital
+            int offset = 1;
+            
+            if (input_state->up.ended_down)
+                state->green_offset += offset;
+            
+            if (input_state->down.ended_down)
+                state->green_offset -= offset;
+            
+            if (input_state->left.ended_down)
+                state->blue_offset += offset;
+            
+            if (input_state->right.ended_down)
+                state->blue_offset -= offset;
+        }
     }
     
     game_output_sound(sound_buffer, state->tone_hz);
     render_255_gradient(bitmap_buffer, state->blue_offset, state->green_offset);
+}
+
+inline game_controller_input* get_gamepad(game_input* input, int input_index) {
+    macro_assert(input_index >= 0);
+    macro_assert(input_index < macro_array_count(input->gamepad));
+    
+    return &input->gamepad[input_index];
 }
