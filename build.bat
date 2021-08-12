@@ -1,7 +1,7 @@
 @echo off
 
 set common_compiler_flags=-Od -MT -EHa- -Gm- -GR- -Oi -DINTERNAL=1 -DDEBUG=1 -WX -W4 -wd4201 -wd4459 -wd4100 -wd4189 -FC -Fm -Z7 -nologo
-set common_linker_flags=-opt:ref user32.lib gdi32.lib
+set common_linker_flags=-opt:ref user32.lib gdi32.lib winmm.lib
 
 if not exist build mkdir build
 pushd build

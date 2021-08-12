@@ -1,4 +1,4 @@
-// https://www.youtube.com/watch?v=WDB718JId4M
+// https://www.youtube.com/watch?v=TPpn2fee77M
 #define PI 3.14159265358979323846f
 
 #include <math.h>
@@ -29,12 +29,13 @@
 ...
 */
 
-static auto Global_game_running = true;
+static bool                Global_game_running = true;
 
 static win32_bitmap_buffer Global_backbuffer;
-static HBITMAP Global_bitmap_handle;
-static HDC Global_bitmap_device_context;
+static HBITMAP             Global_bitmap_handle;
+static HDC                 Global_bitmap_device_context;
 static LPDIRECTSOUNDBUFFER Global_sound_buffer;
+static i64                 Global_perf_freq;
 
 // making sure that if we don't have links to functions we don't crash because we use stubs
 typedef DWORD WINAPI x_input_get_state(DWORD dwUserIndex, XINPUT_STATE* pState);            // test 
@@ -356,10 +357,33 @@ LRESULT CALLBACK win32_window_proc(HWND window, UINT message, WPARAM wParam, LPA
     return result;
 }
 
+inline LARGE_INTEGER 
+win32_get_wall_clock() {
+    LARGE_INTEGER result;
+    QueryPerformanceCounter(&result);
+    return result;
+}
+
+inline f32
+win32_get_seconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end) {
+    return (f32)(end.QuadPart - start.QuadPart) / Global_perf_freq;
+}
+
 int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLineParams, int nothing) {
+    LARGE_INTEGER performance_freq, end_counter, last_counter;
+    QueryPerformanceFrequency(&performance_freq);
+    Global_perf_freq = performance_freq.QuadPart;
+    
     auto xinput_ready = win32_load_xinput();
     
+    UINT desired_scheduler_period_ms = 1;
+    auto sleep_is_granular = timeBeginPeriod(desired_scheduler_period_ms) == TIMERR_NOERROR;
+    
     WNDCLASSA window_class = {};
+    
+    auto monitor_refresh_rate     = 60;
+    auto game_update_refresh_rate = monitor_refresh_rate / 2;
+    f32 target_seconds_per_frame  = 1.0f / game_update_refresh_rate;
     
     win32_resize_dib_section(&Global_backbuffer, 1280, 720);
     
@@ -415,17 +439,16 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
     win32_clear_sound_buffer(&sound_output);
     Global_sound_buffer->Play(0, 0, DSBPLAY_LOOPING);
     
-    LARGE_INTEGER performance_freq, start_counter, end_counter, elapsed_counter;
-    QueryPerformanceFrequency(&performance_freq);
-    QueryPerformanceCounter(&start_counter);
-    
-    auto begin_cycle_count = __rdtsc();
     // SIMD - single instruction multiple data
     game_input input[2] = {};
     game_input* new_input = &input[0];
     game_input* old_input = &input[1];
     
+    last_counter = win32_get_wall_clock();
+    auto begin_cycle_count = __rdtsc();
+    
     while (Global_game_running) {
+        // input
         auto old_keyboard_input = &old_input->gamepad[0];
         auto new_keyboard_input = &new_input->gamepad[0];
         *new_keyboard_input = {};
@@ -502,6 +525,8 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
                 }
             }
         }
+        swap(new_input, old_input);
+        // end input
         
         // update
         game_bitmap_buffer game_buffer = {};
@@ -512,10 +537,6 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
         game_buffer.bytes_per_pixel = Global_backbuffer.bytes_per_pixel;
         
         deviceContext = GetDC(window_handle);
-        
-        auto dimensions = get_window_dimensions(window_handle);
-        win32_display_buffer_to_window(&Global_backbuffer, deviceContext, dimensions.width, dimensions.height);
-        ReleaseDC(window_handle, deviceContext);
         
         // play sound
         DWORD bytes_to_lock, bytes_to_write, target_cursor, play_cursor, write_cursor;
@@ -549,28 +570,44 @@ int main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
         
         game_update_render(&memory, new_input, &game_buffer, &sound_buffer);
         
-        // clock
-        QueryPerformanceCounter(&end_counter);
-        
-        elapsed_counter.QuadPart = end_counter.QuadPart - start_counter.QuadPart;
-        auto elapsed_ms = (i32)((1000 * elapsed_counter.QuadPart) / performance_freq.QuadPart);
-        auto fps = (i32)(performance_freq.QuadPart / elapsed_counter.QuadPart);
-        
-        auto end_cycle_count = __rdtsc();
-        auto cycles_elapsed = (u32)(end_cycle_count - begin_cycle_count);
-        
-        char buffer[256];
-        wsprintf(buffer, "%d ms/f; fps: %d, megacycles/f: %d \n", elapsed_ms, fps, cycles_elapsed / 1000000);
-        OutputDebugStringA(buffer);
-        // approx. cpu speed - fps * (cycles_elapsed / 1000000)
-        
-        start_counter = end_counter;
-        begin_cycle_count = end_cycle_count;
-        
-        //swap(new_input, old_input);
-        auto temp = new_input;
-        new_input = old_input;
-        old_input = temp;
+        // ensuring constant fps
+        {
+            auto elapsed_s = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
+            
+            if (elapsed_s < target_seconds_per_frame) {
+                if (sleep_is_granular) {
+                    auto sleep_ms = (DWORD)(1000.0f * (target_seconds_per_frame - elapsed_s));
+                    if (sleep_ms > 0) 
+                        Sleep(sleep_ms);
+                }
+                
+                while (elapsed_s < target_seconds_per_frame) {
+                    elapsed_s = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
+                }
+            } else {
+                // missing frames
+            }
+            
+            auto dimensions = get_window_dimensions(window_handle);
+            win32_display_buffer_to_window(&Global_backbuffer, deviceContext, dimensions.width, dimensions.height);
+            
+            auto end_cycle_count = __rdtsc();
+            end_counter = win32_get_wall_clock();
+            
+            auto cycles_elapsed = (u32)(end_cycle_count - begin_cycle_count);
+            auto counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
+            
+            auto fps = (i32)(Global_perf_freq / counter_elapsed);
+            auto elapsed_ms = (i32)(counter_elapsed * 1000.0f / Global_perf_freq);
+            
+            char buffer[256];
+            wsprintf(buffer, "%d ms/f  %d f/s  %d MC/f \n", elapsed_ms, fps, cycles_elapsed / 1000000);
+            // approx. cpu speed - fps * (cycles_elapsed / 1000000)
+            OutputDebugStringA(buffer);
+            
+            last_counter = end_counter;
+            begin_cycle_count = end_cycle_count;
+        }
     }
     
     return 0;
