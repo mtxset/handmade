@@ -29,4 +29,9 @@ struct win32_sound_output {
     u32 running_sample_index;
 };
 
+struct win32_debug_time_marker {
+    DWORD play_cursor;
+    DWORD write_cursor;
+};
+
 #endif //MAIN_H
