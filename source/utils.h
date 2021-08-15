@@ -9,10 +9,10 @@
 #define macro_assert(expr)
 #endif 
 
-#define macro_kilobytes(value) ((uint64_t)value)*1024
-#define macro_megabytes(value) (macro_kilobytes(value)*1024)
-#define macro_gigabytes(value) (macro_megabytes(value)*1024)
-#define macro_terabytes(value) (macro_gigabytes(value)*1024)
+#define macro_kilobytes(value) (value)*1024ull
+#define macro_megabytes(value) (macro_kilobytes(value)*1024ull)
+#define macro_gigabytes(value) (macro_megabytes(value)*1024ull)
+#define macro_terabytes(value) (macro_gigabytes(value)*1024ull)
 #define macro_array_count(array) sizeof(array) / sizeof((array)[0]) // array is in parenthesis because we can pass x + y and we want to have (x + y)[0]
 
 template <typename T> void swap(T& a, T& b);

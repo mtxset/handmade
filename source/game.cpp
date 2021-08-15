@@ -2,7 +2,8 @@
 #include "file_io.cpp"
 #include "game.h"
 
-static void render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offset, int green_offset) {
+static void 
+render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offset, int green_offset) {
     
     auto row = (u8*)bitmap_buffer->memory;
     
@@ -29,22 +30,24 @@ static void render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offs
     }
 }
 
-static void game_output_sound(game_sound_buffer* sound_buffer, int tone_hz) {
+static void 
+game_output_sound(game_sound_buffer* sound_buffer, int tone_hz) {
     static f32 t_sine;
     i16 tone_volume = 3000;
     int wave_period = sound_buffer->samples_per_second / tone_hz;
-    
     auto sample_out = sound_buffer->samples;
+    
     for (int sample_index = 0; sample_index < sound_buffer->sample_count; sample_index++) {
         f32 sine_val = sinf(t_sine);
         i16 sample_value = (i16)(sine_val * tone_volume);
         *sample_out++ = sample_value;
         *sample_out++ = sample_value;
-        t_sine += PI * 2.0f * ((f32)1.0 / (f32)wave_period);
+        t_sine += PI * 2.0f * (1.0f / (f32)wave_period);
     }
 }
 
-static void game_update_render(game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer, game_sound_buffer* sound_buffer) {
+static void 
+game_update_render(game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer, game_sound_buffer* sound_buffer) {
     macro_assert(sizeof(game_state) <= memory->permanent_storage_size);
     macro_assert(&input->gamepad[0].back - &input->gamepad[0].buttons[0] == macro_array_count(input->gamepad[0].buttons) - 1); // we need to ensure that we take last element in union
     
@@ -96,7 +99,8 @@ static void game_update_render(game_memory* memory, game_input* input, game_bitm
     render_255_gradient(bitmap_buffer, state->blue_offset, state->green_offset);
 }
 
-inline game_controller_input* get_gamepad(game_input* input, int input_index) {
+inline game_controller_input* 
+get_gamepad(game_input* input, int input_index) {
     macro_assert(input_index >= 0);
     macro_assert(input_index < macro_array_count(input->gamepad));
     
