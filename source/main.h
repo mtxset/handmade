@@ -25,13 +25,22 @@ struct win32_sound_output {
     int latency_sample_count;
     f32 sine_val;
     i32 bytes_per_sample;
-    i32 buffer_size;
+    u32 buffer_size;
+    i32 safety_bytes;
     u32 running_sample_index;
 };
 
 struct win32_debug_time_marker {
-    DWORD play_cursor;
-    DWORD write_cursor;
+    u32 output_play_cursor;
+    u32 play_cursor;
+    
+    u32 output_write_cursor;
+    u32 write_cursor;
+    
+    u32 output_location;
+    u32 output_bytes;
+    
+    u32 expected_play_cursor;
 };
 
 #endif //MAIN_H

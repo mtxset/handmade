@@ -2,6 +2,14 @@
 #include "file_io.cpp"
 #include "game.h"
 
+inline game_controller_input* 
+get_gamepad(game_input* input, int input_index) {
+    macro_assert(input_index >= 0);
+    macro_assert(input_index < macro_array_count(input->gamepad));
+    
+    return &input->gamepad[input_index];
+}
+
 static void 
 render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offset, int green_offset) {
     
@@ -43,11 +51,15 @@ game_output_sound(game_sound_buffer* sound_buffer, int tone_hz) {
         *sample_out++ = sample_value;
         *sample_out++ = sample_value;
         t_sine += PI * 2.0f * (1.0f / (f32)wave_period);
+        
+        // cuz sinf loses its floating point precision???
+        if (t_sine > PI * 2.0f)
+            t_sine -= PI * 2.0f;
     }
 }
 
 static void 
-game_update_render(game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer, game_sound_buffer* sound_buffer) {
+game_update_render(game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer) {
     macro_assert(sizeof(game_state) <= memory->permanent_storage_size);
     macro_assert(&input->gamepad[0].back - &input->gamepad[0].buttons[0] == macro_array_count(input->gamepad[0].buttons) - 1); // we need to ensure that we take last element in union
     
@@ -95,14 +107,10 @@ game_update_render(game_memory* memory, game_input* input, game_bitmap_buffer* b
         }
     }
     
-    game_output_sound(sound_buffer, state->tone_hz);
     render_255_gradient(bitmap_buffer, state->blue_offset, state->green_offset);
 }
 
-inline game_controller_input* 
-get_gamepad(game_input* input, int input_index) {
-    macro_assert(input_index >= 0);
-    macro_assert(input_index < macro_array_count(input->gamepad));
-    
-    return &input->gamepad[input_index];
+static void game_get_sound_samples(game_memory* memory, game_sound_buffer* sound_buffer) {
+    auto state = (game_state*)memory->permanent_storage;
+    game_output_sound(sound_buffer, state->tone_hz);
 }
