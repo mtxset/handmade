@@ -10,8 +10,8 @@ struct debug_file_read_result {
     void* content;
 };
 
-static void debug_free_file(void* handle);
-static debug_file_read_result debug_read_entire_file(char* file_name);
-static bool debug_write_entire_file(char* file_name, u32 memory_size, void* memory);
+//static void debug_free_file(void* handle);
+//static debug_file_read_result debug_read_entire_file(char* file_name);
+//static bool debug_write_entire_file(char* file_name, u32 memory_size, void* memory);
 
 #endif //FILE_IO_H

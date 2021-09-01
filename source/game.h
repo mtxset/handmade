@@ -71,9 +71,10 @@ struct game_state {
     int green_offset;
 };
 
-inline game_controller_input* get_gamepad(game_input* input, int input_index);
+/*inline game_controller_input* get_gamepad(game_input* input, int input_index);
 static void render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offset, int green_offset);
 static void game_output_sound(game_sound_buffer* sound_buffer, int tone_hz);
-static void game_update_render(game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer, game_sound_buffer* sound_buffer);
+static void game_update_render(game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer);
+static void game_get_sound_samples(game_memory* memory, game_sound_buffer* sound_buffer);*/
 
 #endif //GAME_H
