@@ -3,6 +3,7 @@
 #define GAME_H
 
 #include "types.h"
+#include "utils.h"
 
 struct game_bitmap_buffer {
     // pixels are always 32 bit, memory order BB GG RR XX (padding)
@@ -69,12 +70,28 @@ struct game_state {
     int tone_hz;
     int blue_offset;
     int green_offset;
+    f32 t_sine;
 };
 
-/*inline game_controller_input* get_gamepad(game_input* input, int input_index);
-static void render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offset, int green_offset);
-static void game_output_sound(game_sound_buffer* sound_buffer, int tone_hz);
-static void game_update_render(game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer);
-static void game_get_sound_samples(game_memory* memory, game_sound_buffer* sound_buffer);*/
+inline game_controller_input* get_gamepad(game_input* input, int input_index) {
+    macro_assert(input_index >= 0);
+    macro_assert(input_index < macro_array_count(input->gamepad));
+    
+    return &input->gamepad[input_index];
+}
+
+void render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offset, int green_offset);
+static void game_output_sound(game_sound_buffer* sound_buffer, int tone_hz, game_state* state);
+
+#define GAME_UPDATE_AND_RENDER(name) void name(game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer)
+typedef GAME_UPDATE_AND_RENDER(game_update_render_def);
+GAME_UPDATE_AND_RENDER(game_update_render_stub) { }
+
+#define GAME_GET_SOUND_SAMPLES(name) void name(game_memory* memory, game_sound_buffer* sound_buffer)
+typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples_def);
+GAME_GET_SOUND_SAMPLES(game_get_sound_samples_stub) { }
+
+//void game_update_render(game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer);
+//void game_get_sound_samples(game_memory* memory, game_sound_buffer* sound_buffer);
 
 #endif //GAME_H

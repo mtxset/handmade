@@ -4,6 +4,7 @@
 #define MAIN_H
 
 #include "types.h"
+#include "game.h"
 
 struct win32_bitmap_buffer {
     // pixels are always 32 bit, memory order BB GG RR XX (padding)
@@ -41,6 +42,15 @@ struct win32_debug_time_marker {
     u32 output_bytes;
     
     u32 expected_play_cursor;
+};
+
+struct win32_game_code {
+    HMODULE game_code_dll;
+    
+    game_update_render_def*     update_and_render;
+    game_get_sound_samples_def* get_sound_samples;
+    
+    bool valid;
 };
 
 #endif //MAIN_H

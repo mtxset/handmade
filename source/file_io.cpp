@@ -1,3 +1,5 @@
+#include <windows.h>
+#include <math.h>
 #include "utils.h"
 #include "file_io.h"
 

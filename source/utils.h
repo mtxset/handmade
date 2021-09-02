@@ -3,6 +3,8 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#define PI 3.14159265358979323846f
+
 #if DEBUG
 #define macro_assert(expr) if (!(expr)) {*(int*)0 = 0;}
 #else
@@ -16,6 +18,6 @@
 #define macro_array_count(array) sizeof(array) / sizeof((array)[0]) // array is in parenthesis because we can pass x + y and we want to have (x + y)[0]
 
 template <typename T> void swap(T& a, T& b);
-static u32 truncate_u64(u64 value);
+u32 truncate_u64(u64 value);
 
 #endif //UTILS_H
