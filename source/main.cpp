@@ -1,5 +1,4 @@
-// https://youtu.be/hELF8KRqSIs?t=2154
-#define PI 3.14159265358979323846f
+// https://youtu.be/WMSBRk5WG58?t=1
 
 #include <math.h>
 #include <stdio.h>
@@ -13,7 +12,6 @@
 #include "utils.h"
 #include "utils.cpp"
 #include "game.h"
-#include "game.cpp"
 
 /* Add to win32 layer
 - save games locations
@@ -33,6 +31,7 @@
 static bool                Global_game_running = true;
 static bool                Global_pause_sound_debug_sync = false;
 
+static win32_game_code     Global_game_code;
 static win32_bitmap_buffer Global_backbuffer;
 static HBITMAP             Global_bitmap_handle;
 static HDC                 Global_bitmap_device_context;
@@ -138,7 +137,6 @@ win32_clear_sound_buffer(win32_sound_output* sound_output) {
     }
     
     Global_sound_buffer->Unlock(region_one, region_one_size, region_two, region_two_size);
-    
 }
 
 static void 
@@ -188,6 +186,42 @@ win32_xinput_cutoff_deadzone(SHORT thumb_value) {
     }
     
     return result;
+}
+
+static win32_game_code 
+win32_load_game_code() {
+    win32_game_code result = {};
+    
+    CopyFile("game.dll", "game_temp.dll", FALSE);
+    result.game_code_dll = LoadLibraryA("game_temp.dll");
+    
+    if (!result.game_code_dll)
+        goto exit;
+    
+    result.update_and_render = (game_update_render_def*)GetProcAddress(result.game_code_dll, "game_update_render");
+    result.get_sound_samples = (game_get_sound_samples_def*)GetProcAddress(result.game_code_dll, "game_get_sound_samples");
+    
+    result.valid = (result.update_and_render && result.get_sound_samples);
+    
+    exit:
+    if (!result.valid) {
+        result.update_and_render = game_update_render_stub;
+        result.get_sound_samples = game_get_sound_samples_stub;
+    }
+    
+    return result;
+}
+
+static void 
+win32_unload_game_code(win32_game_code* game_code) {
+    if (game_code->game_code_dll) {
+        FreeLibrary(game_code->game_code_dll);
+        game_code->game_code_dll = 0;
+    }
+    
+    game_code->valid = false;
+    game_code->update_and_render = game_update_render_stub;
+    game_code->get_sound_samples = game_get_sound_samples_stub;
 }
 
 static bool 
@@ -465,6 +499,10 @@ win32_debug_sync_display(win32_bitmap_buffer* backbuffer, int marker_count, int 
 
 int 
 main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLineParams, int nothing) {
+    
+    auto game_code = win32_load_game_code();
+    // win32_unload_game_code(&game_code);
+    
     LARGE_INTEGER performance_freq, end_counter, last_counter, flip_wall_clock;
     QueryPerformanceFrequency(&performance_freq);
     Global_perf_freq = performance_freq.QuadPart;
@@ -548,7 +586,16 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
     last_counter = win32_get_wall_clock();
     flip_wall_clock = win32_get_wall_clock();
     auto begin_cycle_count = __rdtsc();
+    int game_load_counter = 0;
+    
     while (Global_game_running) {
+        
+        if (game_load_counter++ > 120) {
+            win32_unload_game_code(&game_code);
+            game_code = win32_load_game_code();
+            game_load_counter = 0;
+        }
+        
         // input
         auto old_keyboard_input = &old_input->gamepad[0];
         auto new_keyboard_input = &new_input->gamepad[0];
@@ -637,7 +684,7 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
         game_buffer.pitch = Global_backbuffer.pitch;
         game_buffer.bytes_per_pixel = Global_backbuffer.bytes_per_pixel;
         
-        game_update_render(&memory, new_input, &game_buffer);
+        game_code.update_and_render(&memory, new_input, &game_buffer);
         
         // sound stuff
         {
@@ -693,7 +740,7 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
             sound_buffer.sample_count = bytes_to_write / sound_output.bytes_per_sample;
             sound_buffer.samples = samples;
             
-            game_get_sound_samples(&memory, &sound_buffer);
+            game_code.get_sound_samples(&memory, &sound_buffer);
             
 #if INTERNAL
             auto marker = &debug_time_marker_list[debug_last_marker_index];
@@ -787,6 +834,7 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
             last_counter = end_counter;
             begin_cycle_count = end_cycle_count;
         }
+        //win32_unload_game_code(&game_code);
     }
     
     return 0;
