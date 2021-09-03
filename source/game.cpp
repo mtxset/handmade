@@ -25,7 +25,7 @@ render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offset, int gree
             // other stay 00
             // * dereference pixel
             // pixel++ - pointer arithmetic - jumps by it's size (32 bits in this case)
-            *pixel++ = (green << 16) | blue;
+            *pixel++ = (green << 8) | blue;
         }
         
         row += bitmap_buffer->pitch;
@@ -106,9 +106,4 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_render) {
 extern "C" GAME_GET_SOUND_SAMPLES(game_get_sound_samples) {
     auto state = (game_state*)memory->permanent_storage;
     game_output_sound(sound_buffer, state->tone_hz,  state);
-}
-
-#include <windows.h>
-bool WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
-    return true;
 }

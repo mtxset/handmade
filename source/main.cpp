@@ -1,6 +1,5 @@
-// https://youtu.be/WMSBRk5WG58?t=1
+// https://youtu.be/oijEnriqqcs?t=1279
 
-#include <math.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <windows.h>
@@ -188,12 +187,28 @@ win32_xinput_cutoff_deadzone(SHORT thumb_value) {
     return result;
 }
 
+inline FILETIME
+win32_get_last_write_time(char* filename) {
+    FILETIME result = {};
+    WIN32_FIND_DATA find_data;
+    auto file_handle = FindFirstFileA(filename, &find_data);
+    
+    if (file_handle == INVALID_HANDLE_VALUE)
+        return result;
+    
+    result = find_data.ftLastWriteTime;
+    FindClose(file_handle);
+    return result;
+}
+
 static win32_game_code 
-win32_load_game_code() {
+win32_load_game_code(char* source_dll_filepath, char* source_temp_filepath) {
     win32_game_code result = {};
     
-    CopyFile("game.dll", "game_temp.dll", FALSE);
-    result.game_code_dll = LoadLibraryA("game_temp.dll");
+    result.dll_last_write_time = win32_get_last_write_time(source_dll_filepath);
+    
+    CopyFile(source_dll_filepath, source_temp_filepath, FALSE);
+    result.game_code_dll = LoadLibraryA(source_temp_filepath);
     
     if (!result.game_code_dll)
         goto exit;
@@ -500,8 +515,25 @@ win32_debug_sync_display(win32_bitmap_buffer* backbuffer, int marker_count, int 
 int 
 main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLineParams, int nothing) {
     
-    auto game_code = win32_load_game_code();
-    // win32_unload_game_code(&game_code);
+    char exe_file_name[MAX_PATH];
+    auto current_file_name_size = GetModuleFileNameA(0, exe_file_name, sizeof(exe_file_name));
+    char* last_slash = exe_file_name;
+    for (char* scan = exe_file_name; *scan; scan++) {
+        if (*scan == '\\')
+            last_slash = scan + 1;
+    }
+    
+    char game_code_dll_name[]      = "game.dll";
+    char temp_game_code_dll_name[] = "game_temp.dll";
+    
+    char game_code_full_path[MAX_PATH];
+    char temp_game_code_full_path[MAX_PATH];
+    
+    string_concat(last_slash - exe_file_name, exe_file_name, sizeof(game_code_dll_name) - 1, game_code_dll_name, sizeof(game_code_full_path), game_code_full_path);
+    
+    string_concat(last_slash - exe_file_name, exe_file_name, sizeof(temp_game_code_dll_name) - 1, temp_game_code_dll_name, sizeof(temp_game_code_full_path), temp_game_code_full_path);
+    
+    auto game_code = win32_load_game_code(game_code_full_path, temp_game_code_full_path);
     
     LARGE_INTEGER performance_freq, end_counter, last_counter, flip_wall_clock;
     QueryPerformanceFrequency(&performance_freq);
@@ -516,7 +548,7 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
     
     static const int monitor_refresh_rate     = 60;
     static const int game_update_refresh_rate = monitor_refresh_rate / 2;
-    f32 target_seconds_per_frame  = 1.0f / game_update_refresh_rate;
+    f32 target_seconds_per_frame              = 1.0f / game_update_refresh_rate;
     
     win32_resize_dib_section(&Global_backbuffer, 1280, 720);
     
@@ -586,14 +618,13 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
     last_counter = win32_get_wall_clock();
     flip_wall_clock = win32_get_wall_clock();
     auto begin_cycle_count = __rdtsc();
-    int game_load_counter = 0;
     
     while (Global_game_running) {
         
-        if (game_load_counter++ > 120) {
+        auto new_dll_write_time = win32_get_last_write_time(game_code_dll_name);
+        if (CompareFileTime(&new_dll_write_time, &game_code.dll_last_write_time) != 0) {
             win32_unload_game_code(&game_code);
-            game_code = win32_load_game_code();
-            game_load_counter = 0;
+            game_code = win32_load_game_code(game_code_full_path, temp_game_code_full_path);
         }
         
         // input
@@ -759,19 +790,20 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
             
             char buffer[256];
             _snprintf_s(buffer, sizeof(buffer),  "play cursor: %u; byte to lock: %u; target cursor: %u; bytes_to_write: %u; delta: %u; t play cursor: %u; t write cursor: %u; latency: %f s\n", last_play_cursor, bytes_to_lock, target_cursor, bytes_to_write, cursor_bytes_delta, temp_play_cursor, temp_write_cursor, audio_latency_seconds);
-            OutputDebugStringA(buffer);
+            //OutputDebugStringA(buffer);
             
             // display debug cursors
             win32_debug_sync_display(&Global_backbuffer, macro_array_count(debug_time_marker_list), debug_last_marker_index - 1, debug_time_marker_list, &sound_output, target_seconds_per_frame);
             
 #endif
-            
-            win32_fill_sound_buffer(&sound_output, bytes_to_lock, bytes_to_write, &sound_buffer);
+            goto exit;
             
             failed_sound_exit:
 #if DEBUG
             OutputDebugStringA("Failed to get current sound position\n");
 #endif
+            exit:
+            win32_fill_sound_buffer(&sound_output, bytes_to_lock, bytes_to_write, &sound_buffer);
         }
         
         // ensuring stable fps
@@ -834,7 +866,6 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
             last_counter = end_counter;
             begin_cycle_count = end_cycle_count;
         }
-        //win32_unload_game_code(&game_code);
     }
     
     return 0;
