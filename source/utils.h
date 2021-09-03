@@ -19,5 +19,6 @@
 
 template <typename T> void swap(T& a, T& b);
 u32 truncate_u64(u64 value);
+void string_concat(size_t src_a_count, char* src_a, size_t src_b_count, char* src_b, size_t dest_count, char* dest);
 
 #endif //UTILS_H

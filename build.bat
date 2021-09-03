@@ -1,11 +1,13 @@
 @echo off
 
 set common_compiler_flags=-Od -MT -EHa- -Gm- -GR- -Oi -DINTERNAL=1 -DDEBUG=1 -WX -W4 -wd4201 -wd4459 -wd4100 -wd4189 -FC -Fm -Z7 -nologo
-set common_linker_flags=-incremental:no  -opt:ref user32.lib gdi32.lib winmm.lib
+set common_linker_flags=-incremental:no -opt:ref user32.lib gdi32.lib winmm.lib
 
 if not exist build mkdir build
 pushd build
-call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
+:: call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
+
+del *.pdb > NUL 2> NUL
 
 :: Get start time:
 for /F "tokens=1-4 delims=:.," %%a in ("%time%") do (
@@ -15,7 +17,7 @@ for /F "tokens=1-4 delims=:.," %%a in ("%time%") do (
 :: cl.exe %common_compiler_flags% "..\source\main.cpp" /link -subsystem:windows,5.1  %common_linker_flags%
 
 :: 64-bit
-cl.exe %common_compiler_flags% "..\source\game.cpp" /LD /link /EXPORT:game_get_sound_samples /EXPORT:game_update_render
+cl.exe %common_compiler_flags% "..\source\game.cpp" /LD /link -incremental:no -opt:ref -PDB:game%random%.pdb  -EXPORT:game_get_sound_samples -EXPORT:game_update_render
 cl.exe %common_compiler_flags% "..\source\main.cpp" /link %common_linker_flags%
 popd
 
