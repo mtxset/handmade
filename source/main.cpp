@@ -1,4 +1,4 @@
-// https://youtu.be/oijEnriqqcs?t=1279
+// https://youtu.be/xrUSrVvB21c?t=5016
 
 #include <stdio.h>
 #include <stdint.h>
@@ -11,6 +11,7 @@
 #include "utils.h"
 #include "utils.cpp"
 #include "game.h"
+#include "record_memory.cpp"
 
 /* Add to win32 layer
 - save games locations
@@ -26,6 +27,8 @@
 - Hardware acceleration opengl or dx
 ...
 */
+
+#define TRANSIENT_MEMORY_SIZE_MB 512
 
 static bool                Global_game_running = true;
 static bool                Global_pause_sound_debug_sync = false;
@@ -264,8 +267,8 @@ win32_load_xinput() {
     return true;
 }
 
-static 
-win32_window_dimensions get_window_dimensions(HWND window) {
+static win32_window_dimensions 
+get_window_dimensions(HWND window) {
     
     win32_window_dimensions result;
     
@@ -310,18 +313,20 @@ void win32_display_buffer_to_window(win32_bitmap_buffer* bitmap_buffer, HDC devi
     StretchDIBits(deviceContext, 0, 0, window_width, window_height, 0, 0, bitmap_buffer->width, bitmap_buffer->height, bitmap_buffer->memory, &bitmap_buffer->info, DIB_RGB_COLORS, SRCCOPY);
 }
 
-static void win32_process_xinput_button(DWORD xinput_button_state, DWORD button_bit, game_button_state* old_state, game_button_state* new_state) {
+static void 
+win32_process_xinput_button(DWORD xinput_button_state, DWORD button_bit, game_button_state* old_state, game_button_state* new_state) {
     new_state->ended_down = (xinput_button_state & button_bit) == button_bit;
     new_state->half_transition_count = old_state->ended_down != new_state->ended_down ? 1 : 0;
 }
 
-static void win32_process_keyboard_input(game_button_state* new_state, bool is_down) {
+static void 
+win32_process_keyboard_input(game_button_state* new_state, bool is_down) {
     new_state->ended_down = is_down;
     new_state->half_transition_count++;
 }
 
 static void 
-win32_handle_messages(game_controller_input* keyboard_input) {
+win32_handle_messages(win32_state* win_state, game_controller_input* keyboard_input) {
     MSG message;
     while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
         switch (message.message) {
@@ -362,6 +367,13 @@ win32_handle_messages(game_controller_input* keyboard_input) {
                     Global_game_running = false;
                 } else if (vk_key == 'P' && is_down) {
                     Global_pause_sound_debug_sync = !Global_pause_sound_debug_sync;
+                } else if (vk_key == VK_F2 && is_down) {
+                    if (win_state->recording_input_index == 0) {
+                        win32_begin_recording_input(win_state, 1);
+                    } else {
+                        win32_end_recording_input(win_state);
+                        win32_begin_input_playback(win_state, 1);
+                    }
                 }
             } break;
             default: {
@@ -369,7 +381,6 @@ win32_handle_messages(game_controller_input* keyboard_input) {
                 DispatchMessage(&message);
             } break;
         }
-        
     }
 }
 
@@ -420,7 +431,7 @@ win32_window_proc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
     return result;
 }
 
-inline LARGE_INTEGER 
+inline LARGE_INTEGER
 win32_get_wall_clock() {
     LARGE_INTEGER result;
     QueryPerformanceCounter(&result);
@@ -432,7 +443,7 @@ win32_get_seconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end) {
     return (f32)(end.QuadPart - start.QuadPart) / Global_perf_freq;
 }
 
-static void 
+static void
 win32_debug_draw_vertical_line(win32_bitmap_buffer* backbuffer, int x, int top, int bottom, u32 color) {
     
     if (x < 0 || x >= backbuffer->width)
@@ -550,7 +561,15 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
     static const int game_update_refresh_rate = monitor_refresh_rate / 2;
     f32 target_seconds_per_frame              = 1.0f / game_update_refresh_rate;
     
-    win32_resize_dib_section(&Global_backbuffer, 1280, 720);
+    // my screen is 16:10
+    int initial_window_width  = 1280;
+    int initial_window_height = 720;
+#if AR1610
+    initial_window_width  = 1440;
+    initial_window_height = 900;
+#endif
+    
+    win32_resize_dib_section(&Global_backbuffer, initial_window_width, initial_window_height);
     
     window_class.style = CS_HREDRAW | CS_HREDRAW; // redraw full window (vertical/horizontal) (streches)
     window_class.lpfnWndProc = win32_window_proc;
@@ -562,7 +581,7 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
         return -1;
     }
     
-    auto window_handle = CreateWindowEx(0, window_class.lpszClassName, "GG", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, currentInstance, 0);
+    auto window_handle = CreateWindowEx(0, window_class.lpszClassName, "GG", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, initial_window_width, initial_window_height, 0, 0, currentInstance, 0);
     
     if (window_handle == 0) {
         OutputDebugStringA("CreateWindow failed\n");
@@ -586,13 +605,16 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
 #else
     LPVOID base_address = 0;
 #endif
+    win32_state win_state = {};
     
     game_memory memory = {};
     memory.permanent_storage_size = macro_megabytes(64);
-    memory.transient_storage_size = macro_gigabytes(4);
-    auto total_memory_size = memory.permanent_storage_size + memory.transient_storage_size;
+    memory.transient_storage_size = macro_megabytes(TRANSIENT_MEMORY_SIZE_MB);
     
-    memory.permanent_storage = VirtualAlloc(base_address, (size_t)total_memory_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+    win_state.total_memory_size = memory.permanent_storage_size + memory.transient_storage_size;
+    win_state.game_memory_block = VirtualAlloc(base_address, (size_t)win_state.total_memory_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+    
+    memory.permanent_storage = win_state.game_memory_block;
     memory.transient_storage = (u8*)memory.permanent_storage + memory.permanent_storage_size;
     
     macro_assert(samples && memory.permanent_storage && memory.transient_storage);
@@ -600,6 +622,7 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
     win32_init_direct_sound(window_handle, sound_output.samples_per_second, sound_output.buffer_size);
     win32_clear_sound_buffer(&sound_output);
     Global_sound_buffer->Play(0, 0, DSBPLAY_LOOPING);
+    
     
     // SIMD - single instruction multiple data
     game_input input[2] = {};
@@ -611,7 +634,7 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
     win32_debug_time_marker debug_time_marker_list[game_update_refresh_rate / 2] = {};
     DWORD last_play_cursor = 0;
     DWORD last_write_cursor = 0;
-    auto sound_first_pass = true;
+    bool sound_first_pass = true;
     DWORD cursor_bytes_delta;
     f32 audio_latency_seconds;
     
@@ -638,7 +661,7 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
         
         new_keyboard_input->is_connected = true;
         
-        win32_handle_messages(new_keyboard_input);
+        win32_handle_messages(&win_state, new_keyboard_input);
         
         // managing controller
         if (xinput_ready) {
@@ -714,6 +737,14 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
         game_buffer.height = Global_backbuffer.height;
         game_buffer.pitch = Global_backbuffer.pitch;
         game_buffer.bytes_per_pixel = Global_backbuffer.bytes_per_pixel;
+        
+        if (win_state.recording_input_index) {
+            win32_record_input(&win_state, new_input);
+        }
+        
+        if (win_state.playing_input_index) {
+            win32_playback_input(&win_state, new_input);
+        }
         
         game_code.update_and_render(&memory, new_input, &game_buffer);
         

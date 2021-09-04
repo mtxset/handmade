@@ -41,13 +41,37 @@ game_output_sound(game_sound_buffer* sound_buffer, int tone_hz, game_state* stat
     for (int sample_index = 0; sample_index < sound_buffer->sample_count; sample_index++) {
         f32 sine_val = sinf(state->t_sine);
         i16 sample_value = (i16)(sine_val * tone_volume);
+        
+        // disable sound for time being
+        sample_value = 0;
+        
         *sample_out++ = sample_value;
         *sample_out++ = sample_value;
         state->t_sine += PI * 2.0f * (1.0f / (f32)wave_period);
         
+        
         // cuz sinf loses its floating point precision???
         if (state->t_sine > PI * 2.0f)
             state->t_sine -= PI * 2.0f;
+    }
+}
+
+static void
+game_render_player(game_bitmap_buffer* backbuffer, int pos_x, int pos_y) {
+    
+    auto end_buffer = (u8*)backbuffer->memory + backbuffer->pitch * backbuffer->height;
+    int color = 0xffffffff;
+    int top = pos_y;
+    int bottom = pos_y + 10;
+    
+    for (int x = pos_x; x < pos_x + 10; x++) {
+        auto pixel = (u8*)backbuffer->memory + x * backbuffer->bytes_per_pixel + top * backbuffer->pitch;
+        for (int y = pos_y; y < bottom; y++) {
+            if (pixel >= backbuffer->memory && pixel <= end_buffer) {
+                *(u32*)pixel = color;
+            }
+            pixel += backbuffer->pitch;
+        }
     }
 }
 
@@ -69,6 +93,8 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_render) {
         state->green_offset = 0;
         state->tone_hz = 256;
         state->t_sine = 0.0f;
+        state->player_x = 600;
+        state->player_y = 600;
         
         memory->is_initialized = true;
     }
@@ -98,9 +124,25 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_render) {
             if (input_state->right.ended_down)
                 state->blue_offset -= offset;
         }
+        
+        state->player_x += 10 * (int)input_state->stick_avg_x;
+        state->player_y -= 10 * (int)input_state->stick_avg_y;
+        
+        
+        if (state->jump_state > 0) {
+            auto sin_val = sinf(0.5f * PI * state->jump_state);
+            state->player_y += (int)(10.0f * sin_val);
+        }
+        
+        if (input_state->start.ended_down) {
+            state->jump_state = 4.0f;
+        }
+        
+        state->jump_state -= 0.033f;
     }
     
     render_255_gradient(bitmap_buffer, state->blue_offset, state->green_offset);
+    game_render_player(bitmap_buffer, state->player_x, state->player_y);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(game_get_sound_samples) {
