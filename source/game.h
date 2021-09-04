@@ -71,6 +71,10 @@ struct game_state {
     int blue_offset;
     int green_offset;
     f32 t_sine;
+    
+    int player_x;
+    int player_y;
+    f32 jump_state;
 };
 
 inline game_controller_input* get_gamepad(game_input* input, int input_index) {

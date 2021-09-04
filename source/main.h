@@ -54,4 +54,18 @@ struct win32_game_code {
     bool valid;
 };
 
+struct win32_state {
+    void* game_memory_block;
+    u64 total_memory_size;
+    
+    HANDLE recording_file_handle;
+    HANDLE playing_file_handle;
+    
+    int recording_input_index;
+    int playing_input_index;
+    
+    void* recording_memory;
+    void* playing_memory;
+};
+
 #endif //MAIN_H

@@ -1,6 +1,6 @@
 @echo off
 
-set common_compiler_flags=-Od -MT -EHa- -Gm- -GR- -Oi -DINTERNAL=1 -DDEBUG=1 -WX -W4 -wd4201 -wd4459 -wd4100 -wd4189 -FC -Fm -Z7 -nologo
+set common_compiler_flags=-Od -MT -EHa- -Gm- -GR- -Oi -DAR1610 -DINTERNAL=1 -DDEBUG=1 -WX -W4 -wd4201 -wd4459 -wd4100 -wd4189 -FC -Fm -Z7 -nologo
 set common_linker_flags=-incremental:no -opt:ref user32.lib gdi32.lib winmm.lib
 
 if not exist build mkdir build
@@ -21,20 +21,21 @@ cl.exe %common_compiler_flags% "..\source\game.cpp" /LD /link -incremental:no -o
 cl.exe %common_compiler_flags% "..\source\main.cpp" /link %common_linker_flags%
 popd
 
-:: -Od   - disable all optimizations
-:: -WX   - treat each warning as error
-:: -W4   - warning level 4
-:: -Oi   - let compiler use CPU intrinsic functions (like cpu's asm sine instead of c/cpp sine)
-:: -wd*  - supressing specific error
-:: -FC   - outputs full (instead of relative) soure code path
-:: -Fm   - enables map file which has every function showing it's source (function name - module name)
-:: -Z7   - debug file format (some old one)
-:: -GR-  - disables checking object types during run time
-:: -Gm-  - disable any incremental build
-:: -EHa- - disables exceptions
+:: -Od      - disable all optimizations
+:: -WX      - treat each warning as error
+:: -W4      - warning level 4
+:: -Oi      - let compiler use CPU intrinsic functions (like cpu's asm sine instead of c/cpp sine)
+:: -wd*     - supressing specific error
+:: -FC      - outputs full (instead of relative) soure code path
+:: -Fm      - enables map file which has every function showing it's source (function name - module name)
+:: -Z7      - debug file format (some old one)
+:: -GR-     - disables checking object types during run time
+:: -Gm-     - disable any incremental build
+:: -EHa-    - disables exceptions
 :: -opt-ref - removes all imports which are not needed
-:: /link - subsytem:windows,5.1 - support xp
-:: -MT   - package everything instead of expecting user to have dll which does laoding of exe into windows
+:: /link    - subsytem:windows,5.1 - support xp
+:: -MT      - package everything instead of expecting user to have dll which does laoding of exe into windows
+:: -DAR1610 - get 16:10 aspect ratio (window and DIB)
 
 :: Get end time:
 for /F "tokens=1-4 delims=:.," %%a in ("%time%") do (
