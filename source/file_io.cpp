@@ -18,8 +18,9 @@ debug_read_entire_file(char* file_name) {
     
     auto file_handle = CreateFileA(file_name, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, 0);
     
-    if (file_handle == INVALID_HANDLE_VALUE)
+    if (file_handle == INVALID_HANDLE_VALUE) {
         goto exit;
+    }
     
     LARGE_INTEGER file_size;
     if (!GetFileSizeEx(file_handle, &file_size) || file_size.QuadPart == 0)
