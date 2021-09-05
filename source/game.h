@@ -89,11 +89,9 @@ static void game_output_sound(game_sound_buffer* sound_buffer, int tone_hz, game
 
 #define GAME_UPDATE_AND_RENDER(name) void name(game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer)
 typedef GAME_UPDATE_AND_RENDER(game_update_render_def);
-GAME_UPDATE_AND_RENDER(game_update_render_stub) { }
 
 #define GAME_GET_SOUND_SAMPLES(name) void name(game_memory* memory, game_sound_buffer* sound_buffer)
 typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples_def);
-GAME_GET_SOUND_SAMPLES(game_get_sound_samples_stub) { }
 
 //void game_update_render(game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer);
 //void game_get_sound_samples(game_memory* memory, game_sound_buffer* sound_buffer);

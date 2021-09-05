@@ -1,6 +1,6 @@
 @echo off
 
-set common_compiler_flags=-Od -MT -EHa- -Gm- -GR- -Oi -DAR1610 -DINTERNAL=1 -DDEBUG=1 -WX -W4 -wd4201 -wd4459 -wd4100 -wd4189 -FC -Fm -Z7 -nologo
+set common_compiler_flags=-Od -MTd -EHa- -Gm- -GR- -Oi -DAR1610 -DINTERNAL=1 -DDEBUG=1 -WX -W4 -wd4201 -wd4459 -wd4100 -wd4189 -FC -Fm -Z7 -nologo
 set common_linker_flags=-incremental:no -opt:ref user32.lib gdi32.lib winmm.lib
 
 if not exist build mkdir build
@@ -34,7 +34,7 @@ popd
 :: -EHa-    - disables exceptions
 :: -opt-ref - removes all imports which are not needed
 :: /link    - subsytem:windows,5.1 - support xp
-:: -MT      - package everything instead of expecting user to have dll which does laoding of exe into windows
+:: -MTd     - package everything instead of expecting user to have dll which does laoding of exe into windows (d - debug)
 :: -DAR1610 - get 16:10 aspect ratio (window and DIB)
 
 :: Get end time:

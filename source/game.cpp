@@ -43,7 +43,7 @@ game_output_sound(game_sound_buffer* sound_buffer, int tone_hz, game_state* stat
         i16 sample_value = (i16)(sine_val * tone_volume);
         
         // disable sound for time being
-        sample_value = 0;
+        // sample_value = 0;
         
         *sample_out++ = sample_value;
         *sample_out++ = sample_value;
