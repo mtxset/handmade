@@ -17,16 +17,16 @@ static const float PI = 3.14159265358979323846f;
 #define macro_terabytes(value) (macro_gigabytes(value)*1024ull)
 #define macro_array_count(array) sizeof(array) / sizeof((array)[0]) // array is in parenthesis because we can pass x + y and we want to have (x + y)[0]
 
-template <typename T> void 
-swap(T& a, T& b);
+template <typename T> 
+void swap(T& a, T& b);
 
-u32 
-truncate_u64(u64 value);
+u32 truncate_u64(u64 value);
 
-void
-string_concat(size_t src_a_count, char* src_a, size_t src_b_count, char* src_b, size_t dest_count, char* dest);
+void string_concat(size_t src_a_count, char* src_a, size_t src_b_count, char* src_b, size_t dest_count, char* dest);
 
-int 
-string_len(char* string);
+int string_len(char* string);
+int string_to_binary(char* str);
+
+char* int_to_string(int n);
 
 #endif //UTILS_H
