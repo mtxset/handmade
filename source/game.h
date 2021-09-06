@@ -53,6 +53,8 @@ struct game_controller_input {
 };
 
 struct game_input {
+    game_button_state mouse_buttons[3];
+    i32 mouse_x, mouse_y;
     // 1 - keyboard, other gamepads
     game_controller_input gamepad[5];
 };
@@ -77,6 +79,11 @@ struct game_state {
     f32 jump_state;
 };
 
+// https://www.youtube.com/watch?v=es-Bou2dIdY
+struct thread_context {
+    int placeholder;
+};
+
 inline game_controller_input* get_gamepad(game_input* input, int input_index) {
     macro_assert(input_index >= 0);
     macro_assert(input_index < macro_array_count(input->gamepad));
@@ -87,10 +94,10 @@ inline game_controller_input* get_gamepad(game_input* input, int input_index) {
 void render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offset, int green_offset);
 static void game_output_sound(game_sound_buffer* sound_buffer, int tone_hz, game_state* state);
 
-#define GAME_UPDATE_AND_RENDER(name) void name(game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer)
+#define GAME_UPDATE_AND_RENDER(name) void name(thread_context* thread, game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer)
 typedef GAME_UPDATE_AND_RENDER(game_update_render_def);
 
-#define GAME_GET_SOUND_SAMPLES(name) void name(game_memory* memory, game_sound_buffer* sound_buffer)
+#define GAME_GET_SOUND_SAMPLES(name) void name(thread_context* thread, game_memory* memory, game_sound_buffer* sound_buffer)
 typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples_def);
 
 //void game_update_render(game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer);

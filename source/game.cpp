@@ -32,8 +32,8 @@ render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offset, int gree
     }
 }
 
-static void 
-game_output_sound(game_sound_buffer* sound_buffer, int tone_hz, game_state* state) {
+static 
+void game_output_sound(game_sound_buffer* sound_buffer, int tone_hz, game_state* state) {
     i16 tone_volume = 3000;
     int wave_period = sound_buffer->samples_per_second / tone_hz;
     auto sample_out = sound_buffer->samples;
@@ -56,8 +56,8 @@ game_output_sound(game_sound_buffer* sound_buffer, int tone_hz, game_state* stat
     }
 }
 
-static void
-game_render_player(game_bitmap_buffer* backbuffer, int pos_x, int pos_y) {
+static 
+void game_render_player(game_bitmap_buffer* backbuffer, int pos_x, int pos_y) {
     
     auto end_buffer = (u8*)backbuffer->memory + backbuffer->pitch * backbuffer->height;
     int color = 0xffffffff;
@@ -75,6 +75,7 @@ game_render_player(game_bitmap_buffer* backbuffer, int pos_x, int pos_y) {
     }
 }
 
+// this is super disgusting (no params on function)
 extern "C" GAME_UPDATE_AND_RENDER(game_update_render) {
     macro_assert(sizeof(game_state) <= memory->permanent_storage_size);
     macro_assert(&input->gamepad[0].back - &input->gamepad[0].buttons[0] == macro_array_count(input->gamepad[0].buttons) - 1); // we need to ensure that we take last element in union
@@ -143,6 +144,13 @@ extern "C" GAME_UPDATE_AND_RENDER(game_update_render) {
     
     render_255_gradient(bitmap_buffer, state->blue_offset, state->green_offset);
     game_render_player(bitmap_buffer, state->player_x, state->player_y);
+    
+    game_render_player(bitmap_buffer, input->mouse_x, input->mouse_y);
+    
+    for (int i = 0; i < macro_array_count(input->mouse_buttons); i++) {
+        if (input->mouse_buttons[i].ended_down)
+            game_render_player(bitmap_buffer, 20 + 11 * i, 20); 
+    }
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(game_get_sound_samples) {

@@ -65,8 +65,7 @@ struct win32_state {
     int recording_input_index;
     int playing_input_index;
     
-    void* recording_memory;
-    void* playing_memory;
+    void* recording_memory[4];
     
     char exe_file_name[MAX_PATH];
     char* last_slash;

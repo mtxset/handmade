@@ -1,6 +1,7 @@
 #include "main.h"
 
 // records input and game memory to a file
+// I'm skipping part of implementing loading from file https://www.youtube.com/watch?v=es-Bou2dIdY
 
 static void
 win32_begin_recording_input(win32_state* win_state, int index) {

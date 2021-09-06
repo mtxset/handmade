@@ -1,4 +1,4 @@
-// https://youtu.be/xrUSrVvB21c?t=5016
+// https://youtu.be/es-Bou2dIdY?t=8016
 
 #include <stdio.h>
 #include <stdint.h>
@@ -11,7 +11,6 @@
 #include "utils.h"
 #include "utils.cpp"
 #include "game.h"
-
 
 /* Add to win32 layer
 - save games locations
@@ -52,8 +51,8 @@ typedef HRESULT WINAPI direct_sound_create(LPCGUID pcGuidDevice, LPDIRECTSOUND* 
 static direct_sound_create* DirectSoundCreate_;                                                             // define variable to hold it
 #define DirectSoundCreate DirectSoundCreate_                                                                // change name by which we reference upper-line mentioned variable
 
-static void
-win32_get_exe_filename(win32_state* win_state) {
+static 
+void win32_get_exe_filename(win32_state* win_state) {
     auto current_file_name_size = GetModuleFileNameA(0, win_state->exe_file_name, sizeof(win_state->exe_file_name));
     win_state->last_slash = win_state->exe_file_name;
     for (char* scan = win_state->exe_file_name; *scan; scan++) {
@@ -62,13 +61,13 @@ win32_get_exe_filename(win32_state* win_state) {
     }
 }
 
-static void
-win32_build_exe_filename(win32_state* win_state, char* filename, int dest_count, char* dest) {
+static 
+void win32_build_exe_filename(win32_state* win_state, char* filename, int dest_count, char* dest) {
     string_concat(win_state->last_slash - win_state->exe_file_name, win_state->exe_file_name, string_len(filename), filename, dest_count, dest);
 }
 
-static void
-win32_get_input_file_location(win32_state* win_state, int index, int dest_count, char* dest) {
+static 
+void win32_get_input_file_location(win32_state* win_state, int index, int dest_count, char* dest) {
     char* file_name = "game.input";
     win32_build_exe_filename(win_state, file_name, dest_count, dest); 
 }
@@ -76,8 +75,8 @@ win32_get_input_file_location(win32_state* win_state, int index, int dest_count,
 // disgusting
 #include "record_memory.cpp"
 
-static void 
-win32_init_direct_sound(HWND window, i32 samples_per_second, i32 buffer_size) {
+static 
+void win32_init_direct_sound(HWND window, i32 samples_per_second, i32 buffer_size) {
     // NOTE: Load the library
     HMODULE DSoundLibrary = LoadLibrary("dsound.dll");
     
@@ -201,8 +200,8 @@ win32_fill_sound_buffer(win32_sound_output* sound_output, DWORD bytes_to_lock, D
     Global_sound_buffer->Unlock(region_one, region_one_size, region_two, region_two_size);
 }
 
-static f32 
-win32_xinput_cutoff_deadzone(SHORT thumb_value) {
+static 
+f32 win32_xinput_cutoff_deadzone(SHORT thumb_value) {
     f32 result = 0;
     auto dead_zone_threshold = XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE;
     if        (thumb_value > dead_zone_threshold) {
@@ -214,8 +213,8 @@ win32_xinput_cutoff_deadzone(SHORT thumb_value) {
     return result;
 }
 
-inline FILETIME
-win32_get_last_write_time(char* filename) {
+inline 
+FILETIME win32_get_last_write_time(char* filename) {
     FILETIME result = {};
     WIN32_FILE_ATTRIBUTE_DATA file_data;
     
@@ -226,8 +225,8 @@ win32_get_last_write_time(char* filename) {
     return result;
 }
 
-static win32_game_code
-win32_load_game_code(char* source_dll_filepath, char* source_temp_filepath) {
+static 
+win32_game_code win32_load_game_code(char* source_dll_filepath, char* source_temp_filepath) {
     win32_game_code result = {};
     
     result.dll_last_write_time = win32_get_last_write_time(source_dll_filepath);
@@ -252,8 +251,8 @@ win32_load_game_code(char* source_dll_filepath, char* source_temp_filepath) {
     return result;
 }
 
-static void 
-win32_unload_game_code(win32_game_code* game_code) {
+static 
+void win32_unload_game_code(win32_game_code* game_code) {
     if (game_code->game_code_dll) {
         FreeLibrary(game_code->game_code_dll);
         game_code->game_code_dll = 0;
@@ -264,8 +263,8 @@ win32_unload_game_code(win32_game_code* game_code) {
     game_code->get_sound_samples = 0;
 }
 
-static bool 
-win32_load_xinput() {
+static 
+bool win32_load_xinput() {
     // looks locally, looks in windows
     // support only for some windows
     auto xinput_lib = LoadLibraryA("xinput1_4.dll");
@@ -289,8 +288,8 @@ win32_load_xinput() {
     return true;
 }
 
-static win32_window_dimensions 
-get_window_dimensions(HWND window) {
+static 
+win32_window_dimensions get_window_dimensions(HWND window) {
     
     win32_window_dimensions result;
     
@@ -349,8 +348,10 @@ win32_process_xinput_button(DWORD xinput_button_state, DWORD button_bit, game_bu
 
 static void 
 win32_process_keyboard_input(game_button_state* new_state, bool is_down) {
-    new_state->ended_down = is_down;
-    new_state->half_transition_count++;
+    if (new_state->ended_down != is_down){ 
+        new_state->ended_down = is_down;
+        new_state->half_transition_count++;
+    }
 }
 
 static void 
@@ -366,42 +367,61 @@ win32_handle_messages(win32_state* win_state, game_controller_input* keyboard_in
             case WM_SYSKEYUP:
             case WM_SYSKEYDOWN: {
                 auto vk_key = message.wParam;
-                auto previous_state = message.lParam & (1 << 30);        // will return 0 or bit 30
+                bool previous_state = (message.lParam & (1 << 30)) != 0; // will return 0 or bit 30
                 bool was_down       = (message.lParam & (1 << 30)) != 0; // if I get 0 I get true if I get something besides zero I compare it to zero and I will get false
                 bool is_down        = (message.lParam & (1 << 31)) == 0; // parenthesis required because == has precedence over &
                 bool alt_is_down    = (message.lParam & (1 << 29)) != 0; // will return 0 or bit 29; if I get 29 alt is down - if 0 it's not so I compare it to 0
                 
                 if        (vk_key == 'W') {
                     win32_process_keyboard_input(&keyboard_input->up, is_down);
-                } else if (vk_key == 'S') {
+                } 
+                else if (vk_key == 'S') {
                     win32_process_keyboard_input(&keyboard_input->down, is_down);
-                } else if (vk_key == 'A') {
+                } 
+                else if (vk_key == 'A') {
                     win32_process_keyboard_input(&keyboard_input->left, is_down);
-                } else if (vk_key == 'D') {
+                } 
+                else if (vk_key == 'D') {
                     win32_process_keyboard_input(&keyboard_input->right, is_down);
-                } else if (vk_key == VK_UP) {
+                } 
+                else if (vk_key == VK_UP) {
                     win32_process_keyboard_input(&keyboard_input->up, is_down);
-                } else if (vk_key == VK_LEFT) {
+                } 
+                else if (vk_key == VK_LEFT) {
                     win32_process_keyboard_input(&keyboard_input->left, is_down);
-                } else if (vk_key == VK_DOWN) {
+                } 
+                else if (vk_key == VK_DOWN) {
                     win32_process_keyboard_input(&keyboard_input->down, is_down);
-                } else if (vk_key == VK_RIGHT) {
+                } 
+                else if (vk_key == VK_RIGHT) {
                     win32_process_keyboard_input(&keyboard_input->right, is_down);
-                } else if (vk_key == VK_ESCAPE) {
+                } 
+                else if (vk_key == VK_ESCAPE) {
                     win32_process_keyboard_input(&keyboard_input->back, is_down);
-                } else if (vk_key == VK_SPACE) {
+                } 
+                else if (vk_key == VK_SPACE) {
                     win32_process_keyboard_input(&keyboard_input->start, is_down);
-                } else if (vk_key == VK_F4 && alt_is_down) {
+                } 
+                else if (vk_key == VK_F4 && alt_is_down) {
                     Global_game_running = false;
-                } else if (vk_key == 'P' && is_down) {
+                } 
+                else if (vk_key == 'P' && is_down) {
                     Global_pause_sound_debug_sync = !Global_pause_sound_debug_sync;
-                } else if (vk_key == VK_F2 && is_down) {
-                    if (win_state->recording_input_index == 0) {
-                        win32_begin_recording_input(win_state, 1);
-                    } else {
-                        win32_end_recording_input(win_state);
-                        win32_begin_input_playback(win_state, 1);
+                } 
+                else if (vk_key == VK_F2 && is_down) {
+                    if (win_state->playing_input_index == 0) {
+                        if (win_state->recording_input_index == 0) {
+                            win32_begin_recording_input(win_state, 1);
+                        } 
+                        else {
+                            win32_end_recording_input(win_state);
+                            win32_begin_input_playback(win_state, 1);
+                        }
+                    } 
+                    else {
+                        win32_end_input_playback(win_state);
                     }
+                    
                 }
             } break;
             default: {
@@ -576,14 +596,8 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
         game_code = win32_load_game_code(game_code_full_path, temp_game_code_full_path);
     }
     
-    auto xinput_ready = win32_load_xinput();
-    
     UINT desired_scheduler_period_ms = 1;
     auto sleep_is_granular = timeBeginPeriod(desired_scheduler_period_ms) == TIMERR_NOERROR;
-    
-    static const int monitor_refresh_rate     = 60;
-    static const int game_update_refresh_rate = monitor_refresh_rate / 2;
-    f32 target_seconds_per_frame              = 1.0f / game_update_refresh_rate;
     
     // my screen is 16:10
     int initial_window_width  = 1280;
@@ -617,6 +631,20 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
         }
     }
     
+    thread_context thread = {};
+    
+    HDC refresh_dc = GetDC(window_handle);
+    int refresh_rate       = 60;
+    int win32_refresh_rate = GetDeviceCaps(refresh_dc, VREFRESH);
+    ReleaseDC(window_handle, refresh_dc);
+    
+    if (win32_refresh_rate > 1)
+        refresh_rate = win32_refresh_rate;
+    
+    static const int monitor_refresh_rate     = refresh_rate;
+    static const int game_update_refresh_rate = monitor_refresh_rate / 2;
+    f32 target_seconds_per_frame              = 1.0f / (f32)game_update_refresh_rate;
+    
     HDC device_context;
     
     // sound stuff
@@ -625,8 +653,7 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
     {
         sound_output.samples_per_second = 48000;
         sound_output.bytes_per_sample = sizeof(i16) * 2;
-        sound_output.latency_sample_count = 3 * (sound_output.samples_per_second / game_update_refresh_rate);
-        sound_output.safety_bytes = sound_output.samples_per_second * sound_output.bytes_per_sample / game_update_refresh_rate / 2;
+        sound_output.safety_bytes = int((f32)sound_output.samples_per_second * (f32)sound_output.bytes_per_sample / game_update_refresh_rate / 3.0f);
         sound_output.buffer_size = sound_output.samples_per_second * sound_output.bytes_per_sample;
         
         samples = (i16*)VirtualAlloc(0, sound_output.buffer_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
@@ -660,13 +687,15 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
     Global_sound_buffer->Play(0, 0, DSBPLAY_LOOPING);
     
     // SIMD - single instruction multiple data
+    auto xinput_ready = win32_load_xinput();
+    
     game_input input[2] = {};
     game_input* new_input = &input[0];
     game_input* old_input = &input[1];
     
     // sound stuff
     int debug_last_marker_index = 0;
-    win32_debug_time_marker debug_time_marker_list[game_update_refresh_rate / 2] = {};
+    win32_debug_time_marker debug_time_marker_list[15] = {};
     DWORD last_play_cursor = 0;
     DWORD last_write_cursor = 0;
     bool sound_first_pass = true;
@@ -679,25 +708,42 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
     
     while (Global_game_running) {
         
-        auto new_dll_write_time = win32_get_last_write_time(game_code_dll_name);
-        if (CompareFileTime(&new_dll_write_time, &game_code.dll_last_write_time) != 0) {
-            win32_unload_game_code(&game_code);
-            game_code = win32_load_game_code(game_code_full_path, temp_game_code_full_path);
+        // check if we need to reload game code
+        {
+            auto new_dll_write_time = win32_get_last_write_time(game_code_dll_name);
+            
+            if (CompareFileTime(&new_dll_write_time, &game_code.dll_last_write_time) != 0) {
+                win32_unload_game_code(&game_code);
+                game_code = win32_load_game_code(game_code_full_path, temp_game_code_full_path);
+            }
         }
         
         // input
-        auto old_keyboard_input = &old_input->gamepad[0];
-        auto new_keyboard_input = &new_input->gamepad[0];
-        *new_keyboard_input = {};
-        
-        for (int i = 0; i < macro_array_count(new_keyboard_input->buttons); i++) {
-            new_keyboard_input->buttons[i].ended_down = old_keyboard_input->buttons[i].ended_down;
+        {
+            auto old_keyboard_input = &old_input->gamepad[0];
+            auto new_keyboard_input = &new_input->gamepad[0];
+            *new_keyboard_input = {};
+            
+            for (int i = 0; i < macro_array_count(new_keyboard_input->buttons); i++) {
+                new_keyboard_input->buttons[i].ended_down = old_keyboard_input->buttons[i].ended_down;
+            }
+            
+            new_keyboard_input->is_connected = true;
+            new_keyboard_input->is_analog = old_keyboard_input->is_analog;
+            
+            win32_handle_messages(&win_state, new_keyboard_input);
+            
+            POINT mouse_pos;
+            GetCursorPos(&mouse_pos);
+            // we need to call screen to client because mouse positions we're getting are global, but our window's position is not aligned
+            ScreenToClient(window_handle, &mouse_pos);
+            
+            new_input->mouse_x = mouse_pos.x;
+            new_input->mouse_y = mouse_pos.y;
+            win32_process_keyboard_input(&new_input->mouse_buttons[0], GetKeyState(VK_LBUTTON) & (1 << 15));
+            win32_process_keyboard_input(&new_input->mouse_buttons[1], GetKeyState(VK_MBUTTON) & (1 << 15));
+            win32_process_keyboard_input(&new_input->mouse_buttons[2], GetKeyState(VK_RBUTTON) & (1 << 15));
         }
-        
-        new_keyboard_input->is_connected = true;
-        new_keyboard_input->is_analog = old_keyboard_input->is_analog;
-        
-        win32_handle_messages(&win_state, new_keyboard_input);
         
         // managing controller
         if (xinput_ready) {
@@ -783,7 +829,7 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
         }
         
         if (game_code.update_and_render)
-            game_code.update_and_render(&memory, new_input, &game_buffer);
+            game_code.update_and_render(&thread, &memory, new_input, &game_buffer);
         
         // sound stuff
         {
@@ -804,7 +850,7 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
             
             bytes_to_lock = (sound_output.running_sample_index * sound_output.bytes_per_sample) % sound_output.buffer_size;
             
-            DWORD expected_sound_bytes_per_frame = (sound_output.samples_per_second * sound_output.bytes_per_sample) / game_update_refresh_rate;
+            DWORD expected_sound_bytes_per_frame = (int)((sound_output.samples_per_second * sound_output.bytes_per_sample) / game_update_refresh_rate);
             f32 seconds_left_until_flip = target_seconds_per_frame - from_begin_to_audio_seconds;
             DWORD expected_bytes_until_flip = (DWORD)(seconds_left_until_flip / target_seconds_per_frame) * expected_sound_bytes_per_frame;
             DWORD expected_frame_boundry_byte = play_cursor + expected_bytes_until_flip;
@@ -840,7 +886,7 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
             sound_buffer.samples = samples;
             
             if (game_code.get_sound_samples)
-                game_code.get_sound_samples(&memory, &sound_buffer);
+                game_code.get_sound_samples(&thread, &memory, &sound_buffer);
             
 #if INTERNAL
             auto marker = &debug_time_marker_list[debug_last_marker_index];
@@ -857,12 +903,17 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
             cursor_bytes_delta = abs((int)temp_write_cursor - (int)temp_play_cursor);
             audio_latency_seconds = ((f32)cursor_bytes_delta / (f32)sound_output.bytes_per_sample) / (f32)sound_output.samples_per_second;
             
+#if 0
             char buffer[256];
             _snprintf_s(buffer, sizeof(buffer),  "play cursor: %u; byte to lock: %u; target cursor: %u; bytes_to_write: %u; delta: %u; t play cursor: %u; t write cursor: %u; latency: %f s\n", last_play_cursor, bytes_to_lock, target_cursor, bytes_to_write, cursor_bytes_delta, temp_play_cursor, temp_write_cursor, audio_latency_seconds);
-            //OutputDebugStringA(buffer);
+            OutputDebugStringA(buffer);
+#endif
             
             // display debug cursors
-            win32_debug_sync_display(&Global_backbuffer, macro_array_count(debug_time_marker_list), debug_last_marker_index - 1, debug_time_marker_list, &sound_output, target_seconds_per_frame);
+            bool draw_debug_sound_markers = false;
+            
+            if (draw_debug_sound_markers)
+                win32_debug_sync_display(&Global_backbuffer, macro_array_count(debug_time_marker_list), debug_last_marker_index - 1, debug_time_marker_list, &sound_output, target_seconds_per_frame);
             
 #endif
             goto exit;
@@ -919,13 +970,13 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
             }
 #endif
             
+#if 0
             auto cycles_elapsed = (u32)(end_cycle_count - begin_cycle_count);
             auto counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
             
             auto fps = (i32)(Global_perf_freq / counter_elapsed);
             auto elapsed_ms = (i32)(counter_elapsed * 1000.0f / Global_perf_freq);
             
-#if DEBUG
             char buffer[256];
             _snprintf_s(buffer, sizeof(buffer), "%d ms/f  %d f/s  %d MC/f \n", elapsed_ms, fps, cycles_elapsed / 1000000);
             // approx. cpu speed - fps * (cycles_elapsed / 1000000)
