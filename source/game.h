@@ -55,6 +55,10 @@ struct game_controller_input {
 struct game_input {
     game_button_state mouse_buttons[3];
     i32 mouse_x, mouse_y;
+    
+    // seconds to advance over update
+    f32 time_delta;
+    
     // 1 - keyboard, other gamepads
     game_controller_input gamepad[5];
 };
@@ -69,14 +73,6 @@ struct game_memory {
 };
 
 struct game_state {
-    int tone_hz;
-    int blue_offset;
-    int green_offset;
-    f32 t_sine;
-    
-    int player_x;
-    int player_y;
-    f32 jump_state;
 };
 
 // https://www.youtube.com/watch?v=es-Bou2dIdY
@@ -84,7 +80,8 @@ struct thread_context {
     int placeholder;
 };
 
-inline game_controller_input* get_gamepad(game_input* input, int input_index) {
+inline 
+game_controller_input* get_gamepad(game_input* input, int input_index) {
     macro_assert(input_index >= 0);
     macro_assert(input_index < macro_array_count(input->gamepad));
     

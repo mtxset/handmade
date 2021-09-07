@@ -1,4 +1,4 @@
-// https://www.youtube.com/watch?v=rPJfadFSCyQ
+// https://youtu.be/Mi98zVBb6Wk?t=2649
 
 #include <stdio.h>
 #include <stdint.h>
@@ -27,6 +27,7 @@
 ...
 */
 
+// if for recording of input and gamestate we use disk this will allocate file of TRANSIENT_MEMORY_SIZE_MB size, and that will hang game till it's allocated
 static const int TRANSIENT_MEMORY_SIZE_MB = 512;
 
 static bool                Global_game_running = true;
@@ -571,8 +572,6 @@ win32_debug_sync_display(win32_bitmap_buffer* backbuffer, int marker_count, int 
     }
 }
 
-
-
 int 
 main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLineParams, int nothing) {
     
@@ -693,14 +692,19 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
     game_input* new_input = &input[0];
     game_input* old_input = &input[1];
     
+    new_input->time_delta = target_seconds_per_frame;
+    
     // sound stuff
     int debug_last_marker_index = 0;
     win32_debug_time_marker debug_time_marker_list[15] = {};
     DWORD last_play_cursor = 0;
     DWORD last_write_cursor = 0;
     bool sound_first_pass = true;
+    
+#if INTERNAL
     DWORD cursor_bytes_delta;
     f32 audio_latency_seconds;
+#endif
     
     last_counter = win32_get_wall_clock();
     flip_wall_clock = win32_get_wall_clock();
