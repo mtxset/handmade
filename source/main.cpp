@@ -1,4 +1,4 @@
-// https://youtu.be/Mi98zVBb6Wk?t=2649
+// https://youtu.be/QGmQ714rlAc?t=4133
 
 #include <stdio.h>
 #include <stdint.h>
@@ -692,8 +692,6 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
     game_input* new_input = &input[0];
     game_input* old_input = &input[1];
     
-    new_input->time_delta = target_seconds_per_frame;
-    
     // sound stuff
     int debug_last_marker_index = 0;
     win32_debug_time_marker debug_time_marker_list[15] = {};
@@ -711,6 +709,8 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
     auto begin_cycle_count = __rdtsc();
     
     while (Global_game_running) {
+        
+        new_input->time_delta = target_seconds_per_frame;
         
         // check if we need to reload game code
         {
@@ -786,7 +786,8 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
                     new_gamepad->stick_avg_x = win32_xinput_cutoff_deadzone(pad->sThumbLX);
                     new_gamepad->stick_avg_y = win32_xinput_cutoff_deadzone(pad->sThumbLY);
                     
-                    new_gamepad->is_analog = new_gamepad->stick_avg_x == 0.0f || new_gamepad->stick_avg_y == 0.0f;
+                    if (new_gamepad->stick_avg_x != 0.0f || new_gamepad->stick_avg_y != 0.0f)
+                        new_gamepad->is_analog = true;
                     
                     auto threshold = 0.5f;
                     win32_process_xinput_button((new_gamepad->stick_avg_x < -threshold) ? 1 : 0, 1, &old_gamepad->move_left,    &new_gamepad->move_left);
@@ -973,7 +974,7 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
             }
 #endif
             
-#if 0
+#if 1
             auto cycles_elapsed = (u32)(end_cycle_count - begin_cycle_count);
             auto counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
             
