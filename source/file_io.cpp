@@ -3,17 +3,15 @@
 #include "utils.h"
 #include "file_io.h"
 
-#if INTERNAL
-
-static void 
-debug_free_file(void* handle) {
+static 
+void debug_free_file(void* handle) {
     if (handle) { 
         VirtualFree(handle, 0, MEM_RELEASE);
     }
 }
 
-static debug_file_read_result 
-debug_read_entire_file(char* file_name) {
+static 
+debug_file_read_result debug_read_entire_file(char* file_name) {
     debug_file_read_result result = {};
     
     auto file_handle = CreateFileA(file_name, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, 0);
@@ -48,8 +46,8 @@ debug_read_entire_file(char* file_name) {
     return result;
 }
 
-static bool 
-debug_write_entire_file(char* file_name, u32 memory_size, void* memory) {
+static 
+bool debug_write_entire_file(char* file_name, u32 memory_size, void* memory) {
     auto file_handle = CreateFileA(file_name, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
     
     if (file_handle == INVALID_HANDLE_VALUE)
@@ -70,5 +68,3 @@ debug_write_entire_file(char* file_name, u32 memory_size, void* memory) {
     CloseHandle(file_handle);
     return false;
 }
-
-#endif

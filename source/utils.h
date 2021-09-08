@@ -5,6 +5,17 @@
 
 static const float PI = 3.14159265358979323846f;
 
+static const u32 color_black  = 0xf0000000;
+static const u32 color_white  = 0xffffffff;
+static const u32 color_purple = 0x00ff00ff;
+static const u32 color_cyan   = 0x0000ffff;
+static const u32 color_red    = 0x00ff0000;
+static const u32 color_green  = 0x0000ff00;
+static const u32 color_blue   = 0x000000ff;
+static const u32 color_gold   = 0x00b48c06;
+static const u32 color_yellow = 0x00ffff00;
+static const u32 color_gray   = 0x0075787b;
+
 #if DEBUG
 #define macro_assert(expr) if (!(expr)) {*(int*)0 = 0;}
 #else
@@ -28,5 +39,7 @@ int string_len(char* string);
 int string_to_binary(char* str);
 
 char* int_to_string(int n);
+
+i32 round(f32);
 
 #endif //UTILS_H

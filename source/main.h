@@ -49,8 +49,8 @@ struct win32_game_code {
     FILETIME dll_last_write_time;
     
     // because we don't have stubs we need to check for 0 before calling
-    game_update_render_def*     update_and_render;
-    game_get_sound_samples_def* get_sound_samples;
+    game_update_render_signature*     update_and_render;
+    game_get_sound_samples_signature* get_sound_samples;
     
     bool valid;
 };

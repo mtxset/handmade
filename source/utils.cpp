@@ -64,3 +64,11 @@ char* int_to_string(int n) {
 	return(binary);
 }
 
+i32 round(f32 value) {
+    i32 result;
+    
+    result = (i32)(value + 0.5f);
+    // 0.5 cuz c will truncate decimal points, so 0.6 will be 0
+    
+    return result;
+}
