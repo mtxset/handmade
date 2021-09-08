@@ -238,8 +238,8 @@ win32_game_code win32_load_game_code(char* source_dll_filepath, char* source_tem
     if (!result.game_code_dll)
         goto exit;
     
-    result.update_and_render = (game_update_render_def*)GetProcAddress(result.game_code_dll, "game_update_render");
-    result.get_sound_samples = (game_get_sound_samples_def*)GetProcAddress(result.game_code_dll, "game_get_sound_samples");
+    result.update_and_render = (game_update_render_signature*)GetProcAddress(result.game_code_dll, "game_update_render");
+    result.get_sound_samples = (game_get_sound_samples_signature*)GetProcAddress(result.game_code_dll, "game_get_sound_samples");
     
     result.valid = (result.update_and_render && result.get_sound_samples);
     
@@ -304,8 +304,8 @@ win32_window_dimensions get_window_dimensions(HWND window) {
 }
 
 // DIB - device independant section
-static void 
-win32_resize_dib_section(win32_bitmap_buffer* bitmap_buffer, int width, int height) {
+static 
+void win32_resize_dib_section(win32_bitmap_buffer* bitmap_buffer, int width, int height) {
     
     if (bitmap_buffer->memory) {
         VirtualFree(bitmap_buffer->memory, 0, MEM_RELEASE);
@@ -341,14 +341,14 @@ void win32_display_buffer_to_window(win32_bitmap_buffer* bitmap_buffer, HDC devi
     StretchDIBits(deviceContext, 0, 0, window_width, window_height, 0, 0, bitmap_buffer->width, bitmap_buffer->height, bitmap_buffer->memory, &bitmap_buffer->info, DIB_RGB_COLORS, SRCCOPY);
 }
 
-static void 
-win32_process_xinput_button(DWORD xinput_button_state, DWORD button_bit, game_button_state* old_state, game_button_state* new_state) {
+static 
+void win32_process_xinput_button(DWORD xinput_button_state, DWORD button_bit, game_button_state* old_state, game_button_state* new_state) {
     new_state->ended_down = (xinput_button_state & button_bit) == button_bit;
     new_state->half_transition_count = old_state->ended_down != new_state->ended_down ? 1 : 0;
 }
 
-static void 
-win32_process_keyboard_input(game_button_state* new_state, bool is_down) {
+static 
+void win32_process_keyboard_input(game_button_state* new_state, bool is_down) {
     if (new_state->ended_down != is_down){ 
         new_state->ended_down = is_down;
         new_state->half_transition_count++;
@@ -598,12 +598,12 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
     UINT desired_scheduler_period_ms = 1;
     auto sleep_is_granular = timeBeginPeriod(desired_scheduler_period_ms) == TIMERR_NOERROR;
     
-    // my screen is 16:10
-    int initial_window_width  = 1280;
-    int initial_window_height = 720;
+    // setting resolution my screen is 16:10
+    int initial_window_width  = 960;
+    int initial_window_height = 540;
 #if AR1610
-    initial_window_width  = 1280;
-    initial_window_height = 800;
+    initial_window_width  = 960;
+    initial_window_height = 600;
 #endif
     
     win32_resize_dib_section(&Global_backbuffer, initial_window_width, initial_window_height);
@@ -622,7 +622,7 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
             return -1;
         }
         
-        window_handle = CreateWindowEx(0, window_class.lpszClassName, "GG", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, initial_window_width, initial_window_height, 0, 0, currentInstance, 0);
+        window_handle = CreateWindowEx(0, window_class.lpszClassName, "GG", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, initial_window_width + 150, initial_window_height + 150, 0, 0, currentInstance, 0);
         
         if (window_handle == 0) {
             OutputDebugStringA("CreateWindow failed\n");
@@ -815,8 +815,6 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
         swap(new_input, old_input);
         // end input
         
-        device_context = GetDC(window_handle);
-        
         game_bitmap_buffer game_buffer = {};
         game_buffer.memory = Global_backbuffer.memory;
         game_buffer.width = Global_backbuffer.width;
@@ -953,8 +951,9 @@ main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLinePar
             
             // draw
             auto dimensions = get_window_dimensions(window_handle);
-            
+            device_context = GetDC(window_handle);
             win32_display_buffer_to_window(&Global_backbuffer, device_context, dimensions.width, dimensions.height);
+            ReleaseDC(window_handle, device_context);
             
             flip_wall_clock = win32_get_wall_clock();
 #if INTERNAL

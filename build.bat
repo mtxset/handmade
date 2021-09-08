@@ -6,8 +6,7 @@
 :: -wd4459: declaration of 'x' hides global declaration
 :: -wd4505: unreferenced local function has been removed
 set ignore_errors=-wd4100 -wd4189 -wd4201 -wd4459 -wd4505
-:: -DINTERNAL=1 -DDEBUG=1
-set common_compiler_flags=-Od -MTd -EHa- -Gm- -GR- -Oi -DAR1610 -WX -W4 %ignore_errors% -FC -Fm -Z7 -nologo
+set common_compiler_flags=-Od -MTd -EHa- -Gm- -GR- -Oi -DAR1610 -DINTERNAL=1 -DDEBUG=1 -WX -W4 %ignore_errors% -FC -Fm -Z7 -nologo
 set common_linker_flags=-incremental:no -opt:ref user32.lib gdi32.lib winmm.lib
 
 if not exist build mkdir build

@@ -73,6 +73,7 @@ struct game_memory {
 };
 
 struct game_state {
+    f32 t_sine;
 };
 
 // https://www.youtube.com/watch?v=es-Bou2dIdY
@@ -91,13 +92,19 @@ game_controller_input* get_gamepad(game_input* input, int input_index) {
 void render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offset, int green_offset);
 static void game_output_sound(game_sound_buffer* sound_buffer, int tone_hz, game_state* state);
 
-#define GAME_UPDATE_AND_RENDER(name) void name(thread_context* thread, game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer)
-typedef GAME_UPDATE_AND_RENDER(game_update_render_def);
+typedef void (game_update_render_signature) (thread_context* thread, game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer);
 
-#define GAME_GET_SOUND_SAMPLES(name) void name(thread_context* thread, game_memory* memory, game_sound_buffer* sound_buffer)
-typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples_def);
+typedef void (game_get_sound_samples_signature) (thread_context* thread, game_memory* memory, game_sound_buffer* sound_buffer);
+
+// TODO: remove these later (day 27)
 
 //void game_update_render(game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer);
 //void game_get_sound_samples(game_memory* memory, game_sound_buffer* sound_buffer);
+
+//#define GAME_UPDATE_AND_RENDER(name) void name(thread_context* thread, game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer)
+//typedef GAME_UPDATE_AND_RENDER(game_update_render_def);
+
+//#define GAME_GET_SOUND_SAMPLES(name) void name(thread_context* thread, game_memory* memory, game_sound_buffer* sound_buffer)
+//typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples_def);
 
 #endif //GAME_H
