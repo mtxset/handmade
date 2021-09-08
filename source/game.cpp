@@ -89,12 +89,19 @@ void game_output_sound(game_sound_buffer* sound_buffer, int tone_hz, game_state*
 }
 
 static 
-void draw_rect(game_bitmap_buffer* bitmap_buffer, f32 f32_min_x, f32 f32_min_y, f32 f32_max_x, f32 f32_max_y, u32 color) {
+void draw_rect(game_bitmap_buffer* bitmap_buffer, f32 f32_min_x, f32 f32_min_y, f32 f32_max_x, f32 f32_max_y, color_f32 color) {
     
-    int min_x = round(f32_min_x);
-    int max_x = round(f32_max_x);
-    int min_y = round(f32_min_y);
-    int max_y = round(f32_max_y);
+    // 0x alpha    Red      Green    Blue
+    // 32 bits
+    // 0x 00000000 00000000 00000000 00000000
+    u32 color_bits = (round_f32_u32(color.r * 255.0f) << 16 |
+                      round_f32_u32(color.g * 255.0f) << 8  |
+                      round_f32_u32(color.b * 255.0f) << 0);
+    
+    int min_x = round_f32_i32(f32_min_x);
+    int max_x = round_f32_i32(f32_max_x);
+    int min_y = round_f32_i32(f32_min_y);
+    int max_y = round_f32_i32(f32_max_y);
     
     if (min_x < 0)
         min_x = 0;
@@ -114,7 +121,7 @@ void draw_rect(game_bitmap_buffer* bitmap_buffer, f32 f32_min_x, f32 f32_min_y, 
     for (int y = min_y; y < max_y; y++) {
         auto pixel = (u32*)row;
         for (int x = min_x; x < max_x; x++) {
-            *pixel++ = color;
+            *pixel++ = color_bits;
         }
         row += bitmap_buffer->pitch;
     }
@@ -141,13 +148,74 @@ void game_update_render(thread_context* thread, game_memory* memory, game_input*
     for (int i = 0; i < macro_array_count(input->gamepad); i++) {
         auto input_state = get_gamepad(input, i);
         
+        f32 player_x_delta = .0f;
+        f32 player_y_delta = .0f;
+        f32 move_offset = 64.0f;
+        
         if (input_state->is_analog) {
-        } else {
+            // TODO: fix so y in analog and digital is same (-1 or 1) it is consistent with keyboard and check dpad
+            if (input_state->move_up.ended_down)    player_y_delta = 1.0f;
+            if (input_state->move_down.ended_down)  player_y_delta = -1.0f;
+            if (input_state->move_left.ended_down)  player_x_delta = -1.0f;
+            if (input_state->move_right.ended_down) player_x_delta = 1.0f;
+        } 
+        else {
             // digital
+            if (input_state->up.ended_down)    player_y_delta = -1.0f;
+            if (input_state->down.ended_down)  player_y_delta = 1.0f;
+            if (input_state->left.ended_down)  player_x_delta = -1.0f;
+            if (input_state->right.ended_down) player_x_delta = 1.0f;
+        }
+        
+        state->player_x += player_x_delta * move_offset * input->time_delta;
+        state->player_y += player_y_delta * move_offset * input->time_delta;
+    }
+    
+    const int cols = 9;
+    const int rows = 16;
+    u32 tile_map[cols][rows] = {
+        {1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1},
+        {0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0},
+        {1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1},
+        {1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1},
+        {1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1},
+    };
+    
+    clear_screen(bitmap_buffer, color_gray);
+    color_f32 color_tile  = { .0f, .5f, 1.0f};
+    color_f32 color_empty = { .3f, .3f, 1.0f};
+    
+    auto tile_width = 960.f / rows;
+    auto tile_height = 600.f / cols;
+    
+    for (int y = 0; y < cols; y++) {
+        for (int x = 0; x < rows; x++) {
+            auto tile_id = tile_map[y][x];
+            
+            f32 min_x = (f32)x * tile_width;
+            f32 min_y = (f32)y * tile_height;
+            f32 max_x = min_x + tile_width;
+            f32 max_y = min_y + tile_height;
+            
+            auto color = color_empty;
+            
+            if (tile_id)
+                color = color_tile;
+            
+            draw_rect(bitmap_buffer, min_x, min_y, max_x, max_y, color);
         }
     }
-    clear_screen(bitmap_buffer, color_gray);
-    draw_rect(bitmap_buffer, 10.0f, 10.0f, 500.0f, 500.0f, color_gold);
+    
+    color_f32 color_player = { .1f, .0f, 1.0f };
+    f32 player_width  = .7f * tile_width;
+    f32 player_height = .7f * tile_height;
+    f32 player_left   = state->player_x - .5f * player_width;
+    f32 player_top    = state->player_y - player_height;
+    draw_rect(bitmap_buffer, player_left, player_top, player_left + player_width, player_top + player_height, color_player);
 }
 
 extern "C" 
