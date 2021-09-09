@@ -1,4 +1,4 @@
-// https://youtu.be/QGmQ714rlAc?t=4133
+// https://youtu.be/EwhVulgF16g?t=2772
 
 #include <stdio.h>
 #include <stdint.h>
@@ -330,15 +330,23 @@ void win32_resize_dib_section(win32_bitmap_buffer* bitmap_buffer, int width, int
 }
 
 inline static 
-void win32_display_buffer_to_window(win32_bitmap_buffer* bitmap_buffer, HDC deviceContext, int window_width, int window_height) {
-    bool stretch = false;
+void win32_display_buffer_to_window(win32_bitmap_buffer* bitmap_buffer, HDC device_context, int window_width, int window_height) {
+    int top = 10;
+    int left = 10;
     
-    if (!stretch) {
+    PatBlt(device_context, 0, 0, window_width, top, BLACKNESS);
+    PatBlt(device_context, 0, top, left, bitmap_buffer->height, BLACKNESS);
+    PatBlt(device_context, 0, top + bitmap_buffer->height, window_width, window_height - bitmap_buffer->height - top, BLACKNESS);
+    PatBlt(device_context, left + bitmap_buffer->width, top, window_width - left - bitmap_buffer->width, bitmap_buffer->height, BLACKNESS);
+    
+    bool stretch_bitmap_to_window = false;
+    
+    if (!stretch_bitmap_to_window) {
         window_width  = bitmap_buffer->width;
         window_height = bitmap_buffer->height;
     }
     
-    StretchDIBits(deviceContext, 0, 0, window_width, window_height, 0, 0, bitmap_buffer->width, bitmap_buffer->height, bitmap_buffer->memory, &bitmap_buffer->info, DIB_RGB_COLORS, SRCCOPY);
+    StretchDIBits(device_context, top, left, window_width, window_height, 0, 0, bitmap_buffer->width, bitmap_buffer->height, bitmap_buffer->memory, &bitmap_buffer->info, DIB_RGB_COLORS, SRCCOPY);
 }
 
 static 
@@ -405,7 +413,10 @@ win32_handle_messages(win32_state* win_state, game_controller_input* keyboard_in
                 } 
                 else if (vk_key == VK_F4 && alt_is_down) {
                     Global_game_running = false;
-                } 
+                }
+                else if (vk_key == VK_SHIFT) {
+                    win32_process_keyboard_input(&keyboard_input->shift, is_down);
+                }
                 else if (vk_key == 'P' && is_down) {
                     Global_pause_sound_debug_sync = !Global_pause_sound_debug_sync;
                 } 
@@ -460,7 +471,7 @@ win32_window_proc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
         
         case WM_PAINT: {
             PAINTSTRUCT paint;
-            auto deviceContext = BeginPaint(window, &paint);
+            auto device_context = BeginPaint(window, &paint);
             
             auto x = paint.rcPaint.left;
             auto y = paint.rcPaint.top;
@@ -468,7 +479,7 @@ win32_window_proc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
             auto height = paint.rcPaint.bottom - paint.rcPaint.top;
             
             auto dimensions = get_window_dimensions(window);
-            win32_display_buffer_to_window(&Global_backbuffer, deviceContext, dimensions.width, dimensions.height);
+            win32_display_buffer_to_window(&Global_backbuffer, device_context, dimensions.width, dimensions.height);
             EndPaint(window, &paint);
         } break;
         

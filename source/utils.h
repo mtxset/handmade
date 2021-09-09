@@ -31,8 +31,6 @@ static const u32 color_gray   = 0x0075787b;
 template <typename T> 
 void swap(T& a, T& b);
 
-u32 truncate_u64(u64);
-
 void string_concat(size_t src_a_count, char* src_a, size_t src_b_count, char* src_b, size_t dest_count, char* dest);
 
 int string_len(char*);
@@ -40,7 +38,10 @@ int string_to_binary(char*);
 
 char* int_to_string(int);
 
-i32 round_f32_i32(f32);
-u32 round_f32_u32(f32);
+inline i32 round_f32_i32(f32);
+inline u32 round_f32_u32(f32);
+
+inline u32 truncate_u64_u32(u64);
+inline i32 truncate_f32_i32(f32);
 
 #endif //UTILS_H

@@ -32,7 +32,7 @@ struct game_controller_input {
     f32 stick_avg_y;
     
     union {
-        game_button_state buttons[12];
+        game_button_state buttons[13];
         struct {
             game_button_state move_up;
             game_button_state move_down;
@@ -46,7 +46,11 @@ struct game_controller_input {
             game_button_state l1;
             game_button_state r1;
             
+            game_button_state shift;
+            
             game_button_state start;
+            // back button has to be last entry cuz there is macro which relies on that
+            // file: game.cpp function: game_update_render
             game_button_state back;
         };
     };
@@ -88,6 +92,21 @@ struct color_f32 {
     f32 r;
     f32 g;
     f32 b;
+};
+
+struct tile_map_data {
+    f32 one_tile_width;
+    f32 one_tile_height;
+    i32 cols_or_y;
+    i32 rows_or_x;
+    u32* map;
+};
+
+struct world_map_data {
+    i32 cols_or_y;
+    i32 rows_or_x;
+    
+    tile_map_data* tile_maps;
 };
 
 inline 

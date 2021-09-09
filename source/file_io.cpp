@@ -24,7 +24,7 @@ debug_file_read_result debug_read_entire_file(char* file_name) {
     if (!GetFileSizeEx(file_handle, &file_size) || file_size.QuadPart == 0)
         goto exit;
     
-    auto file_size_32 = truncate_u64(file_size.QuadPart);
+    auto file_size_32 = truncate_u64_u32(file_size.QuadPart);
     result.content = VirtualAlloc(0, file_size_32, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
     
     if (!result.content) 
