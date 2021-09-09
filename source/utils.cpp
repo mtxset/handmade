@@ -8,11 +8,6 @@ void swap(T& a, T& b) {
     b = c;
 }
 
-u32 truncate_u64(u64 value) {
-    macro_assert(value <= UINT32_MAX);
-    return (u32)value;
-}
-
 void string_concat(size_t src_a_count, char* src_a, size_t src_b_count, char* src_b, size_t dest_count, char* dest) {
     for (int i = 0; i < src_a_count; i++) {
         *dest++ = *src_a++;
@@ -61,9 +56,10 @@ char* int_to_string(int n) {
 		binary[x] = n & 0x80 ? '1' : '0';
 		n <<= 1;
 	}
-	return(binary);
+	return binary;
 }
 
+inline
 i32 round_f32_i32(f32 value) {
     i32 result;
     
@@ -73,10 +69,26 @@ i32 round_f32_i32(f32 value) {
     return result;
 }
 
+inline 
 u32 round_f32_u32(f32 value) {
     u32 result;
     
     result = (u32)(value + 0.5f);
+    
+    return result;
+}
+
+inline 
+u32 truncate_u64_u32(u64 value) {
+    macro_assert(value <= UINT32_MAX);
+    return (u32)value;
+}
+
+inline
+i32 truncate_f32_i32(f32 value) {
+    i32 result;
+    
+    result = (i32)value;
     
     return result;
 }
