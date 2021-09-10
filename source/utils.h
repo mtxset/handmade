@@ -44,4 +44,5 @@ inline u32 round_f32_u32(f32);
 inline u32 truncate_u64_u32(u64);
 inline i32 truncate_f32_i32(f32);
 
+inline i32 floor_f32_i32(f32);
 #endif //UTILS_H

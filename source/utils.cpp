@@ -92,3 +92,13 @@ i32 truncate_f32_i32(f32 value) {
     
     return result;
 }
+
+#include "math.h"
+inline
+i32 floor_f32_i32(f32 value) {
+    i32 result;
+    
+    result = (i32)floorf(value);
+    
+    return result;
+}

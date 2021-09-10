@@ -1,4 +1,4 @@
-// https://youtu.be/EwhVulgF16g?t=2772
+// https://youtu.be/J7suWih0ITQ
 
 #include <stdio.h>
 #include <stdint.h>
@@ -140,8 +140,8 @@ void win32_init_direct_sound(HWND window, i32 samples_per_second, i32 buffer_siz
     }
 }
 
-static void 
-win32_clear_sound_buffer(win32_sound_output* sound_output) {
+static
+void win32_clear_sound_buffer(win32_sound_output* sound_output) {
     void* region_one;
     DWORD region_one_size;
     void* region_two;
@@ -165,8 +165,8 @@ win32_clear_sound_buffer(win32_sound_output* sound_output) {
     Global_sound_buffer->Unlock(region_one, region_one_size, region_two, region_two_size);
 }
 
-static void 
-win32_fill_sound_buffer(win32_sound_output* sound_output, DWORD bytes_to_lock, DWORD bytes_to_write, game_sound_buffer* source_buffer) {
+static
+void win32_fill_sound_buffer(win32_sound_output* sound_output, DWORD bytes_to_lock, DWORD bytes_to_write, game_sound_buffer* source_buffer) {
     void* region_one;
     DWORD region_one_size;
     void* region_two;
@@ -329,7 +329,7 @@ void win32_resize_dib_section(win32_bitmap_buffer* bitmap_buffer, int width, int
     bitmap_buffer->memory = VirtualAlloc(0, bitmap_memory_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 }
 
-inline static 
+static 
 void win32_display_buffer_to_window(win32_bitmap_buffer* bitmap_buffer, HDC device_context, int window_width, int window_height) {
     int top = 10;
     int left = 10;
@@ -363,8 +363,8 @@ void win32_process_keyboard_input(game_button_state* new_state, bool is_down) {
     }
 }
 
-static void 
-win32_handle_messages(win32_state* win_state, game_controller_input* keyboard_input) {
+static
+void win32_handle_messages(win32_state* win_state, game_controller_input* keyboard_input) {
     MSG message;
     while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
         switch (message.message) {
@@ -444,7 +444,7 @@ win32_handle_messages(win32_state* win_state, game_controller_input* keyboard_in
     }
 }
 
-LRESULT CALLBACK 
+LRESULT CALLBACK
 win32_window_proc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
     LRESULT result = 0;
     switch (message) {

@@ -79,6 +79,9 @@ struct game_memory {
 struct game_state {
     f32 t_sine;
     
+    i32 player_tile_x;
+    i32 player_tile_y;
+    
     f32 player_x;
     f32 player_y;
 };
@@ -95,18 +98,39 @@ struct color_f32 {
 };
 
 struct tile_map_data {
-    f32 one_tile_width;
-    f32 one_tile_height;
-    i32 cols_or_y;
-    i32 rows_or_x;
-    u32* map;
+    u32* tiles;
 };
 
 struct world_map_data {
-    i32 cols_or_y;
-    i32 rows_or_x;
+    f32 tile_width;
+    f32 tile_height;
+    
+    i32 count_x;
+    i32 count_y;
+    
+    i32 tile_map_count_x;
+    i32 tile_map_count_y;
     
     tile_map_data* tile_maps;
+};
+
+struct canonical_location {
+    i32 tile_map_x;
+    i32 tile_map_y;
+    
+    i32 tile_x;
+    i32 tile_y;
+    
+    f32 tile_relative_x; 
+    f32 tile_relative_y;
+};
+
+struct raw_location {
+    i32 tile_map_x;
+    i32 tile_map_y;
+    
+    f32 x; 
+    f32 y;
 };
 
 inline 
