@@ -136,41 +136,40 @@ void debug_read_and_write_random_file() {
 }
 
 inline
-tile_map_data* get_map_entry(world_map_data* world_map, int x, int y) {
+tile_map_data* get_tile_map(world_map_data* world_map, i32 x, i32 y) {
     tile_map_data* result = 0;
     
-    if (x >= 0 && x < world_map->rows_or_x &&
-        y >= 0 && y < world_map->cols_or_y) {
-        result = &world_map->tile_maps[y * world_map->rows_or_x + x];
+    if (x >= 0 && x < world_map->tile_map_count_x &&
+        y >= 0 && y < world_map->tile_map_count_y) {
+        result = &world_map->tile_maps[y * world_map->tile_map_count_x + x];
     }
     
     return result;
 }
 
 inline
-u32 get_tile_entry_unchecked(tile_map_data* tile_map, int x, int y) {
+u32 get_tile_entry_unchecked(world_map_data* world, tile_map_data* tile_map, i32 player_tile_x, i32 player_tile_y) {
+    macro_assert(tile_map);
+    macro_assert(player_tile_x >= 0 && player_tile_x < world->count_x &&
+                 player_tile_y >= 0 && player_tile_y < world->count_y);
+    
     u32 result;
     
-    result = tile_map->map[y * tile_map->rows_or_x + x];
+    result = tile_map->tiles[player_tile_y * world->count_x + player_tile_x];
     
     return result;
 }
 
 static
-bool is_world_point_empty(world_map_data* world_map, i32 x, i32 y) {
+bool is_tile_map_point_empty(world_map_data* world, tile_map_data* tile_map, i32 player_tile_x, i32 player_tile_y) {
     bool result = false;
-    
-    auto tile_map = get_map_entry(world_map, x, y);
     
     if (!tile_map)
-        return result;
+        return false;
     
-    int player_tile_x = truncate_f32_i32(x / tile_map->one_tile_width);
-    int player_tile_y = truncate_f32_i32(y / tile_map->one_tile_height);
-    
-    if (player_tile_x >= 0 && player_tile_x < tile_map->rows_or_x &&
-        player_tile_y >= 0 && player_tile_y < tile_map->cols_or_y) {
-        auto tile_map_entry = get_tile_entry_unchecked(tile_map, player_tile_x, player_tile_y);
+    if (player_tile_x >= 0 && player_tile_x < world->count_x &&
+        player_tile_y >= 0 && player_tile_y < world->count_y) {
+        auto tile_map_entry = get_tile_entry_unchecked(world, tile_map, player_tile_x, player_tile_y);
         
         result = tile_map_entry == 0;
     }
@@ -178,19 +177,54 @@ bool is_world_point_empty(world_map_data* world_map, i32 x, i32 y) {
     return result;
 }
 
+inline
+canonical_location get_canonical_location(world_map_data* world_map, raw_location pos) {
+    
+    canonical_location result;
+    
+    result.tile_map_x = pos.tile_map_x;
+    result.tile_map_y = pos.tile_map_y;
+    
+    result.tile_x = floor_f32_i32(pos.x / world_map->tile_width);
+    result.tile_y = floor_f32_i32(pos.y / world_map->tile_height);
+    
+    result.tile_relative_x = pos.x - result.tile_x * world_map->tile_width;
+    result.tile_relative_y = pos.y - result.tile_y * world_map->tile_height;
+    
+    macro_assert(result.tile_relative_x >= 0 && result.tile_relative_x < world_map->tile_width);
+    macro_assert(result.tile_relative_y >= 0 && result.tile_relative_y < world_map->tile_height);
+    
+    if (result.tile_x < 0) {
+        result.tile_x = world_map->count_x + result.tile_x;
+        result.tile_map_x--;
+    }
+    
+    if (result.tile_x >= world_map->count_x) {
+        result.tile_x = result.tile_x - world_map->count_x;
+        result.tile_map_x++;
+    }
+    
+    if (result.tile_y < 0) {
+        result.tile_y = world_map->count_y + result.tile_y;
+        result.tile_map_y--;
+    }
+    
+    if (result.tile_y >= world_map->count_y) {
+        result.tile_y = result.tile_y - world_map->count_y;
+        result.tile_map_y++;
+    }
+    
+    return result;
+}
+
 static
-bool is_tile_empty(tile_map_data* tile_map, f32 x, f32 y) {
+bool is_world_point_empty(world_map_data* world_map, raw_location test_pos) {
     bool result = false;
     
-    int player_tile_x = truncate_f32_i32(x / tile_map->one_tile_width);
-    int player_tile_y = truncate_f32_i32(y / tile_map->one_tile_height);
+    canonical_location can_pos = get_canonical_location(world_map, test_pos);
     
-    if (player_tile_x >= 0 && player_tile_x < tile_map->rows_or_x &&
-        player_tile_y >= 0 && player_tile_y < tile_map->cols_or_y) {
-        auto tile_map_entry = get_tile_entry_unchecked(tile_map, player_tile_x, player_tile_y);
-        
-        result = tile_map_entry == 0;
-    }
+    tile_map_data* tile_map = get_tile_map(world_map, can_pos.tile_map_x, can_pos.tile_map_y);
+    result = is_tile_map_point_empty(world_map, tile_map, can_pos.tile_x, can_pos.tile_y);
     
     return result;
 }
@@ -229,7 +263,8 @@ void game_update_render(thread_context* thread, game_memory* memory, game_input*
                 if (input_state->down.ended_down)  player_y_delta = 1.0f;
                 if (input_state->left.ended_down)  player_x_delta = -1.0f;
                 if (input_state->right.ended_down) player_x_delta = 1.0f;
-                if (input_state->shift.ended_down) move_offset *= 2;
+                
+                if (input_state->shift.ended_down) move_offset *= 4;
             }
         }
     }
@@ -241,47 +276,47 @@ void game_update_render(thread_context* thread, game_memory* memory, game_input*
         {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
         {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
         {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-        {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1},
-        {0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0},
-        {1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1},
-        {1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1},
-        {1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1},
-        {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+        {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0},
+        {1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1},
+        {1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1},
+        {1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1},
+        {1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1},
     };
     
     u32 tiles_01[cols_or_y][rows_or_x] = {
-        {1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1},
+        {1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1},
         {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
         {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
         {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
         {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
         {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
     };
     
     u32 tiles_10[cols_or_y][rows_or_x] = {
         {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
-        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1},
         {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1},
-        {0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0},
+        {0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1},
         {1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1},
         {1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1},
         {1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1},
-        {1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1},
+        {1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1},
     };
     
     u32 tiles_11[cols_or_y][rows_or_x] = {
-        {1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1},
+        {1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1},
         {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
         {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
         {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
         {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1},
         {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
     };
     
@@ -290,43 +325,39 @@ void game_update_render(thread_context* thread, game_memory* memory, game_input*
     
     const int map_cols_or_y = 2;
     const int map_rows_or_x = 2;
-    
     tile_map_data tile_maps[map_cols_or_y][map_rows_or_x];
-    tile_maps[0][0].cols_or_y       = cols_or_y;
-    tile_maps[0][0].rows_or_x       = rows_or_x;
-    tile_maps[0][0].one_tile_width  = 960.f / rows_or_x;
-    tile_maps[0][0].one_tile_height = 600.f / cols_or_y;
-    tile_maps[0][0].map             = (u32*)tiles_00;
     
-    tile_maps[0][1] = tile_maps[0][0];
-    tile_maps[0][1].map = (u32*)tiles_01;
-    
-    tile_maps[1][0] = tile_maps[0][0];
-    tile_maps[1][0].map = (u32*)tiles_10;
-    
-    tile_maps[1][1] = tile_maps[0][0];
-    tile_maps[1][1].map = (u32*)tiles_11;
-    
-    f32 player_width  = .7f * tile_maps[0][0].one_tile_width;
-    f32 player_height = .7f * tile_maps[0][0].one_tile_height;
+    tile_maps[0][0].tiles = (u32*)tiles_00;
+    tile_maps[0][1].tiles = (u32*)tiles_10;
+    tile_maps[1][0].tiles = (u32*)tiles_01;
+    tile_maps[1][1].tiles = (u32*)tiles_11;
     
     world_map_data world_map;
-    world_map.cols_or_y = map_cols_or_y;
-    world_map.rows_or_x = map_rows_or_x;
-    world_map.tile_maps = (tile_map_data*)tile_maps;
+    world_map.count_y          = cols_or_y;
+    world_map.count_x          = rows_or_x;
+    world_map.tile_map_count_x = map_rows_or_x;
+    world_map.tile_map_count_y = map_cols_or_y;
+    world_map.tile_width       = 960.f / rows_or_x;
+    world_map.tile_height      = 600.f / cols_or_y;
+    world_map.tile_maps        = (tile_map_data*)tile_maps;
     
-    auto current_tile_map = &tile_maps[0][0];
+    f32 player_width  = .7f * world_map.tile_width;
+    f32 player_height = .7f * world_map.tile_height;
     
-    // draw tile map 
+    auto current_tile_map = get_tile_map(&world_map, state->player_tile_x, state->player_tile_y);
+    
+    macro_assert(current_tile_map);
+    
+    // draw tile maps
     {
         for (int y = 0; y < cols_or_y; y++) {
             for (int x = 0; x < rows_or_x; x++) {
-                auto tile_id = get_tile_entry_unchecked(current_tile_map, x, y);
+                auto tile_id = get_tile_entry_unchecked(&world_map, current_tile_map, x, y);
                 
-                f32 min_x = (f32)x * current_tile_map->one_tile_width;
-                f32 min_y = (f32)y * current_tile_map->one_tile_height;
-                f32 max_x = min_x + current_tile_map->one_tile_width;
-                f32 max_y = min_y + current_tile_map->one_tile_height;
+                f32 min_x = (f32)x * world_map.tile_width;
+                f32 min_y = (f32)y * world_map.tile_height;
+                f32 max_x = min_x + world_map.tile_width;
+                f32 max_y = min_y + world_map.tile_height;
                 
                 auto color = color_empty;
                 
@@ -343,10 +374,30 @@ void game_update_render(thread_context* thread, game_memory* memory, game_input*
         f32 new_player_x = state->player_x + player_x_delta * move_offset * input->time_delta;
         f32 new_player_y = state->player_y + player_y_delta * move_offset * input->time_delta;
         
-        if (is_tile_empty(current_tile_map, new_player_x + (player_width / 2), new_player_y) &&
-            is_tile_empty(current_tile_map, new_player_x - (player_width / 2), new_player_y)) {
-            state->player_x = new_player_x;
-            state->player_y = new_player_y;
+        raw_location player_pos = {
+            state->player_tile_x, 
+            state->player_tile_y,
+            new_player_x,
+            new_player_y
+        };
+        
+        raw_location player_left = player_pos;
+        player_left.x -= (player_width / 2);
+        
+        raw_location player_right = player_pos;
+        player_right.x += (player_width / 2);
+        
+        if (is_world_point_empty(&world_map, player_pos) &&
+            is_world_point_empty(&world_map, player_left) &&
+            is_world_point_empty(&world_map, player_right)) {
+            
+            auto can_pos = get_canonical_location(&world_map, player_pos);
+            
+            state->player_tile_x = can_pos.tile_map_x;
+            state->player_tile_y = can_pos.tile_map_y;
+            
+            state->player_x = world_map.tile_width  * can_pos.tile_x + can_pos.tile_relative_x;
+            state->player_y = world_map.tile_height * can_pos.tile_y + can_pos.tile_relative_y;
         }
     }
     
