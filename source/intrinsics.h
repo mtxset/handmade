@@ -5,7 +5,6 @@
 
 #include "math.h"
 
-inline
 i32 round_f32_i32(f32 value) {
     i32 result;
     
@@ -15,7 +14,6 @@ i32 round_f32_i32(f32 value) {
     return result;
 }
 
-inline 
 u32 round_f32_u32(f32 value) {
     u32 result;
     
@@ -24,13 +22,11 @@ u32 round_f32_u32(f32 value) {
     return result;
 }
 
-inline 
 u32 truncate_u64_u32(u64 value) {
     macro_assert(value <= UINT32_MAX);
     return (u32)value;
 }
 
-inline
 i32 truncate_f32_i32(f32 value) {
     i32 result;
     
@@ -39,8 +35,6 @@ i32 truncate_f32_i32(f32 value) {
     return result;
 }
 
-
-inline
 i32 floor_f32_i32(f32 value) {
     i32 result;
     
@@ -49,7 +43,6 @@ i32 floor_f32_i32(f32 value) {
     return result;
 }
 
-inline
 f32 sin(f32 value) {
     f32 result = 0;
     
@@ -58,7 +51,6 @@ f32 sin(f32 value) {
     return result;
 }
 
-inline
 f32 cos(f32 value) {
     f32 result = 0;
     
@@ -67,7 +59,6 @@ f32 cos(f32 value) {
     return result;
 }
 
-inline
 f32 atan2(f32 x, f32 y) {
     f32 result = 0;
     

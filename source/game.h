@@ -76,16 +76,6 @@ struct game_memory {
     void* transient_storage;
 };
 
-struct game_state {
-    f32 t_sine;
-    
-    i32 player_tile_x;
-    i32 player_tile_y;
-    
-    f32 player_x;
-    f32 player_y;
-};
-
 // https://www.youtube.com/watch?v=es-Bou2dIdY
 struct thread_context {
     i32 placeholder;
@@ -104,6 +94,7 @@ struct tile_map_data {
 struct world_map_data {
     f32 tile_side_meters;
     i32 tile_side_pixels;
+    f32 meters_to_pixels;
     
     i32 count_x;
     i32 count_y;
@@ -114,26 +105,27 @@ struct world_map_data {
     tile_map_data* tile_maps;
 };
 
-struct canonical_location {
+struct canonical_position {
+#if 1
     i32 tile_map_x;
     i32 tile_map_y;
     
     i32 tile_x;
     i32 tile_y;
+#else
+    u32 tile_x;
+    u32 tile_y;
+#endif
     
     f32 tile_relative_x; 
     f32 tile_relative_y;
 };
 
-struct raw_location {
-    i32 tile_map_x;
-    i32 tile_map_y;
-    
-    f32 x; 
-    f32 y;
+struct game_state {
+    canonical_position player_pos;
+    f32 t_sine;
 };
 
-inline 
 game_controller_input* get_gamepad(game_input* input, i32 input_index) {
     macro_assert(input_index >= 0);
     macro_assert(input_index < macro_array_count(input->gamepad));

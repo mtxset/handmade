@@ -3,8 +3,8 @@
 // records input and game memory to a file
 // I'm skipping part of implementing loading from file https://www.youtube.com/watch?v=es-Bou2dIdY
 
-static void
-win32_begin_recording_input(win32_state* win_state, i32 index) {
+static 
+void win32_begin_recording_input(win32_state* win_state, i32 index) {
     win_state->recording_input_index = index;
     
     char file_name[MAX_PATH];
@@ -18,14 +18,14 @@ win32_begin_recording_input(win32_state* win_state, i32 index) {
     WriteFile(win_state->recording_file_handle, win_state->game_memory_block, bytes_to_write, &bytes_written, 0);
 }
 
-static void
-win32_end_recording_input(win32_state* win_state) {
+static 
+void win32_end_recording_input(win32_state* win_state) {
     CloseHandle(win_state->recording_file_handle);
     win_state->recording_input_index = 0;
 }
 
-static void
-win32_begin_input_playback(win32_state* win_state, i32 index) {
+static 
+void win32_begin_input_playback(win32_state* win_state, i32 index) {
     win_state->playing_input_index = index;
     
     char file_name[MAX_PATH];
@@ -39,20 +39,20 @@ win32_begin_input_playback(win32_state* win_state, i32 index) {
     ReadFile(win_state->playing_file_handle, win_state->game_memory_block, bytes_to_read, &bytes_read, 0);
 }
 
-static void
-win32_end_input_playback(win32_state* win_state) {
+static 
+void win32_end_input_playback(win32_state* win_state) {
     CloseHandle(win_state->playing_file_handle);
     win_state->playing_input_index = 0;
 }
 
-static void
-win32_record_input(win32_state* win_state, game_input* new_input) {
+static 
+void win32_record_input(win32_state* win_state, game_input* new_input) {
     DWORD bytes_written;
     WriteFile(win_state->recording_file_handle, new_input, sizeof(*new_input), &bytes_written, 0);
 }
 
-static void
-win32_playback_input(win32_state* win_state, game_input* new_input) {
+static
+void win32_playback_input(win32_state* win_state, game_input* new_input) {
     DWORD bytes_read = 0;
     if (ReadFile(win_state->playing_file_handle, new_input, sizeof(*new_input), &bytes_read, 0)) {
         if (bytes_read == 0) {
