@@ -8,20 +8,20 @@
 struct game_bitmap_buffer {
     // pixels are always 32 bit, memory order BB GG RR XX (padding)
     void* memory;
-    int width;
-    int height;
-    int pitch;
-    int bytes_per_pixel;
+    i32 width;
+    i32 height;
+    i32 pitch;
+    i32 bytes_per_pixel;
 };
 
 struct game_sound_buffer {
-    int sample_count;
-    int samples_per_second;
+    i32 sample_count;
+    i32 samples_per_second;
     i16* samples;
 };
 
 struct game_button_state {
-    int half_transition_count;
+    i32 half_transition_count;
     bool ended_down;
 };
 
@@ -88,7 +88,7 @@ struct game_state {
 
 // https://www.youtube.com/watch?v=es-Bou2dIdY
 struct thread_context {
-    int placeholder;
+    i32 placeholder;
 };
 
 struct color_f32 {
@@ -102,8 +102,8 @@ struct tile_map_data {
 };
 
 struct world_map_data {
-    f32 tile_width;
-    f32 tile_height;
+    f32 tile_side_meters;
+    i32 tile_side_pixels;
     
     i32 count_x;
     i32 count_y;
@@ -134,17 +134,17 @@ struct raw_location {
 };
 
 inline 
-game_controller_input* get_gamepad(game_input* input, int input_index) {
+game_controller_input* get_gamepad(game_input* input, i32 input_index) {
     macro_assert(input_index >= 0);
     macro_assert(input_index < macro_array_count(input->gamepad));
     
     return &input->gamepad[input_index];
 }
 
-void render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offset, int green_offset);
+void render_255_gradient(game_bitmap_buffer* bitmap_buffer, i32 blue_offset, i32 green_offset);
 
 static 
-void game_output_sound(game_sound_buffer* sound_buffer, int tone_hz, game_state* state);
+void game_output_sound(game_sound_buffer* sound_buffer, i32 tone_hz, game_state* state);
 
 typedef 
 void (game_update_render_signature) (thread_context* thread, game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer);

@@ -23,7 +23,7 @@ for /F "tokens=1-4 delims=:.," %%a in ("%time%") do (
 :: cl.exe %common_compiler_flags% "..\source\main.cpp" /link -subsystem:windows,5.1  %common_linker_flags%
 
 :: 64-bit
-cl.exe %common_compiler_flags% "..\source\game.cpp" /LD /link -incremental:no -opt:ref -PDB:game%random%.pdb  -EXPORT:game_get_sound_samples -EXPORT:game_update_render
+cl.exe %common_compiler_flags% /O2 /Oi /fp:fast "..\source\game.cpp" /LD /link -incremental:no -opt:ref -PDB:game%random%.pdb  -EXPORT:game_get_sound_samples -EXPORT:game_update_render
 cl.exe %common_compiler_flags% "..\source\main.cpp" /link %common_linker_flags%
 popd
 
@@ -42,6 +42,9 @@ popd
 :: /link    - subsytem:windows,5.1 - support xp
 :: -MTd     - package everything instead of expecting user to have dll which does laoding of exe into windows (d - debug)
 :: -DAR1610 - get 16:10 aspect ratio (window and DIB)
+:: /02      - enable optimizations
+:: /Oi      - enable intrinsics
+:: /fp:fast - allow for faster (by lossing some precision?) floating point calculations, if enabled floorf dissappears in asm
 
 :: Get end time:
 for /F "tokens=1-4 delims=:.," %%a in ("%time%") do (

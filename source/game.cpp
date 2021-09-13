@@ -1,30 +1,34 @@
+#include <stdio.h>
+
+#include "types.h"
 #include "file_io.h"
 #include "file_io.cpp"
 #include "utils.h"
 #include "utils.cpp"
+#include "intrinsics.h"
 #include "game.h"
 
 void clear_screen(game_bitmap_buffer* bitmap_buffer, u32 color) {
     auto row = (u8*)bitmap_buffer->memory;
     
-    for (int y = 0; y < bitmap_buffer->height; y++) {
+    for (i32 y = 0; y < bitmap_buffer->height; y++) {
         auto pixel = (u32*)row;
-        for (int x = 0; x < bitmap_buffer->width; x++) {
+        for (i32 x = 0; x < bitmap_buffer->width; x++) {
             *pixel++ = color;
         }
         row += bitmap_buffer->pitch;
     }
 }
 
-void render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offset, int green_offset) {
-    static int offset = 1;
+void render_255_gradient(game_bitmap_buffer* bitmap_buffer, i32 blue_offset, i32 green_offset) {
+    static i32 offset = 1;
     auto row = (u8*)bitmap_buffer->memory;
     
     clear_screen(bitmap_buffer, color_gray);
     
-    for (int y = 0; y < bitmap_buffer->height; y++) {
+    for (i32 y = 0; y < bitmap_buffer->height; y++) {
         auto pixel = (u32*)row;
-        for (int x = 0; x < bitmap_buffer->width; x++) {
+        for (i32 x = 0; x < bitmap_buffer->width; x++) {
             // pixel bytes	   1  2  3  4
             // pixel in memory:  BB GG RR xx (so it looks in registers 0x xxRRGGBB)
             // little endian
@@ -45,7 +49,7 @@ void render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offset, int
     }
     
     static bool go_up = true;
-    int step = 1;
+    i32 step = 1;
     
     if (go_up)
         offset += step;
@@ -60,20 +64,20 @@ void render_255_gradient(game_bitmap_buffer* bitmap_buffer, int blue_offset, int
 }
 
 static 
-void game_output_sound(game_sound_buffer* sound_buffer, int tone_hz, game_state* state) {
+void game_output_sound(game_sound_buffer* sound_buffer, i32 tone_hz, game_state* state) {
     i16 tone_volume = 3000;
-    int wave_period = sound_buffer->samples_per_second / tone_hz;
+    i32 wave_period = sound_buffer->samples_per_second / tone_hz;
     auto sample_out = sound_buffer->samples;
     
 #if 1
-    for (int sample_index = 0; sample_index < sound_buffer->sample_count; sample_index++) {
+    for (i32 sample_index = 0; sample_index < sound_buffer->sample_count; sample_index++) {
         i16 sample_value = 0;
         
         *sample_out++ = sample_value;
         *sample_out++ = sample_value;
     }
 #else
-    for (int sample_index = 0; sample_index < sound_buffer->sample_count; sample_index++) {
+    for (i32 sample_index = 0; sample_index < sound_buffer->sample_count; sample_index++) {
         f32 sine_val = sinf(state->t_sine);
         i16 sample_value = (i16)(sine_val * tone_volume);
         
@@ -98,10 +102,10 @@ void draw_rect(game_bitmap_buffer* bitmap_buffer, f32 f32_min_x, f32 f32_min_y, 
                       round_f32_u32(color.g * 255.0f) << 8  |
                       round_f32_u32(color.b * 255.0f) << 0);
     
-    int min_x = round_f32_i32(f32_min_x);
-    int max_x = round_f32_i32(f32_max_x);
-    int min_y = round_f32_i32(f32_min_y);
-    int max_y = round_f32_i32(f32_max_y);
+    i32 min_x = round_f32_i32(f32_min_x);
+    i32 max_x = round_f32_i32(f32_max_x);
+    i32 min_y = round_f32_i32(f32_min_y);
+    i32 max_y = round_f32_i32(f32_max_y);
     
     if (min_x < 0)
         min_x = 0;
@@ -118,9 +122,9 @@ void draw_rect(game_bitmap_buffer* bitmap_buffer, f32 f32_min_x, f32 f32_min_y, 
     auto end_buffer = (u8*)bitmap_buffer->memory + bitmap_buffer->pitch * bitmap_buffer->height;
     
     auto row = (u8*)bitmap_buffer->memory + min_x * bitmap_buffer->bytes_per_pixel + min_y * bitmap_buffer->pitch;
-    for (int y = min_y; y < max_y; y++) {
+    for (i32 y = min_y; y < max_y; y++) {
         auto pixel = (u32*)row;
-        for (int x = min_x; x < max_x; x++) {
+        for (i32 x = min_x; x < max_x; x++) {
             *pixel++ = color_bits;
         }
         row += bitmap_buffer->pitch;
@@ -185,14 +189,14 @@ canonical_location get_canonical_location(world_map_data* world_map, raw_locatio
     result.tile_map_x = pos.tile_map_x;
     result.tile_map_y = pos.tile_map_y;
     
-    result.tile_x = floor_f32_i32(pos.x / world_map->tile_width);
-    result.tile_y = floor_f32_i32(pos.y / world_map->tile_height);
+    result.tile_x = floor_f32_i32(pos.x / world_map->tile_side_pixels);
+    result.tile_y = floor_f32_i32(pos.y / world_map->tile_side_pixels);
     
-    result.tile_relative_x = pos.x - result.tile_x * world_map->tile_width;
-    result.tile_relative_y = pos.y - result.tile_y * world_map->tile_height;
+    result.tile_relative_x = pos.x - result.tile_x * world_map->tile_side_pixels;
+    result.tile_relative_y = pos.y - result.tile_y * world_map->tile_side_pixels;
     
-    macro_assert(result.tile_relative_x >= 0 && result.tile_relative_x < world_map->tile_width);
-    macro_assert(result.tile_relative_y >= 0 && result.tile_relative_y < world_map->tile_height);
+    macro_assert(result.tile_relative_x >= 0 && result.tile_relative_x < world_map->tile_side_pixels);
+    macro_assert(result.tile_relative_y >= 0 && result.tile_relative_y < world_map->tile_side_pixels);
     
     if (result.tile_x < 0) {
         result.tile_x = world_map->count_x + result.tile_x;
@@ -241,13 +245,12 @@ void game_update_render(thread_context* thread, game_memory* memory, game_input*
         memory->is_initialized = true;
     }
     
+    // check input
     f32 player_x_delta = .0f;
     f32 player_y_delta = .0f;
     f32 move_offset = 64.0f;
-    
-    // check input
     {
-        for (int i = 0; i < macro_array_count(input->gamepad); i++) {
+        for (i32 i = 0; i < macro_array_count(input->gamepad); i++) {
             auto input_state = get_gamepad(input, i);
             
             if (input_state->is_analog) {
@@ -269,13 +272,17 @@ void game_update_render(thread_context* thread, game_memory* memory, game_input*
         }
     }
     
-    const int cols_or_y = 9;
-    const int rows_or_x = 16;
-    
+    // create tiles
+    const i32 cols_or_y = 9;
+    const i32 rows_or_x = 16;
+    const i32 map_cols_or_y = 2;
+    const i32 map_rows_or_x = 2;
+    tile_map_data tile_maps[map_cols_or_y][map_rows_or_x];
+    world_map_data world_map;
     u32 tiles_00[cols_or_y][rows_or_x] = {
         {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
-        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+        {1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
         {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
         {1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0},
         {1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1},
@@ -319,45 +326,38 @@ void game_update_render(thread_context* thread, game_memory* memory, game_input*
         {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1},
         {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
     };
-    
-    color_f32 color_tile  = { .0f, .5f, 1.0f};
-    color_f32 color_empty = { .3f, .3f, 1.0f};
-    
-    const int map_cols_or_y = 2;
-    const int map_rows_or_x = 2;
-    tile_map_data tile_maps[map_cols_or_y][map_rows_or_x];
-    
-    tile_maps[0][0].tiles = (u32*)tiles_00;
-    tile_maps[0][1].tiles = (u32*)tiles_10;
-    tile_maps[1][0].tiles = (u32*)tiles_01;
-    tile_maps[1][1].tiles = (u32*)tiles_11;
-    
-    world_map_data world_map;
-    world_map.count_y          = cols_or_y;
-    world_map.count_x          = rows_or_x;
-    world_map.tile_map_count_x = map_rows_or_x;
-    world_map.tile_map_count_y = map_cols_or_y;
-    world_map.tile_width       = 960.f / rows_or_x;
-    world_map.tile_height      = 600.f / cols_or_y;
-    world_map.tile_maps        = (tile_map_data*)tile_maps;
-    
-    f32 player_width  = .7f * world_map.tile_width;
-    f32 player_height = .7f * world_map.tile_height;
-    
-    auto current_tile_map = get_tile_map(&world_map, state->player_tile_x, state->player_tile_y);
-    
-    macro_assert(current_tile_map);
+    {
+        tile_maps[0][0].tiles = (u32*)tiles_00;
+        tile_maps[0][1].tiles = (u32*)tiles_10;
+        tile_maps[1][0].tiles = (u32*)tiles_01;
+        tile_maps[1][1].tiles = (u32*)tiles_11;
+        
+        world_map.count_y          = cols_or_y;
+        world_map.count_x          = rows_or_x;
+        
+        world_map.tile_map_count_x = map_rows_or_x;
+        world_map.tile_map_count_y = map_cols_or_y;
+        
+        world_map.tile_side_meters = 1.4f;
+        world_map.tile_side_pixels = 60;
+        
+        world_map.tile_maps        = (tile_map_data*)tile_maps;
+    }
     
     // draw tile maps
+    auto current_tile_map = get_tile_map(&world_map, state->player_tile_x, state->player_tile_y);
+    macro_assert(current_tile_map);
+    color_f32 color_tile  = { .0f, .5f, 1.0f};
+    color_f32 color_empty = { .3f, .3f, 1.0f};
     {
-        for (int y = 0; y < cols_or_y; y++) {
-            for (int x = 0; x < rows_or_x; x++) {
+        for (i32 y = 0; y < cols_or_y; y++) {
+            for (i32 x = 0; x < rows_or_x; x++) {
                 auto tile_id = get_tile_entry_unchecked(&world_map, current_tile_map, x, y);
                 
-                f32 min_x = (f32)x * world_map.tile_width;
-                f32 min_y = (f32)y * world_map.tile_height;
-                f32 max_x = min_x + world_map.tile_width;
-                f32 max_y = min_y + world_map.tile_height;
+                f32 min_x = (f32)x * world_map.tile_side_pixels;
+                f32 min_y = (f32)y * world_map.tile_side_pixels;
+                f32 max_x = min_x + world_map.tile_side_pixels;
+                f32 max_y = min_y + world_map.tile_side_pixels;
                 
                 auto color = color_empty;
                 
@@ -369,7 +369,9 @@ void game_update_render(thread_context* thread, game_memory* memory, game_input*
         }
     }
     
-    // move player 
+    // move player
+    f32 player_width  = .7f  * world_map.tile_side_pixels;
+    f32 player_height = 1.0f * world_map.tile_side_pixels;
     {
         f32 new_player_x = state->player_x + player_x_delta * move_offset * input->time_delta;
         f32 new_player_y = state->player_y + player_y_delta * move_offset * input->time_delta;
@@ -396,8 +398,13 @@ void game_update_render(thread_context* thread, game_memory* memory, game_input*
             state->player_tile_x = can_pos.tile_map_x;
             state->player_tile_y = can_pos.tile_map_y;
             
-            state->player_x = world_map.tile_width  * can_pos.tile_x + can_pos.tile_relative_x;
-            state->player_y = world_map.tile_height * can_pos.tile_y + can_pos.tile_relative_y;
+            state->player_x = world_map.tile_side_pixels  * can_pos.tile_x + can_pos.tile_relative_x;
+            state->player_y = world_map.tile_side_pixels * can_pos.tile_y + can_pos.tile_relative_y;
+#if 0
+            char buffer[256];
+            _snprintf_s(buffer, sizeof(buffer), "tile(x,y): %u, %u;\n", can_pos.tile_x, can_pos.tile_y);
+            OutputDebugStringA(buffer);
+#endif
         }
     }
     
