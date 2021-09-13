@@ -10,20 +10,20 @@ struct win32_bitmap_buffer {
     // pixels are always 32 bit, memory order BB GG RR XX (padding)
     BITMAPINFO info;
     void* memory;
-    int width;
-    int height;
-    int pitch;
-    int bytes_per_pixel;
+    i32 width;
+    i32 height;
+    i32 pitch;
+    i32 bytes_per_pixel;
 };
 
 struct win32_window_dimensions {
-    int width;
-    int height;
+    i32 width;
+    i32 height;
 };
 
 struct win32_sound_output {
-    int samples_per_second;
-    int latency_sample_count;
+    i32 samples_per_second;
+    i32 latency_sample_count;
     f32 sine_val;
     i32 bytes_per_sample;
     u32 buffer_size;
@@ -62,8 +62,8 @@ struct win32_state {
     HANDLE recording_file_handle;
     HANDLE playing_file_handle;
     
-    int recording_input_index;
-    int playing_input_index;
+    i32 recording_input_index;
+    i32 playing_input_index;
     
     void* recording_memory[4];
     

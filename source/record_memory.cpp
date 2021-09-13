@@ -3,14 +3,14 @@
 // records game memory to memory and input to file
 
 static void
-win32_check_record_index(int index) {
+win32_check_record_index(i32 index) {
     win32_state win_state {};
     macro_assert(index < macro_array_count(win_state.recording_memory));
     macro_assert(index >= 0);
 }
 
 static void
-win32_begin_recording_input(win32_state* win_state, int index) {
+win32_begin_recording_input(win32_state* win_state, i32 index) {
     win32_check_record_index(index);
     
     win_state->recording_input_index = index;
@@ -31,7 +31,7 @@ win32_end_recording_input(win32_state* win_state) {
 }
 
 static void
-win32_begin_input_playback(win32_state* win_state, int index) {
+win32_begin_input_playback(win32_state* win_state, i32 index) {
     win32_check_record_index(index);
     
     win_state->playing_input_index = index;
@@ -60,7 +60,7 @@ win32_playback_input(win32_state* win_state, game_input* new_input) {
     DWORD bytes_read = 0;
     if (ReadFile(win_state->playing_file_handle, new_input, sizeof(*new_input), &bytes_read, 0)) {
         if (bytes_read == 0) {
-            int playing_index = win_state->playing_input_index;
+            i32 playing_index = win_state->playing_input_index;
             
             win32_end_input_playback(win_state);
             win32_begin_input_playback(win_state, playing_index);

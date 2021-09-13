@@ -17,7 +17,7 @@ static const u32 color_yellow = 0x00ffff00;
 static const u32 color_gray   = 0x0075787b;
 
 #if DEBUG
-#define macro_assert(expr) if (!(expr)) {*(int*)0 = 0;}
+#define macro_assert(expr) if (!(expr)) {*(i32*)0 = 0;}
 #else
 #define macro_assert(expr)
 #endif 
@@ -33,10 +33,10 @@ void swap(T& a, T& b);
 
 void string_concat(size_t src_a_count, char* src_a, size_t src_b_count, char* src_b, size_t dest_count, char* dest);
 
-int string_len(char*);
-int string_to_binary(char*);
+i32 string_len(char*);
+i32 string_to_binary(char*);
 
-char* int_to_string(int);
+char* i32_to_string(i32);
 
 inline i32 round_f32_i32(f32);
 inline u32 round_f32_u32(f32);

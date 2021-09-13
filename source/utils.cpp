@@ -9,22 +9,22 @@ void swap(T& a, T& b) {
 }
 
 void string_concat(size_t src_a_count, char* src_a, size_t src_b_count, char* src_b, size_t dest_count, char* dest) {
-    for (int i = 0; i < src_a_count; i++) {
+    for (i32 i = 0; i < src_a_count; i++) {
         *dest++ = *src_a++;
     }
     
-    for (int i = 0; i < src_b_count; i++) {
+    for (i32 i = 0; i < src_b_count; i++) {
         *dest++ = *src_b++;
     }
     
     *dest++ = 0;
 }
 
-int string_len(char* string) {
-    int result = 0;
+i32 string_len(char* string) {
+    i32 result = 0;
     
     // *string dereference value
-    // string++ advances pointer
+    // string++ advances poi32er
     // search for null terminator
     while (*string++ != 0) {
         result++;
@@ -33,11 +33,11 @@ int string_len(char* string) {
     return result;
 }
 
-int string_to_binary(char* str) {
-	int size = string_len(str);
-	int result = 0;
+i32 string_to_binary(char* str) {
+	i32 size = string_len(str);
+	i32 result = 0;
 	char* ptr = str;
-	int i = 0;
+	i32 i = 0;
     
 	while (*ptr) {
 		i++;
@@ -50,55 +50,11 @@ int string_to_binary(char* str) {
 	return result;
 }
 
-char* int_to_string(int n) {
+char* i32_to_string(i32 n) {
 	static char binary[8];
 	for (auto x = 0; x < 8; x++) {
 		binary[x] = n & 0x80 ? '1' : '0';
 		n <<= 1;
 	}
 	return binary;
-}
-
-inline
-i32 round_f32_i32(f32 value) {
-    i32 result;
-    
-    result = (i32)(value + 0.5f);
-    // 0.5 cuz c will truncate decimal points, so 0.6 will be 0
-    
-    return result;
-}
-
-inline 
-u32 round_f32_u32(f32 value) {
-    u32 result;
-    
-    result = (u32)(value + 0.5f);
-    
-    return result;
-}
-
-inline 
-u32 truncate_u64_u32(u64 value) {
-    macro_assert(value <= UINT32_MAX);
-    return (u32)value;
-}
-
-inline
-i32 truncate_f32_i32(f32 value) {
-    i32 result;
-    
-    result = (i32)value;
-    
-    return result;
-}
-
-#include "math.h"
-inline
-i32 floor_f32_i32(f32 value) {
-    i32 result;
-    
-    result = (i32)floorf(value);
-    
-    return result;
 }
