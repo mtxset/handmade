@@ -1,4 +1,4 @@
-// https://guide.handmadehero.org/code/day031/
+// https://guide.handmadehero.org/code/day032/
 
 #include <stdio.h>
 #include <stdint.h>
@@ -28,7 +28,7 @@
 */
 
 // if for recording of input and gamestate we use disk this will allocate file of TRANSIENT_MEMORY_SIZE_MB size, and that will hang game till it's allocated
-static const i32 TRANSIENT_MEMORY_SIZE_MB = 512;
+static const i32           TRANSIENT_MEMORY_SIZE_MB = 512;
 
 static bool                Global_game_running = true;
 static bool                Global_pause_sound_debug_sync = false;
@@ -214,7 +214,6 @@ f32 win32_xinput_cutoff_deadzone(SHORT thumb_value) {
     return result;
 }
 
-inline 
 FILETIME win32_get_last_write_time(char* filename) {
     FILETIME result = {};
     WIN32_FILE_ATTRIBUTE_DATA file_data;
@@ -491,20 +490,18 @@ win32_window_proc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
     return result;
 }
 
-inline LARGE_INTEGER
-win32_get_wall_clock() {
+LARGE_INTEGER win32_get_wall_clock() {
     LARGE_INTEGER result;
     QueryPerformanceCounter(&result);
     return result;
 }
 
-inline f32
-win32_get_seconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end) {
+f32 win32_get_seconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end) {
     return (f32)(end.QuadPart - start.QuadPart) / Global_perf_freq;
 }
 
-static void
-win32_debug_draw_vertical_line(win32_bitmap_buffer* backbuffer, i32 x, i32 top, i32 bottom, u32 color) {
+static 
+void win32_debug_draw_vertical_line(win32_bitmap_buffer* backbuffer, i32 x, i32 top, i32 bottom, u32 color) {
     
     if (x < 0 || x >= backbuffer->width)
         return;
@@ -522,16 +519,14 @@ win32_debug_draw_vertical_line(win32_bitmap_buffer* backbuffer, i32 x, i32 top, 
     }
 }
 
-static void
-win32_draw_sound_buffer_marker(win32_bitmap_buffer* backbuffer, win32_sound_output* sound_output, f32 ratio, i32 pad_x, i32 top, i32 bottom, DWORD value, u32 color) {
+void win32_draw_sound_buffer_marker(win32_bitmap_buffer* backbuffer, win32_sound_output* sound_output, f32 ratio, i32 pad_x, i32 top, i32 bottom, DWORD value, u32 color) {
     auto float_x = ratio * (f32)value;
     auto x = pad_x + (i32)float_x;
     
     win32_debug_draw_vertical_line(backbuffer, x, top, bottom, color);
 }
 
-static void
-win32_debug_sync_display(win32_bitmap_buffer* backbuffer, i32 marker_count, i32 current_marker_index, win32_debug_time_marker* markers, win32_sound_output* sound_output, f32 target_seconds_per_frame) {
+void win32_debug_sync_display(win32_bitmap_buffer* backbuffer, i32 marker_count, i32 current_marker_index, win32_debug_time_marker* markers, win32_sound_output* sound_output, f32 target_seconds_per_frame) {
     i32 x_padding = 16, y_padding = 16;
     
     i32 line_height = 64;
@@ -583,8 +578,7 @@ win32_debug_sync_display(win32_bitmap_buffer* backbuffer, i32 marker_count, i32 
     }
 }
 
-i32 
-main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
+i32 main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
     
     LARGE_INTEGER performance_freq, end_counter, last_counter, flip_wall_clock;
     QueryPerformanceFrequency(&performance_freq);
