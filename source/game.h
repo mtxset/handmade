@@ -87,42 +87,43 @@ struct color_f32 {
     f32 b;
 };
 
-struct tile_map_data {
+struct tile_chunk {
     u32* tiles;
 };
 
 struct world_map_data {
+    u32 chunk_shift;     // world chunk
+    u32 chunk_mask;      // tiles
+    u32 chunk_dimension; // how many tiles in a world chunk
+    
     f32 tile_side_meters;
     i32 tile_side_pixels;
     f32 meters_to_pixels;
     
-    i32 count_x;
-    i32 count_y;
+    i32 tile_chunk_count_x;
+    i32 tile_chunk_count_y;
     
-    i32 tile_map_count_x;
-    i32 tile_map_count_y;
-    
-    tile_map_data* tile_maps;
+    tile_chunk* tile_chunks;
 };
 
-struct canonical_position {
-#if 1
-    i32 tile_map_x;
-    i32 tile_map_y;
+struct tile_chunk_position {
+    u32 tile_chunk_x;
+    u32 tile_chunk_y;
     
-    i32 tile_x;
-    i32 tile_y;
-#else
-    u32 tile_x;
-    u32 tile_y;
-#endif
+    u32 tile_relative_x;
+    u32 tile_relative_y;
+};
+
+struct world_position {
+    u32 absolute_tile_x;
+    u32 absolute_tile_y;
     
     f32 tile_relative_x; 
     f32 tile_relative_y;
 };
 
 struct game_state {
-    canonical_position player_pos;
+    world_position player_pos;
     f32 t_sine;
 };
 
