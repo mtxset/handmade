@@ -1,4 +1,4 @@
-// https://guide.handmadehero.org/code/day033/
+// https://youtu.be/IJYTwhqfKLg
 
 #include <stdio.h>
 #include <stdint.h>
