@@ -1,4 +1,4 @@
-// https://youtu.be/IJYTwhqfKLg
+// https://youtu.be/IJYTwhqfKLg?t=4267
 
 #include <stdio.h>
 #include <stdint.h>
@@ -27,14 +27,15 @@
 ...
 */
 
-// if for recording of input and gamestate we use disk this will allocate file of TRANSIENT_MEMORY_SIZE_MB size, and that will hang game till it's allocated
+// if for recording of input and gamestate we use disk this will allocate file of PERMANENT_MEMORY_SIZE_MB + TRANSIENT_MEMORY_SIZE_MB size, and that will hang game till it's allocated
+static const i32           PERMANENT_MEMORY_SIZE_MB = 64;
 static const i32           TRANSIENT_MEMORY_SIZE_MB = 512;
 
 static bool                Global_game_running = true;
 static bool                Global_pause_sound_debug_sync = false;
 
-static win32_game_code     Global_game_code;
-static win32_bitmap_buffer Global_backbuffer;
+static Win32_game_code     Global_game_code;
+static Win32_bitmap_buffer Global_backbuffer;
 static HBITMAP             Global_bitmap_handle;
 static HDC                 Global_bitmap_device_context;
 static LPDIRECTSOUNDBUFFER Global_sound_buffer;
@@ -53,7 +54,7 @@ static direct_sound_create* DirectSoundCreate_;                                 
 #define DirectSoundCreate DirectSoundCreate_                                                                // change name by which we reference upper-line mentioned variable
 
 static 
-void win32_get_exe_filename(win32_state* win_state) {
+void win32_get_exe_filename(Win32_state* win_state) {
     auto current_file_name_size = GetModuleFileNameA(0, win_state->exe_file_name, sizeof(win_state->exe_file_name));
     win_state->last_slash = win_state->exe_file_name;
     for (char* scan = win_state->exe_file_name; *scan; scan++) {
@@ -63,12 +64,12 @@ void win32_get_exe_filename(win32_state* win_state) {
 }
 
 static 
-void win32_build_exe_filename(win32_state* win_state, char* filename, i32 dest_count, char* dest) {
+void win32_build_exe_filename(Win32_state* win_state, char* filename, i32 dest_count, char* dest) {
     string_concat(win_state->last_slash - win_state->exe_file_name, win_state->exe_file_name, string_len(filename), filename, dest_count, dest);
 }
 
 static 
-void win32_get_input_file_location(win32_state* win_state, i32 index, i32 dest_count, char* dest) {
+void win32_get_input_file_location(Win32_state* win_state, i32 index, i32 dest_count, char* dest) {
     char* file_name = "game.input";
     win32_build_exe_filename(win_state, file_name, dest_count, dest); 
 }
@@ -141,7 +142,7 @@ void win32_init_direct_sound(HWND window, i32 samples_per_second, i32 buffer_siz
 }
 
 static
-void win32_clear_sound_buffer(win32_sound_output* sound_output) {
+void win32_clear_sound_buffer(Win32_sound_output* sound_output) {
     void* region_one;
     DWORD region_one_size;
     void* region_two;
@@ -166,7 +167,7 @@ void win32_clear_sound_buffer(win32_sound_output* sound_output) {
 }
 
 static
-void win32_fill_sound_buffer(win32_sound_output* sound_output, DWORD bytes_to_lock, DWORD bytes_to_write, game_sound_buffer* source_buffer) {
+void win32_fill_sound_buffer(Win32_sound_output* sound_output, DWORD bytes_to_lock, DWORD bytes_to_write, Game_sound_buffer* source_buffer) {
     void* region_one;
     DWORD region_one_size;
     void* region_two;
@@ -226,8 +227,8 @@ FILETIME win32_get_last_write_time(char* filename) {
 }
 
 static 
-win32_game_code win32_load_game_code(char* source_dll_filepath, char* source_temp_filepath) {
-    win32_game_code result = {};
+Win32_game_code win32_load_game_code(char* source_dll_filepath, char* source_temp_filepath) {
+    Win32_game_code result = {};
     
     result.dll_last_write_time = win32_get_last_write_time(source_dll_filepath);
     
@@ -252,7 +253,7 @@ win32_game_code win32_load_game_code(char* source_dll_filepath, char* source_tem
 }
 
 static 
-void win32_unload_game_code(win32_game_code* game_code) {
+void win32_unload_game_code(Win32_game_code* game_code) {
     if (game_code->game_code_dll) {
         FreeLibrary(game_code->game_code_dll);
         game_code->game_code_dll = 0;
@@ -289,9 +290,9 @@ bool win32_load_xinput() {
 }
 
 static
-win32_window_dimensions get_window_dimensions(HWND window) {
+Win32_window_dimensions get_window_dimensions(HWND window) {
     
-    win32_window_dimensions result;
+    Win32_window_dimensions result;
     
     RECT clientRect;
     GetClientRect(window, &clientRect);
@@ -304,7 +305,7 @@ win32_window_dimensions get_window_dimensions(HWND window) {
 
 // DIB - device independant section
 static
-void win32_resize_dib_section(win32_bitmap_buffer* bitmap_buffer, i32 width, i32 height) {
+void win32_resize_dib_section(Win32_bitmap_buffer* bitmap_buffer, i32 width, i32 height) {
     
     if (bitmap_buffer->memory) {
         VirtualFree(bitmap_buffer->memory, 0, MEM_RELEASE);
@@ -329,7 +330,7 @@ void win32_resize_dib_section(win32_bitmap_buffer* bitmap_buffer, i32 width, i32
 }
 
 static
-void win32_display_buffer_to_window(win32_bitmap_buffer* bitmap_buffer, HDC device_context, i32 window_width, i32 window_height) {
+void win32_display_buffer_to_window(Win32_bitmap_buffer* bitmap_buffer, HDC device_context, i32 window_width, i32 window_height) {
     i32 top = 10;
     i32 left = 10;
     
@@ -349,13 +350,13 @@ void win32_display_buffer_to_window(win32_bitmap_buffer* bitmap_buffer, HDC devi
 }
 
 static
-void win32_process_xinput_button(DWORD xinput_button_state, DWORD button_bit, game_button_state* old_state, game_button_state* new_state) {
+void win32_process_xinput_button(DWORD xinput_button_state, DWORD button_bit, Game_button_state* old_state, Game_button_state* new_state) {
     new_state->ended_down = (xinput_button_state & button_bit) == button_bit;
     new_state->half_transition_count = old_state->ended_down != new_state->ended_down ? 1 : 0;
 }
 
 static
-void win32_process_keyboard_input(game_button_state* new_state, bool is_down) {
+void win32_process_keyboard_input(Game_button_state* new_state, bool is_down) {
     if (new_state->ended_down != is_down){ 
         new_state->ended_down = is_down;
         new_state->half_transition_count++;
@@ -363,7 +364,7 @@ void win32_process_keyboard_input(game_button_state* new_state, bool is_down) {
 }
 
 static
-void win32_handle_messages(win32_state* win_state, game_controller_input* keyboard_input) {
+void win32_handle_messages(Win32_state* win_state, Game_controller_input* keyboard_input) {
     MSG message;
     while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
         switch (message.message) {
@@ -501,7 +502,7 @@ f32 win32_get_seconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end) {
 }
 
 static 
-void win32_debug_draw_vertical_line(win32_bitmap_buffer* backbuffer, i32 x, i32 top, i32 bottom, u32 color) {
+void win32_debug_draw_vertical_line(Win32_bitmap_buffer* backbuffer, i32 x, i32 top, i32 bottom, u32 color) {
     
     if (x < 0 || x >= backbuffer->width)
         return;
@@ -519,14 +520,14 @@ void win32_debug_draw_vertical_line(win32_bitmap_buffer* backbuffer, i32 x, i32 
     }
 }
 
-void win32_draw_sound_buffer_marker(win32_bitmap_buffer* backbuffer, win32_sound_output* sound_output, f32 ratio, i32 pad_x, i32 top, i32 bottom, DWORD value, u32 color) {
+void win32_draw_sound_buffer_marker(Win32_bitmap_buffer* backbuffer, Win32_sound_output* sound_output, f32 ratio, i32 pad_x, i32 top, i32 bottom, DWORD value, u32 color) {
     auto float_x = ratio * (f32)value;
     auto x = pad_x + (i32)float_x;
     
     win32_debug_draw_vertical_line(backbuffer, x, top, bottom, color);
 }
 
-void win32_debug_sync_display(win32_bitmap_buffer* backbuffer, i32 marker_count, i32 current_marker_index, win32_debug_time_marker* markers, win32_sound_output* sound_output, f32 target_seconds_per_frame) {
+void win32_debug_sync_display(Win32_bitmap_buffer* backbuffer, i32 marker_count, i32 current_marker_index, Win32_debug_time_marker* markers, Win32_sound_output* sound_output, f32 target_seconds_per_frame) {
     i32 x_padding = 16, y_padding = 16;
     
     i32 line_height = 64;
@@ -585,8 +586,8 @@ i32 main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
     Global_perf_freq = performance_freq.QuadPart;
     
     // load game code
-    win32_state win_state = {};
-    win32_game_code game_code = {};
+    Win32_state win_state = {};
+    Win32_game_code game_code = {};
     char game_code_dll_name[]      = "game.dll";
     char temp_game_code_dll_name[] = "game_temp.dll";
     char game_code_full_path[MAX_PATH];
@@ -649,7 +650,7 @@ i32 main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
     f32 target_seconds_per_frame = 1.0f / (f32)game_update_refresh_rate;
     
     // sound stuff
-    win32_sound_output sound_output = {};
+    Win32_sound_output sound_output = {};
     i16* samples = 0;
     {
         sound_output.samples_per_second = 48000;
@@ -661,7 +662,7 @@ i32 main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
     }
     
     // memory allocation
-    game_memory memory = {};
+    Game_memory memory = {};
     {
 #if INTERNAL
         LPVOID base_address = (LPVOID)macro_terabytes(2);
@@ -669,7 +670,7 @@ i32 main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
         LPVOID base_address = 0;
 #endif
         
-        memory.permanent_storage_size = macro_megabytes(64);
+        memory.permanent_storage_size = macro_megabytes(PERMANENT_MEMORY_SIZE_MB);
         memory.transient_storage_size = macro_megabytes(TRANSIENT_MEMORY_SIZE_MB);
         
         // consider trying MEM_LARGE_PAGES which would enable larger virtual memory page sizes (2mb? compared to 4k pages).
@@ -690,13 +691,13 @@ i32 main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
     // SIMD - single instruction multiple data
     auto xinput_ready = win32_load_xinput();
     
-    game_input input[2] = {};
-    game_input* new_input = &input[0];
-    game_input* old_input = &input[1];
+    Game_input input[2] = {};
+    Game_input* new_input = &input[0];
+    Game_input* old_input = &input[1];
     
     // sound stuff
     i32 debug_last_marker_index = 0;
-    win32_debug_time_marker debug_time_marker_list[15] = {};
+    Win32_debug_time_marker debug_time_marker_list[15] = {};
     DWORD last_play_cursor = 0;
     DWORD last_write_cursor = 0;
     bool sound_first_pass = true;
@@ -820,7 +821,7 @@ i32 main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
         
         // record, playback, update and render
         {
-            game_bitmap_buffer game_buffer = {};
+            Game_bitmap_buffer game_buffer = {};
             game_buffer.memory = Global_backbuffer.memory;
             game_buffer.width = Global_backbuffer.width;
             game_buffer.height = Global_backbuffer.height;
@@ -843,7 +844,7 @@ i32 main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
         {
             DWORD bytes_to_lock, bytes_to_write, target_cursor, play_cursor, write_cursor;
             bytes_to_lock = bytes_to_write = target_cursor = play_cursor = write_cursor = 0;
-            game_sound_buffer sound_buffer = {};
+            Game_sound_buffer sound_buffer = {};
             auto audio_wallclock = win32_get_wall_clock();
             auto from_begin_to_audio_seconds = win32_get_seconds_elapsed(flip_wall_clock, audio_wallclock);
             

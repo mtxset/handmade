@@ -11,8 +11,8 @@ void debug_free_file(void* handle) {
 }
 
 static 
-debug_file_read_result debug_read_entire_file(char* file_name) {
-    debug_file_read_result result = {};
+Debug_file_read_result debug_read_entire_file(char* file_name) {
+    Debug_file_read_result result = {};
     
     auto file_handle = CreateFileA(file_name, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, 0);
     

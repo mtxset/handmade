@@ -5,7 +5,7 @@
 
 #include "types.h"
 
-struct debug_file_read_result {
+struct Debug_file_read_result {
     u32 bytes_read;
     void* content;
 };
