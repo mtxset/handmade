@@ -4,8 +4,9 @@
 
 #include "types.h"
 #include "utils.h"
+#include "tile.h"
 
-struct game_bitmap_buffer {
+struct Game_bitmap_buffer {
     // pixels are always 32 bit, memory order BB GG RR XX (padding)
     void* memory;
     i32 width;
@@ -14,60 +15,60 @@ struct game_bitmap_buffer {
     i32 bytes_per_pixel;
 };
 
-struct game_sound_buffer {
+struct Game_sound_buffer {
     i32 sample_count;
     i32 samples_per_second;
     i16* samples;
 };
 
-struct game_button_state {
+struct Game_button_state {
     i32 half_transition_count;
     bool ended_down;
 };
 
-struct game_controller_input {
+struct Game_controller_input {
     bool is_connected;
     bool is_analog;
     f32 stick_avg_x;
     f32 stick_avg_y;
     
     union {
-        game_button_state buttons[13];
+        Game_button_state buttons[13];
         struct {
-            game_button_state move_up;
-            game_button_state move_down;
-            game_button_state move_left;
-            game_button_state move_right;
+            Game_button_state move_up;
+            Game_button_state move_down;
+            Game_button_state move_left;
+            Game_button_state move_right;
             
-            game_button_state up;
-            game_button_state down;
-            game_button_state left;
-            game_button_state right;
-            game_button_state l1;
-            game_button_state r1;
+            Game_button_state up;
+            Game_button_state down;
+            Game_button_state left;
+            Game_button_state right;
+            Game_button_state l1;
+            Game_button_state r1;
             
-            game_button_state shift;
+            Game_button_state shift;
             
-            game_button_state start;
+            Game_button_state start;
             // back button has to be last entry cuz there is macro which relies on that
             // file: game.cpp function: game_update_render
-            game_button_state back;
+            Game_button_state back;
         };
     };
 };
 
-struct game_input {
-    game_button_state mouse_buttons[3];
+struct Game_input {
+    Game_button_state mouse_buttons[3];
     i32 mouse_x, mouse_y;
     
     // seconds to advance over update
     f32 time_delta;
     
     // 1 - keyboard, other gamepads
-    game_controller_input gamepad[5];
+    Game_controller_input gamepad[5];
 };
 
-struct game_memory {
+struct Game_memory {
     bool is_initialized;
     u64 permanent_storage_size;
     u64 transient_storage_size;
@@ -87,62 +88,49 @@ struct color_f32 {
     f32 b;
 };
 
-struct tile_chunk {
-    u32* tiles;
+struct drop {
+    bool active;
+    f32 a;
+    f32 pos_x;
+    f32 pos_y;
 };
 
-struct world_map_data {
-    u32 chunk_shift;     // world chunk
-    u32 chunk_mask;      // tiles
-    u32 chunk_dimension; // how many tiles in a world chunk
-    
-    f32 tile_side_meters;
-    i32 tile_side_pixels;
-    f32 meters_to_pixels;
-    
-    i32 tile_chunk_count_x;
-    i32 tile_chunk_count_y;
-    
-    tile_chunk* tile_chunks;
+struct Memory_arena {
+    u8* base;
+    size_t size;
+    size_t used;
 };
 
-struct tile_chunk_position {
-    u32 tile_chunk_x;
-    u32 tile_chunk_y;
-    
-    u32 tile_relative_x;
-    u32 tile_relative_y;
+struct World {
+    Tile_map* tile_map;
 };
 
-struct world_position {
-    u32 absolute_tile_x;
-    u32 absolute_tile_y;
-    
-    f32 tile_relative_x; 
-    f32 tile_relative_y;
-};
-
-struct game_state {
-    world_position player_pos;
+struct Game_state {
+    Memory_arena world_arena;
+    World* world;
+    Tile_map_position player_pos;
     f32 t_sine;
+    
+    i32 drop_index;
+    drop drops[32];
 };
 
-game_controller_input* get_gamepad(game_input* input, i32 input_index) {
+Game_controller_input* get_gamepad(Game_input* input, i32 input_index) {
     macro_assert(input_index >= 0);
     macro_assert(input_index < macro_array_count(input->gamepad));
     
     return &input->gamepad[input_index];
 }
 
-void render_255_gradient(game_bitmap_buffer* bitmap_buffer, i32 blue_offset, i32 green_offset);
+void render_255_gradient(Game_bitmap_buffer* bitmap_buffer, i32 blue_offset, i32 green_offset);
 
 static 
-void game_output_sound(game_sound_buffer* sound_buffer, i32 tone_hz, game_state* state);
+void game_output_sound(Game_sound_buffer* sound_buffer, i32 tone_hz, Game_state* state);
 
 typedef 
-void (game_update_render_signature) (thread_context* thread, game_memory* memory, game_input* input, game_bitmap_buffer* bitmap_buffer);
+void (game_update_render_signature) (thread_context* thread, Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer);
 
 typedef 
-void (game_get_sound_samples_signature) (thread_context* thread, game_memory* memory, game_sound_buffer* sound_buffer);
+void (game_get_sound_samples_signature) (thread_context* thread, Game_memory* memory, Game_sound_buffer* sound_buffer);
 
 #endif //GAME_H

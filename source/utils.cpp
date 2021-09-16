@@ -58,3 +58,27 @@ char* i32_to_string(i32 n) {
 	}
 	return binary;
 }
+
+i32 clamp_i32(i32 val, i32 min = 0, i32 max = 1) {
+    i32 result = val;
+    
+    if (val < min)
+        result = min;
+    
+    if (val > max)
+        result= max;
+    
+    return result;
+}
+
+f32 clamp_f32(f32 val, f32 min = 0.0f, f32 max = 1.0f) {
+    f32 result = val;
+    
+    if (val < min)
+        result = min;
+    
+    if (val > max)
+        result= max;
+    
+    return result;
+}

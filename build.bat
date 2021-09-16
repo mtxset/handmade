@@ -6,7 +6,7 @@
 :: -wd4459: declaration of 'x' hides global declaration
 :: -wd4505: unreferenced local function has been removed
 set ignore_errors=-wd4100 -wd4189 -wd4201 -wd4459 -wd4505
-set common_compiler_flags=-Od -MTd -EHa- -Gm- -GR- -Oi -DAR1610 -DINTERNAL=1 -DDEBUG=1 -WX -W4 %ignore_errors% -FC -Fm -Z7 -nologo
+set common_compiler_flags=-Od -MTd -EHa- -Gm- -GR- -Oi -fp:fast -DAR1610 -DINTERNAL=1 -DDEBUG=1 -WX -W4 %ignore_errors% -FC -Fm -Z7 -nologo
 set common_linker_flags=-incremental:no -opt:ref user32.lib gdi32.lib winmm.lib
 
 if not exist build mkdir build
@@ -43,9 +43,9 @@ popd
 :: /link    - subsytem:windows,5.1 - support xp
 :: -MTd     - package everything instead of expecting user to have dll which does laoding of exe into windows (d - debug)
 :: -DAR1610 - get 16:10 aspect ratio (window and DIB)
-:: /02      - enable optimizations
-:: /Oi      - enable intrinsics
-:: /fp:fast - allow for faster (by lossing some precision?) floating point calculations, if enabled floorf dissappears in asm
+:: -02      - enable optimizations
+:: -Oi      - enable intrinsics
+:: -fp:fast - allow for faster (by lossing some precision?) floating point calculations, if enabled floorf dissappears in asm
 
 :: Get end time:
 for /F "tokens=1-4 delims=:.," %%a in ("%time%") do (
