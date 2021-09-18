@@ -9,11 +9,11 @@ void swap(T& a, T& b) {
 }
 
 void string_concat(size_t src_a_count, char* src_a, size_t src_b_count, char* src_b, size_t dest_count, char* dest) {
-    for (i32 i = 0; i < src_a_count; i++) {
+    for (u32 i = 0; i < src_a_count; i++) {
         *dest++ = *src_a++;
     }
     
-    for (i32 i = 0; i < src_b_count; i++) {
+    for (u32 i = 0; i < src_b_count; i++) {
         *dest++ = *src_b++;
     }
     
@@ -66,7 +66,19 @@ i32 clamp_i32(i32 val, i32 min = 0, i32 max = 1) {
         result = min;
     
     if (val > max)
-        result= max;
+        result = max;
+    
+    return result;
+}
+
+u32 clamp_u32(u32 val, u32 min = 0, u32 max = 1) {
+    u32 result = val;
+    
+    if (val < min)
+        result = min;
+    
+    if (val > max)
+        result = max;
     
     return result;
 }

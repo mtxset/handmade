@@ -9,15 +9,16 @@
 #include "game.h"
 #include "tile.h"
 #include "tile.cpp"
+#include "random.h"
 
 void clear_screen(Game_bitmap_buffer* bitmap_buffer, u32 color) {
     // 8 bit pointer to the beginning of the memory
     // 8 bit so we have arithemtic by 1 byte
     auto row = (u8*)bitmap_buffer->memory;
-    for (int y = 0; y < bitmap_buffer->height; y++) {
+    for (i32 y = 0; y < bitmap_buffer->height; y++) {
         // 32 bits so we move by 4 bytes cuz aa rr gg bb
         auto pixel = (u32*)row;
-        for (int x = 0; x < bitmap_buffer->width; x++) {
+        for (i32 x = 0; x < bitmap_buffer->width; x++) {
             *pixel++ = color;
         }
         row += bitmap_buffer->pitch;
@@ -104,16 +105,16 @@ void draw_rect(Game_bitmap_buffer* buffer, f32 start_x, f32 start_y, f32 end_x, 
                  round_f32_u32(color.g * 255.0f) << 8  |
                  round_f32_u32(color.b * 255.0f) << 0);
     
-    auto x0 = round_f32_u32(start_x); auto x1 = round_f32_u32(end_x);
-    auto y0 = round_f32_u32(start_y); auto y1 = round_f32_u32(end_y);
+    u32 x0 = round_f32_u32(start_x); u32 x1 = round_f32_u32(end_x);
+    u32 y0 = round_f32_u32(start_y); u32 y1 = round_f32_u32(end_y);
     
     x0 = clamp_i32(x0, 0, buffer->width);  x1 = clamp_i32(x1, 0, buffer->width);
     y0 = clamp_i32(y0, 0, buffer->height); y1 = clamp_i32(y1, 0, buffer->height);
     
-    auto row = (u8*)buffer->memory + x0 * buffer->bytes_per_pixel + y0 * buffer->pitch;
+    u8* row = (u8*)buffer->memory + x0 * buffer->bytes_per_pixel + y0 * buffer->pitch;
     
     for (u32 y = y0; y < y1; y++) {
-        auto pixel = (u32*)row;
+        u32* pixel = (u32*)row;
         for (u32 x = x0; x < x1; x++) {
             *pixel++ = color_hex;
         }
@@ -183,98 +184,147 @@ void drops_update(Game_bitmap_buffer* bitmap_buffer, Game_state* state, Game_inp
         }
     }
 }
-static
-void initialize_arena(Memory_arena* arena, size_t size, u8* base) {
-    arena->size = size;
-    arena->base = base;
-    arena->used = 0;
-}
 
-#define push_struct(arena, type)       (type *)push_size_(arena, sizeof(type))
-#define push_array(arena, count, type) (type *)push_size_(arena, (count) * sizeof(type))
-void* push_size_(Memory_arena* arena, size_t size) {
-    macro_assert(arena->used + size <= arena->size);
-    
-    void* result = arena->base + arena->used;
-    arena->used += size;
-    
-    return result;
-}
+#include "pacman.cpp"
 
 extern "C"
 void game_update_render(thread_context* thread, Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer) {
     macro_assert(sizeof(Game_state) <= memory->permanent_storage_size);
     macro_assert(&input->gamepad[0].back - &input->gamepad[0].buttons[0] == macro_array_count(input->gamepad[0].buttons) - 1); // we need to ensure that we take last element in union
     
+    Game_state* game_state = (Game_state*)memory->permanent_storage;
+    
+    if (memory->is_initialized)
+        goto skipping_memory_init_jump;
     // init game state
-    auto game_state = (Game_state*)memory->permanent_storage;
     {
-        if (!memory->is_initialized) {
+        // pacman init
+        {
+            game_state->pacman_state.player_tile_x = 1;
+            game_state->pacman_state.player_tile_y = 1;
             
-            // init memory arenas
-            initialize_arena(&game_state->world_arena, memory->permanent_storage_size - sizeof(game_state), (u8*)memory->permanent_storage + sizeof(Game_state));
+            game_state->pacman_state.ghost_tile_x = 10;
+            game_state->pacman_state.ghost_tile_y = 10;
             
-            game_state->world = push_struct(&game_state->world_arena, World);
-            World* world = game_state->world;
-            world->tile_map = push_struct(&game_state->world_arena, Tile_map);
+            game_state->pacman_state.ghost_direction_y = 1;
+        }
+        
+        // init memory arenas
+        initialize_arena(&game_state->world_arena, memory->permanent_storage_size - sizeof(Game_state), (u8*)memory->permanent_storage + sizeof(Game_state));
+        
+        game_state->world = push_struct(&game_state->world_arena, World);
+        World* world = game_state->world;
+        world->tile_map = push_struct(&game_state->world_arena, Tile_map);
+        
+        Tile_map* tile_map = world->tile_map;
+        // create tiles
+        {
+            u32 random_number_index = 0;
             
-            Tile_map* tile_map = world->tile_map;
-            // create tiles
-            {
-                // 256 x 256 tile chunks 
-                tile_map->chunk_shift = 4;
-                tile_map->chunk_mask  = (1 << tile_map->chunk_shift) - 1;
-                tile_map->chunk_dimension = (1 << tile_map->chunk_shift);
-                
-                tile_map->tile_chunk_count_x = 128;
-                tile_map->tile_chunk_count_y = 128;
-                
-                u32 tile_chunk_array_size = tile_map->tile_chunk_count_x * tile_map->tile_chunk_count_y;
-                tile_map->tile_chunks = push_array(&game_state->world_arena, tile_chunk_array_size, Tile_chunk);
-                
-                u32 array_size = tile_map->chunk_dimension * tile_map->chunk_dimension;
-                for (u32 y = 0; y < tile_map->tile_chunk_count_y; y++) {
-                    for (u32 x = 0; x < tile_map->tile_chunk_count_x; x++) {
-                        tile_map->tile_chunks[y * tile_map->tile_chunk_count_x + x].tiles = push_array(&game_state->world_arena, array_size, u32);
-                    }
-                }
-                
-                tile_map->tile_side_meters = 1.4f;
-                tile_map->tile_side_pixels = 60;
-                tile_map->meters_to_pixels = tile_map->tile_side_pixels / tile_map->tile_side_meters;
-                
-                u32 tiles_per_width = 17;
-                u32 tiles_per_height = 9;
-                for (u32 screen_y = 0; screen_y < 32; screen_y++) {
-                    for (u32 screen_x = 0; screen_x < 32; screen_x++) {
-                        for (u32 tile_y = 0; tile_y < tiles_per_height; tile_y++) {
-                            for (u32 tile_x = 0; tile_x < tiles_per_width; tile_x++) {
-                                u32 abs_tile_x = screen_x * tiles_per_width + tile_x;
-                                u32 abs_tile_y = screen_y * tiles_per_height + tile_y;
-                                
-                                auto tile = (tile_x == tile_y);
-                                
-                                set_tile_value(&game_state->world_arena, tile_map, abs_tile_x, abs_tile_y, tile);
-                            }
-                        }
-                    }
+            // 256 x 256 tile chunks 
+            tile_map->chunk_shift = 4;
+            tile_map->chunk_mask  = (1 << tile_map->chunk_shift) - 1;
+            tile_map->chunk_dimension = (1 << tile_map->chunk_shift);
+            
+            tile_map->tile_chunk_count_x = 128;
+            tile_map->tile_chunk_count_y = 128;
+            tile_map->tile_chunk_count_z = 2;
+            
+            u32 tile_chunk_array_size = tile_map->tile_chunk_count_x * tile_map->tile_chunk_count_y * tile_map->tile_chunk_count_z;
+            tile_map->tile_chunks = push_array(&game_state->world_arena, tile_chunk_array_size, Tile_chunk);
+            
+            size_t array_size = tile_map->chunk_dimension * tile_map->chunk_dimension;
+            for (u32 y = 0; y < tile_map->tile_chunk_count_y; y++) {
+                for (u32 x = 0; x < tile_map->tile_chunk_count_x; x++) {
+                    
                 }
             }
             
-            // player's initial tile position
-            game_state->player_pos.absolute_tile_x = 1;
-            game_state->player_pos.absolute_tile_y = 4;
+            tile_map->tile_side_meters = 1.4f;
             
-            game_state->player_pos.tile_relative_x = 0;
-            game_state->player_pos.tile_relative_y = 0;
+            u32 tiles_per_width = 17;
+            u32 tiles_per_height = 9;
             
+            u32 screen_x = 0;
+            u32 screen_y = 0;
             
-            memory->is_initialized = true;
+            u32 room_goes_horizontal = 0;
+            
+            bool door_north = false;
+            bool door_east  = false;
+            bool door_south = false;
+            bool door_west  = false;
+            
+            for (u32 screen_index = 0; screen_index < 100; screen_index++) {
+                macro_assert(random_number_index < macro_array_count(random_number_table));
+                u32 random_choise = random_number_table[random_number_index++] % 2;
+                
+                if (random_choise == room_goes_horizontal) {
+                    door_east = true;
+                }
+                else {
+                    door_north = true;
+                }
+                
+                for (u32 tile_y = 0; tile_y < tiles_per_height; tile_y++) {
+                    for (u32 tile_x = 0; tile_x < tiles_per_width; tile_x++) {
+                        u32 abs_tile_x = screen_x * tiles_per_width + tile_x;
+                        u32 abs_tile_y = screen_y * tiles_per_height + tile_y;
+                        
+                        u32 tile = 1;
+                        
+                        if (tile_x == 0 && (!door_west || tile_y != tiles_per_height / 2)) {
+                            tile = 2;
+                        }
+                        
+                        if (tile_x == tiles_per_width - 1 && (!door_east || tile_y != tiles_per_height / 2)) {
+                            tile = 2;
+                        }
+                        
+                        if (tile_y == 0 && (!door_south || tile_x != tiles_per_width / 2)) {
+                            tile = 2;
+                        }
+                        
+                        if (tile_y == tiles_per_height - 1 && (!door_north || tile_x != tiles_per_width / 2)) {
+                            tile = 2;
+                        }
+                        
+                        set_tile_value(&game_state->world_arena, tile_map, abs_tile_x, abs_tile_y, tile);
+                    }
+                }
+                
+                door_west  = door_east;
+                door_south = door_north;
+                
+                door_east  = false; 
+                door_north = false;
+                
+                if (random_choise == room_goes_horizontal) {
+                    screen_x++;
+                }
+                else {
+                    screen_y++;
+                }
+            }
         }
+        
+        // player's initial tile position
+        game_state->player_pos.absolute_tile_x = 1;
+        game_state->player_pos.absolute_tile_y = 4;
+        
+        game_state->player_pos.tile_relative_x = 0;
+        game_state->player_pos.tile_relative_y = 0;
+        
+        
+        memory->is_initialized = true;
     }
+    skipping_memory_init_jump:
     
     World* world = game_state->world;
     Tile_map* tile_map = world->tile_map;
+    
+    i32 tile_side_pixels = 60;
+    f32 meters_to_pixels = tile_side_pixels / tile_map->tile_side_meters;
     
     macro_assert(world);
     macro_assert(tile_map);
@@ -301,7 +351,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 if (input_state->left.ended_down)  player_x_delta = -1.0f;
                 if (input_state->right.ended_down) player_x_delta = 1.0f;
                 
-                if (input_state->shift.ended_down) move_offset *= 4;
+                if (input_state->shift.ended_down) move_offset *= 10;
             }
         }
     }
@@ -337,42 +387,46 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
 #endif
     }
     
+    clear_screen(bitmap_buffer, color_gray_byte);
+    
     f32 screen_center_x = (f32)bitmap_buffer->width / 2;
     f32 screen_center_y = (f32)bitmap_buffer->height / 2;
     
     // draw tile maps
     {
-        color_f32 color_tile     = { .0f, .5f, 1.0f };
+        color_f32 color_wall     = { .0f, .5f, 1.0f };
         color_f32 color_empty    = { .3f, .3f, 1.0f };
         color_f32 color_occupied = { .9f, .0f, 1.0f };
         // used to draw player from the middle of the tile
-        f32 half_tile_pixels = 0.5f * tile_map->tile_side_pixels;
+        f32 half_tile_pixels = 0.5f * tile_side_pixels;
         
-        for (i32 rel_row  = -10; rel_row < 10; rel_row++) {
-            for (i32 rel_col = -20; rel_col < 20; rel_col++) {
+        for (i32 rel_row = -100; rel_row < 100; rel_row++) {
+            for (i32 rel_col = -200; rel_col < 200; rel_col++) {
                 u32 col = game_state->player_pos.absolute_tile_x + rel_col;
                 u32 row = game_state->player_pos.absolute_tile_y + rel_row;
                 
-                auto tile_id = get_tile_value(tile_map, col, row);
+                u32 tile_id = get_tile_value(tile_map, col, row);
                 
-                auto color = color_empty;
-                
-                if (tile_id)
-                    color = color_tile;
-                
-                if (row == game_state->player_pos.absolute_tile_y && col == game_state->player_pos.absolute_tile_x)
-                    color = color_occupied;
-                
-                f32 center_x = screen_center_x - tile_map->meters_to_pixels * game_state->player_pos.tile_relative_x + (f32)rel_col * tile_map->tile_side_pixels;
-                f32 center_y = screen_center_y + tile_map->meters_to_pixels * game_state->player_pos.tile_relative_y - (f32)rel_row * tile_map->tile_side_pixels;
-                
-                f32 min_x = center_x - half_tile_pixels;
-                f32 min_y = center_y - half_tile_pixels;
-                
-                f32 max_x = center_x + half_tile_pixels;
-                f32 max_y = center_y + half_tile_pixels;
-                
-                draw_rect(bitmap_buffer, min_x, min_y, max_x, max_y, color);
+                if (tile_id > 0) {
+                    color_f32 color = color_empty;
+                    
+                    if (tile_id == 2)
+                        color = color_wall;
+                    
+                    if (row == game_state->player_pos.absolute_tile_y && col == game_state->player_pos.absolute_tile_x)
+                        color = color_occupied;
+                    
+                    f32 center_x = screen_center_x - meters_to_pixels * game_state->player_pos.tile_relative_x + (f32)rel_col * tile_side_pixels;
+                    f32 center_y = screen_center_y + meters_to_pixels * game_state->player_pos.tile_relative_y - (f32)rel_row * tile_side_pixels;
+                    
+                    f32 min_x = center_x - half_tile_pixels;
+                    f32 min_y = center_y - half_tile_pixels;
+                    
+                    f32 max_x = center_x + half_tile_pixels;
+                    f32 max_y = center_y + half_tile_pixels;
+                    
+                    draw_rect(bitmap_buffer, min_x, min_y, max_x, max_y, color);
+                }
             }
         }
     }
@@ -380,17 +434,18 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     // draw player
     {
         color_f32 color_player = { .1f, .0f, 1.0f };
-        f32 player_left = screen_center_x - .5f * player_width * tile_map->meters_to_pixels;
-        f32 player_top = screen_center_y - player_height * tile_map->meters_to_pixels;
+        f32 player_left = screen_center_x - .5f * player_width * meters_to_pixels;
+        f32 player_top = screen_center_y - player_height * meters_to_pixels;
         
         draw_rect(bitmap_buffer,
                   player_left,
                   player_top,
-                  player_left + player_width * tile_map->meters_to_pixels, 
-                  player_top + player_height * tile_map->meters_to_pixels, 
+                  player_left + player_width * meters_to_pixels, 
+                  player_top + player_height * meters_to_pixels, 
                   color_player);
     }
     
+    //pacman_update(bitmap_buffer, game_state, input);
     //drops_update(bitmap_buffer, game_state, input);
 }
 

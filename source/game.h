@@ -13,6 +13,8 @@ struct Game_bitmap_buffer {
     i32 height;
     i32 pitch;
     i32 bytes_per_pixel;
+    i32 window_width;
+    i32 window_height;
 };
 
 struct Game_sound_buffer {
@@ -88,6 +90,8 @@ struct color_f32 {
     f32 b;
 };
 
+static const color_f32 FRGB_GOLD = { 1.0f, 0.8f, .0f };
+
 struct drop {
     bool active;
     f32 a;
@@ -105,11 +109,27 @@ struct World {
     Tile_map* tile_map;
 };
 
+struct Pacman_state {
+    i32 ghost_tile_x;
+    i32 ghost_tile_y;
+    f32 ghost_move_timer;
+    bool ghost_can_move;
+    i32 ghost_direction_x;
+    i32 ghost_direction_y;
+    
+    i32 player_tile_x;
+    i32 player_tile_y;
+    f32 move_timer;
+    bool can_move;
+};
+
 struct Game_state {
     Memory_arena world_arena;
     World* world;
     Tile_map_position player_pos;
     f32 t_sine;
+    
+    Pacman_state pacman_state;
     
     i32 drop_index;
     drop drops[32];
