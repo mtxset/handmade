@@ -129,7 +129,9 @@ struct Game_state {
     Tile_map_position player_pos;
     f32 t_sine;
     
+#if 0
     Pacman_state pacman_state;
+#endif
     
     i32 drop_index;
     drop drops[32];

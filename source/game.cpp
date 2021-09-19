@@ -185,7 +185,9 @@ void drops_update(Game_bitmap_buffer* bitmap_buffer, Game_state* state, Game_inp
     }
 }
 
+#if 0
 #include "pacman.cpp"
+#endif
 
 extern "C"
 void game_update_render(thread_context* thread, Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer) {
@@ -198,6 +200,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         goto skipping_memory_init_jump;
     // init game state
     {
+#if 0
         // pacman init
         {
             game_state->pacman_state.player_tile_x = 1;
@@ -208,6 +211,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
             
             game_state->pacman_state.ghost_direction_y = 1;
         }
+#endif
         
         // init memory arenas
         initialize_arena(&game_state->world_arena, memory->permanent_storage_size - sizeof(Game_state), (u8*)memory->permanent_storage + sizeof(Game_state));
@@ -230,36 +234,45 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
             tile_map->tile_chunk_count_y = 128;
             tile_map->tile_chunk_count_z = 2;
             
-            u32 tile_chunk_array_size = tile_map->tile_chunk_count_x * tile_map->tile_chunk_count_y * tile_map->tile_chunk_count_z;
-            tile_map->tile_chunks = push_array(&game_state->world_arena, tile_chunk_array_size, Tile_chunk);
-            
-            size_t array_size = tile_map->chunk_dimension * tile_map->chunk_dimension;
-            for (u32 y = 0; y < tile_map->tile_chunk_count_y; y++) {
-                for (u32 x = 0; x < tile_map->tile_chunk_count_x; x++) {
-                    
-                }
-            }
-            
             tile_map->tile_side_meters = 1.4f;
             
             u32 tiles_per_width = 17;
             u32 tiles_per_height = 9;
             
+            u32 tile_chunk_array_size = tile_map->tile_chunk_count_x * tile_map->tile_chunk_count_y * tile_map->tile_chunk_count_z;
+            tile_map->tile_chunks = push_array(&game_state->world_arena, tile_chunk_array_size, Tile_chunk);
+            
             u32 screen_x = 0;
             u32 screen_y = 0;
             
-            u32 room_goes_horizontal = 0;
+            u32 room_goes_horizontal = 1;
+            u32 room_has_stairs = 2;
+            
+            u32 absolute_tile_z = 0;
             
             bool door_north = false;
             bool door_east  = false;
             bool door_south = false;
             bool door_west  = false;
+            bool door_up    = false;
+            bool door_down  = false;
             
             for (u32 screen_index = 0; screen_index < 100; screen_index++) {
                 macro_assert(random_number_index < macro_array_count(random_number_table));
-                u32 random_choise = random_number_table[random_number_index++] % 2;
+                u32 random_choise;
+                if (door_up || door_down) {
+                    random_choise = random_number_table[random_number_index++] % 2;
+                } else {
+                    random_choise = random_number_table[random_number_index++] % 3;
+                }
                 
-                if (random_choise == room_goes_horizontal) {
+                if (random_choise == room_has_stairs) {
+                    if (absolute_tile_z == 0)
+                        door_up = true;
+                    else
+                        door_down = true;
+                }
+                else if (random_choise == room_goes_horizontal) {
                     door_east = true;
                 }
                 else {
@@ -268,8 +281,8 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 
                 for (u32 tile_y = 0; tile_y < tiles_per_height; tile_y++) {
                     for (u32 tile_x = 0; tile_x < tiles_per_width; tile_x++) {
-                        u32 abs_tile_x = screen_x * tiles_per_width + tile_x;
-                        u32 abs_tile_y = screen_y * tiles_per_height + tile_y;
+                        u32 absolute_tile_x = screen_x * tiles_per_width + tile_x;
+                        u32 absolute_tile_y = screen_y * tiles_per_height + tile_y;
                         
                         u32 tile = 1;
                         
@@ -289,17 +302,41 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                             tile = 2;
                         }
                         
-                        set_tile_value(&game_state->world_arena, tile_map, abs_tile_x, abs_tile_y, tile);
+                        if (tile_y == 6 && tile_x == 6) {
+                            if (door_up)
+                                tile = 3;
+                            
+                            if (door_down)
+                                tile = 4;
+                        }
+                        
+                        set_tile_value(&game_state->world_arena, tile_map, absolute_tile_x, absolute_tile_y, absolute_tile_z, tile);
                     }
                 }
                 
                 door_west  = door_east;
                 door_south = door_north;
-                
-                door_east  = false; 
+                door_east  = false;
                 door_north = false;
                 
-                if (random_choise == room_goes_horizontal) {
+                if (door_up) {
+                    door_down = true;
+                    door_up   = false;
+                }
+                else if (door_down) {
+                    door_down = false;
+                    door_up   = true;
+                }
+                else {
+                    door_down = false;
+                    door_up   = false;
+                }
+                
+                if (random_choise == room_has_stairs) {
+                    // toggle between 1 and 0
+                    absolute_tile_z = 1 - absolute_tile_z;
+                }
+                else if (random_choise == room_goes_horizontal) {
                     screen_x++;
                 }
                 else {
@@ -309,12 +346,12 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         }
         
         // player's initial tile position
-        game_state->player_pos.absolute_tile_x = 1;
+        game_state->player_pos.absolute_tile_x = 2;
         game_state->player_pos.absolute_tile_y = 4;
+        game_state->player_pos.absolute_tile_z = 0;
         
         game_state->player_pos.tile_relative_x = 0;
         game_state->player_pos.tile_relative_y = 0;
-        
         
         memory->is_initialized = true;
     }
@@ -380,7 +417,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
             is_world_point_empty(tile_map, player_right)) {
             game_state->player_pos = new_player_pos;
         }
-#if 0
+#if 1
         char buffer[256];
         _snprintf_s(buffer, sizeof(buffer), "tile(x,y): %u, %u; relative(x,y): %f, %f\n", game_state->player_pos.absolute_tile_x, game_state->player_pos.absolute_tile_y, game_state->player_pos.tile_relative_x, game_state->player_pos.tile_relative_y);
         OutputDebugStringA(buffer);
@@ -405,13 +442,16 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 u32 col = game_state->player_pos.absolute_tile_x + rel_col;
                 u32 row = game_state->player_pos.absolute_tile_y + rel_row;
                 
-                u32 tile_id = get_tile_value(tile_map, col, row);
+                u32 tile_id = get_tile_value(tile_map, col, row, game_state->player_pos.absolute_tile_z);
                 
                 if (tile_id > 0) {
                     color_f32 color = color_empty;
                     
                     if (tile_id == 2)
                         color = color_wall;
+                    
+                    if (tile_id > 2)
+                        color = FRGB_GOLD;
                     
                     if (row == game_state->player_pos.absolute_tile_y && col == game_state->player_pos.absolute_tile_x)
                         color = color_occupied;
@@ -444,9 +484,6 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                   player_top + player_height * meters_to_pixels, 
                   color_player);
     }
-    
-    //pacman_update(bitmap_buffer, game_state, input);
-    //drops_update(bitmap_buffer, game_state, input);
 }
 
 extern "C" 
