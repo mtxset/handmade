@@ -17,6 +17,25 @@ Project("{911E67C6-3D85-4FCE-B560-20A9C3E3FF48}") = "main", "..\build\main.exe",
 		IORedirection = Auto
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{E79B6F63-A4A6-4581-9E91-1CE37B738AB2}"
+	ProjectSection(SolutionItems) = preProject
+		source\file_io.cpp = source\file_io.cpp
+		source\file_io.h = source\file_io.h
+		source\game.cpp = source\game.cpp
+		source\game.h = source\game.h
+		source\intrinsics.h = source\intrinsics.h
+		source\main.cpp = source\main.cpp
+		source\main.h = source\main.h
+		source\record_disk.cpp = source\record_disk.cpp
+		source\record_memory.cpp = source\record_memory.cpp
+		source\tile.cpp = source\tile.cpp
+		source\tile.h = source\tile.h
+		source\todo.txt = source\todo.txt
+		source\types.h = source\types.h
+		source\utils.cpp = source\utils.cpp
+		source\utils.h = source\utils.h
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Release|x86 = Release|x86

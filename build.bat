@@ -5,8 +5,10 @@
 :: -wd4201: nonstandard extension used: nameless struct/union
 :: -wd4459: declaration of 'x' hides global declaration
 :: -wd4505: unreferenced local function has been removed
-set ignore_errors=-wd4100 -wd4189 -wd4201 -wd4459 -wd4505
-set common_compiler_flags=-Od -MTd -EHa- -Gm- -GR- -Oi -fp:fast -DAR1610 -DINTERNAL=1 -DDEBUG=1 -WX -W4 %ignore_errors% -FC -Fm -Z7 -nologo
+:: -wd4668: 'x' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif' (found in win headers)
+set ignore_errors=-wd4100 -wd4189 -wd4201 -wd4459 -wd4505 -wd4668
+set enable_errors=-w44800 
+set common_compiler_flags=-Od -MTd -EHa- -Gm- -GR- -Oi -fp:fast -DAR1610 -DINTERNAL=1 -DDEBUG=1 -WX -W4 %ignore_errors% %enable_errors% -FC -Fm -Z7 -nologo
 set common_linker_flags=-incremental:no -opt:ref user32.lib gdi32.lib winmm.lib
 
 if not exist build mkdir build
