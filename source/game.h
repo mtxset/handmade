@@ -129,6 +129,7 @@ struct Game_state {
     Tile_map_position player_pos;
     f32 t_sine;
     
+    u32* pixel_pointer;
 #if 0
     Pacman_state pacman_state;
 #endif

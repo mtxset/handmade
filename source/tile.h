@@ -8,8 +8,8 @@ struct Tile_map_position {
     u32 absolute_tile_y;
     u32 absolute_tile_z;
     
-    f32 tile_relative_x; 
-    f32 tile_relative_y;
+    f32 offset_x; 
+    f32 offset_y;
 };
 
 struct Tile_chunk {

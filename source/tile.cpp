@@ -79,6 +79,14 @@ u32 get_tile_value(Tile_map* tile_map, u32 tile_abs_x, u32 tile_abs_y, u32 tile_
 }
 
 static
+u32 get_tile_value(Tile_map* tile_map, Tile_map_position tile_pos) {
+    
+    u32 result = get_tile_value(tile_map, tile_pos.absolute_tile_x, tile_pos.absolute_tile_y, tile_pos.absolute_tile_z);
+    
+    return result;
+}
+
+static
 void set_tile_value(Tile_map* tile_map, Tile_chunk* tile_chunk, u32 tile_x, u32 tile_y, u32 tile_value) {
     if (!tile_chunk || !tile_chunk->tiles)
         return;
@@ -87,12 +95,12 @@ void set_tile_value(Tile_map* tile_map, Tile_chunk* tile_chunk, u32 tile_x, u32 
 }
 
 static
-bool is_world_point_empty(Tile_map* tile_map, Tile_map_position can_pos) {
+bool is_world_point_empty(Tile_map* tile_map, Tile_map_position tile_pos) {
     bool result = false;
     
-    u32 tile_chunk_value = get_tile_value(tile_map, can_pos.absolute_tile_x, can_pos.absolute_tile_y, can_pos.absolute_tile_z);
+    u32 tile_chunk_value = get_tile_value(tile_map, tile_pos);
     
-    result = (tile_chunk_value == 1);
+    result = (tile_chunk_value == 1 || tile_chunk_value == 3 || tile_chunk_value == 4);
     
     return result;
 }
@@ -111,8 +119,8 @@ Tile_map_position recanonicalize_position(Tile_map* tile_map, Tile_map_position 
     
     Tile_map_position result = pos;
     
-    recanonicalize_coord(tile_map, &result.absolute_tile_x, &result.tile_relative_x);
-    recanonicalize_coord(tile_map, &result.absolute_tile_y, &result.tile_relative_y);
+    recanonicalize_coord(tile_map, &result.absolute_tile_x, &result.offset_x);
+    recanonicalize_coord(tile_map, &result.absolute_tile_y, &result.offset_y);
     
     return result;
 }
@@ -134,4 +142,11 @@ void set_tile_value(Memory_arena* world_arena, Tile_map* tile_map, u32 tile_abs_
     }
     
     set_tile_value(tile_map, tile_chunk, chunk_pos.tile_relative_x, chunk_pos.tile_relative_y, tile_value);
+}
+
+bool are_on_same_tile(Tile_map_position* pos_x, Tile_map_position* pos_y) {
+    bool result = (pos_x->absolute_tile_x == pos_y->absolute_tile_x &&
+                   pos_x->absolute_tile_y == pos_y->absolute_tile_y &&
+                   pos_x->absolute_tile_z == pos_y->absolute_tile_z);
+    return result;
 }
