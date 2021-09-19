@@ -189,6 +189,37 @@ void drops_update(Game_bitmap_buffer* bitmap_buffer, Game_state* state, Game_inp
 #include "pacman.cpp"
 #endif
 
+#pragma pack(push, 1)
+struct Bitmap_header {
+    u16 FileType;     /* File type, always 4D42h ("BM") */
+	u32 FileSize;     /* Size of the file in bytes */
+	u16 Reserved1;    /* Always 0 */
+	u16 Reserved2;    /* Always 0 */
+	u32 BitmapOffset; /* Starting position of image data in bytes */
+    
+    u32 Size;            /* Size of this header in bytes */
+    i32 Width;           /* Image width in pixels */
+    i32 Height;          /* Image height in pixels */
+	u16 Planes;          /* Number of color planes */
+	u16 BitsPerPixel;    /* Number of bits per pixel */
+};
+#pragma pack(pop)
+
+static
+u32* debug_load_bmp(char* file_name) {
+    u32* result;
+    
+    Debug_file_read_result file_result = debug_read_entire_file(file_name);
+    
+    macro_assert(file_result.bytes_read != 0);
+    
+    Bitmap_header* header = (Bitmap_header*)file_result.content;
+    
+    result = (u32*)((u8*)file_result.content + header->BitmapOffset);
+    
+    return result;
+}
+
 extern "C"
 void game_update_render(thread_context* thread, Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer) {
     macro_assert(sizeof(Game_state) <= memory->permanent_storage_size);
@@ -196,9 +227,8 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     
     Game_state* game_state = (Game_state*)memory->permanent_storage;
     
-    if (memory->is_initialized)
-        goto skipping_memory_init_jump;
     // init game state
+    if (!memory->is_initialized)
     {
 #if 0
         // pacman init
@@ -212,6 +242,8 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
             game_state->pacman_state.ghost_direction_y = 1;
         }
 #endif
+        
+        game_state->pixel_pointer = debug_load_bmp("./data/test.bmp");
         
         // init memory arenas
         initialize_arena(&game_state->world_arena, memory->permanent_storage_size - sizeof(Game_state), (u8*)memory->permanent_storage + sizeof(Game_state));
@@ -266,7 +298,9 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                     random_choise = random_number_table[random_number_index++] % 3;
                 }
                 
+                bool created_z_door = false;
                 if (random_choise == room_has_stairs) {
+                    created_z_door = true;
                     if (absolute_tile_z == 0)
                         door_up = true;
                     else
@@ -319,13 +353,9 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 door_east  = false;
                 door_north = false;
                 
-                if (door_up) {
-                    door_down = true;
-                    door_up   = false;
-                }
-                else if (door_down) {
-                    door_down = false;
-                    door_up   = true;
+                if (created_z_door) {
+                    door_down = !door_down;
+                    door_up   = !door_up;
                 }
                 else {
                     door_down = false;
@@ -350,12 +380,11 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         game_state->player_pos.absolute_tile_y = 4;
         game_state->player_pos.absolute_tile_z = 0;
         
-        game_state->player_pos.tile_relative_x = 0;
-        game_state->player_pos.tile_relative_y = 0;
+        game_state->player_pos.offset_x = 0;
+        game_state->player_pos.offset_y = 0;
         
         memory->is_initialized = true;
     }
-    skipping_memory_init_jump:
     
     World* world = game_state->world;
     Tile_map* tile_map = world->tile_map;
@@ -400,26 +429,38 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     {
         Tile_map_position new_player_pos = game_state->player_pos;
         
-        new_player_pos.tile_relative_x += player_x_delta * move_offset * input->time_delta;
-        new_player_pos.tile_relative_y += player_y_delta * move_offset * input->time_delta;
+        new_player_pos.offset_x += player_x_delta * move_offset * input->time_delta;
+        new_player_pos.offset_y += player_y_delta * move_offset * input->time_delta;
         new_player_pos = recanonicalize_position(tile_map, new_player_pos);
         
         Tile_map_position player_left = new_player_pos;
-        player_left.tile_relative_x -= (player_width / 2);
+        player_left.offset_x -= (player_width / 2);
         player_left = recanonicalize_position(tile_map, player_left);
         
         Tile_map_position player_right = new_player_pos;
-        player_right.tile_relative_x += (player_width / 2);
+        player_right.offset_x += (player_width / 2);
         player_right = recanonicalize_position(tile_map, player_right);
         
         if (is_world_point_empty(tile_map, new_player_pos) &&
             is_world_point_empty(tile_map, player_left) &&
             is_world_point_empty(tile_map, player_right)) {
+            
+            if (!are_on_same_tile(&game_state->player_pos, &new_player_pos)) {
+                u32 tile_value = get_tile_value(tile_map, new_player_pos);
+                // door up
+                if (tile_value == 3) {
+                    new_player_pos.absolute_tile_z++;
+                }
+                else if(tile_value == 4) {
+                    new_player_pos.absolute_tile_z--;
+                }
+            }
+            
             game_state->player_pos = new_player_pos;
         }
 #if 1
         char buffer[256];
-        _snprintf_s(buffer, sizeof(buffer), "tile(x,y): %u, %u; relative(x,y): %f, %f\n", game_state->player_pos.absolute_tile_x, game_state->player_pos.absolute_tile_y, game_state->player_pos.tile_relative_x, game_state->player_pos.tile_relative_y);
+        _snprintf_s(buffer, sizeof(buffer), "tile(x,y): %u, %u; relative(x,y): %f, %f\n", game_state->player_pos.absolute_tile_x, game_state->player_pos.absolute_tile_y, game_state->player_pos.offset_x, game_state->player_pos.offset_y);
         OutputDebugStringA(buffer);
 #endif
     }
@@ -456,8 +497,8 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                     if (row == game_state->player_pos.absolute_tile_y && col == game_state->player_pos.absolute_tile_x)
                         color = color_occupied;
                     
-                    f32 center_x = screen_center_x - meters_to_pixels * game_state->player_pos.tile_relative_x + (f32)rel_col * tile_side_pixels;
-                    f32 center_y = screen_center_y + meters_to_pixels * game_state->player_pos.tile_relative_y - (f32)rel_row * tile_side_pixels;
+                    f32 center_x = screen_center_x - meters_to_pixels * game_state->player_pos.offset_x + (f32)rel_col * tile_side_pixels;
+                    f32 center_y = screen_center_y + meters_to_pixels * game_state->player_pos.offset_y - (f32)rel_row * tile_side_pixels;
                     
                     f32 min_x = center_x - half_tile_pixels;
                     f32 min_y = center_y - half_tile_pixels;
@@ -484,6 +525,16 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                   player_top + player_height * meters_to_pixels, 
                   color_player);
     }
+#if 0
+    u32* source = game_state->pixel_pointer;
+    u32* dest = (u32*)bitmap_buffer->memory;
+    
+    for (i32 y = 0; y < bitmap_buffer->height; y++) {
+        for (i32 x = 0; x < bitmap_buffer->width; x++) {
+            *dest++ = *source++;
+        }
+    }
+#endif
 }
 
 extern "C" 
