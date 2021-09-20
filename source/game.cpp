@@ -188,26 +188,10 @@ void drops_update(Game_bitmap_buffer* bitmap_buffer, Game_state* state, Game_inp
 #if 0
 #include "pacman.cpp"
 #endif
-
-#pragma pack(push, 1)
-struct Bitmap_header {
-    u16 FileType;     /* File type, always 4D42h ("BM") */
-	u32 FileSize;     /* Size of the file in bytes */
-	u16 Reserved1;    /* Always 0 */
-	u16 Reserved2;    /* Always 0 */
-	u32 BitmapOffset; /* Starting position of image data in bytes */
-    
-    u32 Size;            /* Size of this header in bytes */
-    i32 Width;           /* Image width in pixels */
-    i32 Height;          /* Image height in pixels */
-	u16 Planes;          /* Number of color planes */
-	u16 BitsPerPixel;    /* Number of bits per pixel */
-};
-#pragma pack(pop)
-
+\
 static
-u32* debug_load_bmp(char* file_name) {
-    u32* result;
+Loaded_bmp debug_load_bmp(char* file_name) {
+    Loaded_bmp result = {};
     
     Debug_file_read_result file_result = debug_read_entire_file(file_name);
     
@@ -215,9 +199,48 @@ u32* debug_load_bmp(char* file_name) {
     
     Bitmap_header* header = (Bitmap_header*)file_result.content;
     
-    result = (u32*)((u8*)file_result.content + header->BitmapOffset);
+    result.pixels = (u32*)((u8*)file_result.content + header->BitmapOffset);
+    
+    result.width  = header->Width;
+    result.height = header->Height;
+#if 0
+    u32* source_dest = result.pixels;
+    for (i32 y = 0; y < header->Height; y++) {
+        for (i32 x = 0; x < header->Width; x++) {
+            *source_dest = (*source_dest >> 8) | (*source_dest << 24);
+            source_dest++;
+        }
+    }
+#endif
     
     return result;
+}
+
+static 
+void draw_bitmap(Game_bitmap_buffer* bitmap_buffer, Loaded_bmp* bitmap_data, f32 start_x, f32 start_y) {
+    
+    i32 x0 = round_f32_u32(start_x); 
+    i32 y0 = round_f32_u32(start_y); 
+    
+    i32 x1 = round_f32_u32(start_x + (f32)bitmap_data->width);
+    i32 y1 = round_f32_u32(start_y + (f32)bitmap_data->height);
+    
+    x0 = clamp_i32(x0, 0, bitmap_buffer->width);  x1 = clamp_i32(x1, 0, bitmap_buffer->width);
+    y0 = clamp_i32(y0, 0, bitmap_buffer->height); y1 = clamp_i32(y1, 0, bitmap_buffer->height);
+    
+    // reading bottom up
+    u32* source_row = bitmap_data->pixels + bitmap_data->width * (bitmap_data->height - 1);
+    u8* dest_row = (u8*)bitmap_buffer->memory + x0 * bitmap_buffer->bytes_per_pixel + y0 * bitmap_buffer->pitch;
+    
+    for (i32 y = y0; y < y1; y++) {
+        u32* dest = (u32*)dest_row;
+        u32* source = source_row;
+        for (i32 x = x0; x < x1; x++) {
+            *dest++ = *source++;
+        }
+        dest_row += bitmap_buffer->pitch;
+        source_row -= bitmap_data->width;
+    }
 }
 
 extern "C"
@@ -243,7 +266,9 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         }
 #endif
         
-        game_state->pixel_pointer = debug_load_bmp("./data/test.bmp");
+        game_state->background = debug_load_bmp("../data/bg_nebula.bmp");
+        game_state->hero = debug_load_bmp("../data/ship.bmp");
+        
         
         // init memory arenas
         initialize_arena(&game_state->world_arena, memory->permanent_storage_size - sizeof(Game_state), (u8*)memory->permanent_storage + sizeof(Game_state));
@@ -465,7 +490,10 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
 #endif
     }
     
-    clear_screen(bitmap_buffer, color_gray_byte);
+    // draw background
+    draw_bitmap(bitmap_buffer, &game_state->background, 0, 0);
+    
+    //clear_screen(bitmap_buffer, color_gray_byte);
     
     f32 screen_center_x = (f32)bitmap_buffer->width / 2;
     f32 screen_center_y = (f32)bitmap_buffer->height / 2;
@@ -485,7 +513,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 
                 u32 tile_id = get_tile_value(tile_map, col, row, game_state->player_pos.absolute_tile_z);
                 
-                if (tile_id > 0) {
+                if (tile_id > 1) {
                     color_f32 color = color_empty;
                     
                     if (tile_id == 2)
@@ -524,17 +552,9 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                   player_left + player_width * meters_to_pixels, 
                   player_top + player_height * meters_to_pixels, 
                   color_player);
+        draw_bitmap(bitmap_buffer, &game_state->hero, player_left, player_top);
     }
-#if 0
-    u32* source = game_state->pixel_pointer;
-    u32* dest = (u32*)bitmap_buffer->memory;
     
-    for (i32 y = 0; y < bitmap_buffer->height; y++) {
-        for (i32 x = 0; x < bitmap_buffer->width; x++) {
-            *dest++ = *source++;
-        }
-    }
-#endif
 }
 
 extern "C" 
