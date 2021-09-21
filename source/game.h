@@ -90,7 +90,7 @@ struct color_f32 {
     f32 b;
 };
 
-static const color_f32 FRGB_GOLD = { 1.0f, 0.8f, .0f };
+static const color_f32 COLOR_GOLD = { 1.0f, 0.8f, .0f };
 
 struct drop {
     bool active;
@@ -121,6 +121,12 @@ struct Pacman_state {
     i32 player_tile_y;
     f32 move_timer;
     bool can_move;
+};
+
+struct Subpixel_test {
+    f32 pixel_timer;
+    f32 transition_state;
+    bool direction;
 };
 
 struct Loaded_bmp {
@@ -157,6 +163,7 @@ struct Bitmap_header {
 };
 #pragma pack(pop)
 
+
 struct Game_state {
     Memory_arena world_arena;
     World* world;
@@ -165,9 +172,12 @@ struct Game_state {
     
     Loaded_bmp background;
     Loaded_bmp hero;
+    
 #if 0
     Pacman_state pacman_state;
 #endif
+    
+    Subpixel_test subpixels;
     
     i32 drop_index;
     drop drops[32];

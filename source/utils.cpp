@@ -90,7 +90,7 @@ f32 clamp_f32(f32 val, f32 min = 0.0f, f32 max = 1.0f) {
         result = min;
     
     if (val > max)
-        result= max;
+        result = max;
     
     return result;
 }
