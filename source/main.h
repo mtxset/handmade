@@ -5,6 +5,7 @@
 
 #include "types.h"
 #include "game.h"
+#include "platform.h"
 
 struct Win32_bitmap_buffer {
     // pixels are always 32 bit, memory order BB GG RR XX (padding)

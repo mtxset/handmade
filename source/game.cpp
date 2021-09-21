@@ -188,7 +188,7 @@ void drops_update(Game_bitmap_buffer* bitmap_buffer, Game_state* state, Game_inp
 #if 0
 #include "pacman.cpp"
 #endif
-\
+
 static
 Loaded_bmp debug_load_bmp(char* file_name) {
     Loaded_bmp result = {};
@@ -199,19 +199,38 @@ Loaded_bmp debug_load_bmp(char* file_name) {
     
     Bitmap_header* header = (Bitmap_header*)file_result.content;
     
+    macro_assert(header->Compression == 3);
+    
     result.pixels = (u32*)((u8*)file_result.content + header->BitmapOffset);
     
     result.width  = header->Width;
     result.height = header->Height;
-#if 0
+    
+    u32 mask_red   = header->RedMask;
+    u32 mask_green = header->GreenMask;
+    u32 mask_blue  = header->BlueMask;
+    u32 mask_alpha = ~(mask_red | mask_green | mask_blue);
+    
+    Bit_scan_result shift_red   = find_least_significant_first_bit(mask_red);
+    Bit_scan_result shift_green = find_least_significant_first_bit(mask_green);
+    Bit_scan_result shift_blue  = find_least_significant_first_bit(mask_blue);
+    Bit_scan_result shift_alpha = find_least_significant_first_bit(mask_alpha);
+    
+    macro_assert(shift_red.found);
+    macro_assert(shift_green.found);
+    macro_assert(shift_blue.found);
+    macro_assert(shift_alpha.found);
+    
     u32* source_dest = result.pixels;
     for (i32 y = 0; y < header->Height; y++) {
         for (i32 x = 0; x < header->Width; x++) {
-            *source_dest = (*source_dest >> 8) | (*source_dest << 24);
-            source_dest++;
+            u32 color = *source_dest;
+            *source_dest++ = ((((color >> shift_alpha.index) & 0xff) << 24) |
+                              (((color >> shift_red.index)   & 0xff) << 16) |
+                              (((color >> shift_green.index) & 0xff) << 8)  |
+                              (((color >> shift_blue.index)  & 0xff) << 0));
         }
     }
-#endif
     
     return result;
 }
@@ -233,14 +252,88 @@ void draw_bitmap(Game_bitmap_buffer* bitmap_buffer, Loaded_bmp* bitmap_data, f32
     u8* dest_row = (u8*)bitmap_buffer->memory + x0 * bitmap_buffer->bytes_per_pixel + y0 * bitmap_buffer->pitch;
     
     for (i32 y = y0; y < y1; y++) {
-        u32* dest = (u32*)dest_row;
-        u32* source = source_row;
+        u32* dest = (u32*)dest_row; // incoming pixel
+        u32* source = source_row;   // backbuffer pixel
+        
         for (i32 x = x0; x < x1; x++) {
-            *dest++ = *source++;
+            f32     a = (f32)((*source >> 24) & 0xff) / 255.0f;
+            f32 src_r = (f32)((*source >> 16) & 0xff);
+            f32 src_g = (f32)((*source >> 8)  & 0xff);
+            f32 src_b = (f32)((*source >> 0)  & 0xff);
+            
+            f32 dst_r = (f32)((*dest >> 16) & 0xff);
+            f32 dst_g = (f32)((*dest >> 8)  & 0xff);
+            f32 dst_b = (f32)((*dest >> 0)  & 0xff);
+            
+            // (1-t)A + tB 
+            // alpha (0 - 1);
+            // color = dst_color + alpha (src_color - dst_color)
+            // color = (1 - alpha)dst_color + alpha * src_color;
+            
+            // blending techniques: http://ycpcs.github.io/cs470-fall2014/labs/lab09.html
+            
+            // linear blending
+            f32 r = (1.0f - a)*dst_r + a * src_r;
+            f32 g = (1.0f - a)*dst_g + a * src_g;
+            f32 b = (1.0f - a)*dst_b + a * src_b;
+            
+            *dest = (((u32)(r + 0.5f) << 16) | 
+                     ((u32)(g + 0.5f) << 8)  | 
+                     ((u32)(b + 0.5f) << 0));
+            
+            dest++;
+            source++;
         }
+        
         dest_row += bitmap_buffer->pitch;
         source_row -= bitmap_data->width;
     }
+}
+
+static
+void subpixel_test_udpdate(Game_bitmap_buffer* buffer, Game_state* game_state, Game_input* input, color_f32 color) {
+    
+    clear_screen(buffer, color_black_byte);
+    
+    u8* row = (u8*)buffer->memory + (buffer->width / 2) * buffer->bytes_per_pixel + (buffer->height / 2) * buffer->pitch;
+    u32* pixel_one = (u32*)row;
+    u32* pixel_two = pixel_one + 1;
+    
+    Subpixel_test* subpixels = &game_state->subpixels;
+    
+    if ((subpixels->pixel_timer += input->time_delta) >= 0.01f) {
+        subpixels->pixel_timer = 0;
+        
+        if (subpixels->direction)
+            subpixels->transition_state -= 0.01f;
+        else
+            subpixels->transition_state += 0.01f;
+        
+        if (subpixels->transition_state > 1.0f || subpixels->transition_state < 0.0f) {
+            subpixels->transition_state = clamp_f32(subpixels->transition_state, 0.0f, 1.0f);
+            
+            subpixels->direction = !subpixels->direction;
+        }
+    }
+    
+    u32 color_hex = (round_f32_u32(color.r * 255.0f * subpixels->transition_state) << 16 | 
+                     round_f32_u32(color.g * 255.0f * subpixels->transition_state) << 8  |
+                     round_f32_u32(color.b * 255.0f * subpixels->transition_state) << 0);
+    
+    *pixel_one = color_hex;
+    
+    f32 start_y = 400;
+    f32 end_y = start_y + 100;
+    
+    draw_rect(buffer, 300.0f, start_y, 400.0f, end_y, {color.r * subpixels->transition_state, color.g * subpixels->transition_state, color.b * subpixels->transition_state});
+    
+    color_hex = (round_f32_u32(color.r * 255.0f * (1 - subpixels->transition_state)) << 16 | 
+                 round_f32_u32(color.g * 255.0f * (1 - subpixels->transition_state)) << 8  |
+                 round_f32_u32(color.b * 255.0f * (1 - subpixels->transition_state)) << 0);
+    
+    draw_rect(buffer, 400.0f, start_y, 500.0f, end_y, {color.r * (1 - subpixels->transition_state), color.g * (1 - subpixels->transition_state), color.b * (1 - subpixels->transition_state)});
+    
+    *pixel_two = color_hex;
 }
 
 extern "C"
@@ -268,7 +361,6 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         
         game_state->background = debug_load_bmp("../data/bg_nebula.bmp");
         game_state->hero = debug_load_bmp("../data/ship.bmp");
-        
         
         // init memory arenas
         initialize_arena(&game_state->world_arena, memory->permanent_storage_size - sizeof(Game_state), (u8*)memory->permanent_storage + sizeof(Game_state));
@@ -483,7 +575,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
             
             game_state->player_pos = new_player_pos;
         }
-#if 1
+#if 0
         char buffer[256];
         _snprintf_s(buffer, sizeof(buffer), "tile(x,y): %u, %u; relative(x,y): %f, %f\n", game_state->player_pos.absolute_tile_x, game_state->player_pos.absolute_tile_y, game_state->player_pos.offset_x, game_state->player_pos.offset_y);
         OutputDebugStringA(buffer);
@@ -520,7 +612,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                         color = color_wall;
                     
                     if (tile_id > 2)
-                        color = FRGB_GOLD;
+                        color = COLOR_GOLD;
                     
                     if (row == game_state->player_pos.absolute_tile_y && col == game_state->player_pos.absolute_tile_x)
                         color = color_occupied;
@@ -554,7 +646,9 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                   color_player);
         draw_bitmap(bitmap_buffer, &game_state->hero, player_left, player_top);
     }
-    
+#if 0
+    subpixel_test_udpdate(bitmap_buffer, game_state, input, COLOR_GOLD);
+#endif
 }
 
 extern "C" 

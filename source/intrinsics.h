@@ -4,6 +4,12 @@
 #define INTRINSICS_H
 
 #include "math.h"
+#include "platform.h"
+
+struct Bit_scan_result {
+    bool found;
+    u32 index;
+};
 
 i32 round_f32_i32(f32 value) {
     i32 result;
@@ -63,6 +69,25 @@ f32 atan2(f32 x, f32 y) {
     f32 result = 0;
     
     result = atan2f(x, y);
+    
+    return result;
+}
+
+inline
+Bit_scan_result find_least_significant_first_bit(u32 value) {
+    Bit_scan_result result = {};
+    
+#if 0
+    result.found = (_BitScanForward((unsigned long*)&result.index, value) > 0);
+#else
+    for (u32 i = 0; i < 32; i++) {
+        if (value & (1 << i)) {
+            result.index = i;
+            result.found = true;
+            break;
+        }
+    }
+#endif
     
     return result;
 }
