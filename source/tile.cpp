@@ -150,3 +150,18 @@ bool are_on_same_tile(Tile_map_position* pos_x, Tile_map_position* pos_y) {
                    pos_x->absolute_tile_z == pos_y->absolute_tile_z);
     return result;
 }
+
+Tile_map_diff subtract_pos(Tile_map* tile_map, Tile_map_position* pos_a, Tile_map_position* pos_b) {
+    Tile_map_diff result = {};
+    
+    f32 delta_tile_x = (f32)pos_a->absolute_tile_x - (f32)pos_b->absolute_tile_x;
+    f32 delta_tile_y = (f32)pos_a->absolute_tile_y - (f32)pos_b->absolute_tile_y;
+    f32 delta_tile_z = (f32)pos_a->absolute_tile_z - (f32)pos_b->absolute_tile_z;
+    
+    result.x = tile_map->tile_side_meters * delta_tile_x + (pos_a->offset_x - pos_b->offset_x);
+    result.y = tile_map->tile_side_meters * delta_tile_y + (pos_a->offset_y - pos_b->offset_y);
+    
+    result.z = tile_map->tile_side_meters * delta_tile_y;
+    
+    return result;
+}

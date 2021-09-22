@@ -3,6 +3,12 @@
 #ifndef TILE_H
 #define TILE_H
 
+struct Tile_map_diff {
+    f32 x; 
+    f32 y;
+    f32 z;
+};
+
 struct Tile_map_position {
     u32 absolute_tile_x;
     u32 absolute_tile_y;
