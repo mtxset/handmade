@@ -84,14 +84,6 @@ struct thread_context {
     i32 placeholder;
 };
 
-struct color_f32 {
-    f32 r;
-    f32 g;
-    f32 b;
-};
-
-static const color_f32 COLOR_GOLD = { 1.0f, 0.8f, .0f };
-
 struct drop {
     bool active;
     f32 a;
@@ -163,16 +155,23 @@ struct Bitmap_header {
 };
 #pragma pack(pop)
 
+struct Hero_bitmaps {
+    i32 align_x; // starting pointx for drawing that bitmap
+    i32 align_y;
+    Loaded_bmp hero_body;
+};
 
 struct Game_state {
     Memory_arena world_arena;
     World* world;
     Tile_map_position player_pos;
+    Tile_map_position camera_pos;
     f32 t_sine;
     
     Loaded_bmp background;
-    Loaded_bmp hero;
     
+    u32 hero_facing_direction;
+    Hero_bitmaps hero_bitmaps[4];
 #if 0
     Pacman_state pacman_state;
 #endif
