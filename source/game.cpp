@@ -11,6 +11,7 @@
 #include "tile.cpp"
 #include "random.h"
 #include "color.h"
+#include "vectors.h"
 
 void clear_screen(Game_bitmap_buffer* bitmap_buffer, u32 color) {
     // 8 bit pointer to the beginning of the memory
@@ -99,15 +100,15 @@ void game_output_sound(Game_sound_buffer* sound_buffer, i32 tone_hz, Game_state*
 }
 
 internal
-void draw_rect(Game_bitmap_buffer* buffer, f32 start_x, f32 start_y, f32 end_x, f32 end_y, color_f32 color) {
+void draw_rect(Game_bitmap_buffer* buffer, v2 start, v2 end, v3 color) {
     u32 color_hex = 0;
     
     color_hex = (round_f32_u32(color.r * 255.0f) << 16 | 
                  round_f32_u32(color.g * 255.0f) << 8  |
                  round_f32_u32(color.b * 255.0f) << 0);
     
-    u32 x0 = round_f32_u32(start_x); u32 x1 = round_f32_u32(end_x);
-    u32 y0 = round_f32_u32(start_y); u32 y1 = round_f32_u32(end_y);
+    u32 x0 = round_f32_u32(start.x); u32 x1 = round_f32_u32(end.x);
+    u32 y0 = round_f32_u32(start.y); u32 y1 = round_f32_u32(end.y);
     
     x0 = clamp_i32(x0, 0, buffer->width);  x1 = clamp_i32(x1, 0, buffer->width);
     y0 = clamp_i32(y0, 0, buffer->height); y1 = clamp_i32(y1, 0, buffer->height);
@@ -136,20 +137,26 @@ void drops_update(Game_bitmap_buffer* bitmap_buffer, Game_state* state, Game_inp
     
     // draw mouse pointer
     f32 mouse_draw_offset = 10.0f; // offset from windows layer
-    color_f32 color_white = { 1.0f, 1.0f, 1.0f };
+    v3 color_white = { 1.0f, 1.0f, 1.0f };
     {
-        f32 mouse_x = (f32)input->mouse_x - mouse_draw_offset;
-        f32 mouse_y = (f32)input->mouse_y - mouse_draw_offset;
+        v2 mouse_start = { 
+            (f32)input->mouse_x - mouse_draw_offset,
+            (f32)input->mouse_y - mouse_draw_offset 
+        };
         
-        draw_rect(bitmap_buffer, mouse_x, mouse_y, mouse_x + mouse_draw_offset, mouse_y + mouse_draw_offset, color_white);
+        v2 mouse_end = {
+            (f32)input->mouse_x,
+            (f32)input->mouse_y
+        };
+        
+        draw_rect(bitmap_buffer, mouse_start, mouse_end, color_white);
         
         if (input->mouse_buttons[0].ended_down) {
             i32 index = state->drop_index++;
             auto drop = &state->drops[index];
             drop->active = true;
-            drop-> a = 0;
-            drop->pos_x = mouse_x;
-            drop->pos_y = mouse_y;
+            drop->a = 0;
+            drop->pos = mouse_start;
             
             if (state->drop_index >= macro_array_count(state->drops))
                 state->drop_index = 0;
@@ -165,9 +172,9 @@ void drops_update(Game_bitmap_buffer* bitmap_buffer, Game_state* state, Game_inp
                 continue;
             
             drop->a += 0.1f;
-            drop->pos_y += 3.0f * input->time_delta + drop->a;
+            drop->pos.y += 3.0f * input->time_delta + drop->a;
             
-            if (drop->pos_y >= bitmap_buffer->height) {
+            if (drop->pos.y >= bitmap_buffer->height) {
                 drop->active = false;
             }
         }
@@ -181,7 +188,12 @@ void drops_update(Game_bitmap_buffer* bitmap_buffer, Game_state* state, Game_inp
             if (!drop->active)
                 continue;
             
-            draw_rect(bitmap_buffer, drop->pos_x, drop->pos_y, drop->pos_x + mouse_draw_offset, drop->pos_y + mouse_draw_offset, color_white);
+            v2 drop_end = {
+                drop->pos.x + mouse_draw_offset, 
+                drop->pos.y + mouse_draw_offset
+            };
+            
+            draw_rect(bitmap_buffer, drop->pos, drop_end , color_white);
         }
     }
 }
@@ -237,13 +249,12 @@ Loaded_bmp debug_load_bmp(char* file_name) {
 }
 
 internal
-void draw_bitmap(Game_bitmap_buffer* bitmap_buffer, Loaded_bmp* bitmap_data, f32 start_x, f32 start_y, i32 align_x = 0, i32 align_y = 0) {
+void draw_bitmap(Game_bitmap_buffer* bitmap_buffer, Loaded_bmp* bitmap_data, v2 start, v2 align = {0, 0}) {
     
-    start_x -= (f32)align_x;
-    start_y -= (f32)align_y;
+    start -= align;
     
-    i32 x0 = round_f32_u32(start_x);
-    i32 y0 = round_f32_u32(start_y);
+    i32 x0 = round_f32_u32(start.x);
+    i32 y0 = round_f32_u32(start.y);
     
     i32 source_offset_x = 0;
     i32 source_offset_y = 0;
@@ -254,8 +265,8 @@ void draw_bitmap(Game_bitmap_buffer* bitmap_buffer, Loaded_bmp* bitmap_data, f32
     if (y0 < 0)
         source_offset_y = -y0;
     
-    i32 x1 = round_f32_u32(start_x + (f32)bitmap_data->width);
-    i32 y1 = round_f32_u32(start_y + (f32)bitmap_data->height);
+    i32 x1 = round_f32_u32(start.x + (f32)bitmap_data->width);
+    i32 y1 = round_f32_u32(start.y + (f32)bitmap_data->height);
     
     x0 = clamp_i32(x0, 0, bitmap_buffer->width);  x1 = clamp_i32(x1, 0, bitmap_buffer->width);
     y0 = clamp_i32(y0, 0, bitmap_buffer->height); y1 = clamp_i32(y1, 0, bitmap_buffer->height);
@@ -306,7 +317,7 @@ void draw_bitmap(Game_bitmap_buffer* bitmap_buffer, Loaded_bmp* bitmap_data, f32
 }
 
 internal
-void subpixel_test_udpdate(Game_bitmap_buffer* buffer, Game_state* game_state, Game_input* input, color_f32 color) {
+void subpixel_test_udpdate(Game_bitmap_buffer* buffer, Game_state* game_state, Game_input* input, v3 color) {
     
     clear_screen(buffer, color_black_byte);
     
@@ -340,7 +351,7 @@ void subpixel_test_udpdate(Game_bitmap_buffer* buffer, Game_state* game_state, G
     f32 start_y = 400;
     f32 end_y = start_y + 100;
     
-    draw_rect(buffer, 300.0f, start_y, 400.0f, end_y, 
+    draw_rect(buffer, v2 { 300.0f, start_y } , v2 { 400.0f, end_y }, 
               {
                   color.r * subpixels->transition_state, 
                   color.g * subpixels->transition_state, 
@@ -351,7 +362,7 @@ void subpixel_test_udpdate(Game_bitmap_buffer* buffer, Game_state* game_state, G
                  round_f32_u32(color.b * 255.0f * (1 - subpixels->transition_state)) << 0);
     
     draw_rect(buffer, 
-              400.0f, start_y, 500.0f, end_y, 
+              { 400.0f, start_y }, { 500.0f, end_y }, 
               { color.r * (1 - subpixels->transition_state),
                   color.g * (1 - subpixels->transition_state), 
                   color.b * (1 - subpixels->transition_state) });
@@ -385,44 +396,37 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         // load sprites
         {
             game_state->background = debug_load_bmp("../data/bg_nebula.bmp");
-#if 0
+#if 1
             // load george
             {
                 game_state->hero_bitmaps[0].hero_body = debug_load_bmp("../data/george-right-0.bmp");
-                game_state->hero_bitmaps[0].align_x = 24;
-                game_state->hero_bitmaps[0].align_y = 41;
+                game_state->hero_bitmaps[0].align = v2 { 24, 41 };
                 
                 game_state->hero_bitmaps[1].hero_body = debug_load_bmp("../data/george-back-0.bmp");
-                game_state->hero_bitmaps[1].align_x = 24;
-                game_state->hero_bitmaps[1].align_y = 41;
+                game_state->hero_bitmaps[1].align = v2 { 24, 41 };
                 
                 game_state->hero_bitmaps[2].hero_body = debug_load_bmp("../data/george-left-0.bmp");
-                game_state->hero_bitmaps[2].align_x = 24;
-                game_state->hero_bitmaps[2].align_y = 41;
+                game_state->hero_bitmaps[2].align = v2 { 24, 41 };
                 
                 game_state->hero_bitmaps[3].hero_body = debug_load_bmp("../data/george-front-0.bmp");
-                game_state->hero_bitmaps[3].align_x = 24;
-                game_state->hero_bitmaps[3].align_y = 41;
+                game_state->hero_bitmaps[3].align = v2 { 24, 41 };
             }
-#endif
+#else
             // load blender guy
             {
                 game_state->hero_bitmaps[0].hero_body = debug_load_bmp("../data/right.bmp");
-                game_state->hero_bitmaps[0].align_x = 38;
-                game_state->hero_bitmaps[0].align_y = 119;
+                game_state->hero_bitmaps[0].align = v2 { 38, 119 };
                 
                 game_state->hero_bitmaps[1].hero_body = debug_load_bmp("../data/back.bmp");
-                game_state->hero_bitmaps[1].align_x = 40;
-                game_state->hero_bitmaps[1].align_y = 112;
+                game_state->hero_bitmaps[1].align = v2 { 40, 112 };
                 
                 game_state->hero_bitmaps[2].hero_body = debug_load_bmp("../data/left.bmp");
-                game_state->hero_bitmaps[2].align_x = 40;
-                game_state->hero_bitmaps[2].align_y = 119;
+                game_state->hero_bitmaps[2].align = v2 { 40, 119 };
                 
                 game_state->hero_bitmaps[3].hero_body = debug_load_bmp("../data/front.bmp");
-                game_state->hero_bitmaps[3].align_x = 39;
-                game_state->hero_bitmaps[3].align_y = 115;
+                game_state->hero_bitmaps[3].align = v2 { 39, 115 };
             }
+#endif
         }
         
         // init memory arenas
@@ -566,8 +570,8 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         game_state->player_pos.absolute_tile_y = 4;
         game_state->player_pos.absolute_tile_z = 0;
         
-        game_state->player_pos.offset_x = 0;
-        game_state->player_pos.offset_y = 0;
+        game_state->player_pos.offset.x = 0;
+        game_state->player_pos.offset.y = 0;
         
         memory->is_initialized = true;
     }
@@ -582,8 +586,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     macro_assert(tile_map);
     
     // check input
-    f32 player_x_delta = .0f;
-    f32 player_y_delta = .0f;
+    v2 player_delta = {};
     f32 move_offset = 2.0f;
     {
         for (i32 i = 0; i < macro_array_count(input->gamepad); i++) {
@@ -593,38 +596,38 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 // analog
                 if (input_state->move_up.ended_down) {
                     game_state->hero_facing_direction = 1;
-                    player_y_delta = 1.0f;
+                    player_delta.y = 1.0f;
                 }
                 if (input_state->move_down.ended_down) {
                     game_state->hero_facing_direction = 3;
-                    player_y_delta = -1.0f;
+                    player_delta.y = -1.0f;
                 }
                 if (input_state->move_left.ended_down) {
                     game_state->hero_facing_direction = 2;
-                    player_x_delta = -1.0f;
+                    player_delta.x = -1.0f;
                 }
                 if (input_state->move_right.ended_down) {
                     game_state->hero_facing_direction = 0;
-                    player_x_delta = 1.0f;
+                    player_delta.x = 1.0f;
                 }
             } 
             else {
                 // digital
                 if (input_state->up.ended_down) {
                     game_state->hero_facing_direction = 1;
-                    player_y_delta = 1.0f;
+                    player_delta.y = 1.0f;
                 }
                 if (input_state->down.ended_down) {
                     game_state->hero_facing_direction = 3;
-                    player_y_delta = -1.0f;
+                    player_delta.y = -1.0f;
                 }
                 if (input_state->left.ended_down) {
                     game_state->hero_facing_direction = 2;
-                    player_x_delta = -1.0f;
+                    player_delta.x = -1.0f;
                 }
                 if (input_state->right.ended_down) {
                     game_state->hero_facing_direction = 0;
-                    player_x_delta = 1.0f;
+                    player_delta.x = 1.0f;
                 }
                 
                 if (input_state->shift.ended_down) move_offset *= 6;
@@ -639,16 +642,20 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     {
         Tile_map_position new_player_pos = game_state->player_pos;
         
-        new_player_pos.offset_x += player_x_delta * move_offset * input->time_delta;
-        new_player_pos.offset_y += player_y_delta * move_offset * input->time_delta;
+        if (player_delta.x && player_delta.y) {
+            player_delta *= 0.7071f;
+        }
+        
+        new_player_pos.offset += player_delta * (move_offset * input->time_delta);
+        
         new_player_pos = recanonicalize_position(tile_map, new_player_pos);
         
         Tile_map_position player_left = new_player_pos;
-        player_left.offset_x -= (player_width / 2);
+        player_left.offset.x -= (player_width / 2);
         player_left = recanonicalize_position(tile_map, player_left);
         
         Tile_map_position player_right = new_player_pos;
-        player_right.offset_x += (player_width / 2);
+        player_right.offset.x += (player_width / 2);
         player_right = recanonicalize_position(tile_map, player_right);
         
         if (is_world_point_empty(tile_map, new_player_pos) &&
@@ -674,16 +681,16 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         Tile_map_diff diff = subtract_pos(tile_map, &game_state->player_pos, &game_state->camera_pos);
         
         
-        if (diff.x > 8.5 * tile_map->tile_side_meters)
+        if (diff.xy.x > 8.5 * tile_map->tile_side_meters)
             game_state->camera_pos.absolute_tile_x += 17;
         
-        if (diff.x < -(8.5f * tile_map->tile_side_meters))
+        if (diff.xy.x < -(8.5f * tile_map->tile_side_meters))
             game_state->camera_pos.absolute_tile_x -= 17;
         
-        if (diff.y > 4.5f * tile_map->tile_side_meters)
+        if (diff.xy.y > 4.5f * tile_map->tile_side_meters)
             game_state->camera_pos.absolute_tile_y += 9;
         
-        if (diff.y < -(5.0f * tile_map->tile_side_meters))
+        if (diff.xy.y < -(5.0f * tile_map->tile_side_meters))
             game_state->camera_pos.absolute_tile_y -= 9;
         
 #if 0
@@ -696,20 +703,19 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     }
     
     // draw background
-    draw_bitmap(bitmap_buffer, &game_state->background, 0, 0);
+    draw_bitmap(bitmap_buffer, &game_state->background, v2 {0, 0});
     
     //clear_screen(bitmap_buffer, color_gray_byte);
     
     f32 screen_center_x = (f32)bitmap_buffer->width / 2;
     f32 screen_center_y = (f32)bitmap_buffer->height / 2;
     
-    // draw tile maps
+    // draw tiles
     {
-        color_f32 color_wall     = { .0f, .5f, 1.0f };
-        color_f32 color_empty    = { .3f, .3f, 1.0f };
-        color_f32 color_occupied = { .9f, .0f, 1.0f };
+        v3 color_wall     = { .0f, .5f, 1.0f };
+        v3 color_empty    = { .3f, .3f, 1.0f };
+        v3 color_occupied = { .9f, .0f, 1.0f };
         // used to draw player from the middle of the tile
-        f32 half_tile_pixels = 0.5f * tile_side_pixels;
         
         for (i32 rel_row = -10; rel_row < 10; rel_row++) {
             for (i32 rel_col = -20; rel_col < 20; rel_col++) {
@@ -719,7 +725,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 u32 tile_id = get_tile_value(tile_map, col, row, game_state->camera_pos.absolute_tile_z);
                 
                 if (tile_id > 1) {
-                    color_f32 color = color_empty;
+                    v3 color = color_empty;
                     
                     if (tile_id == 2)
                         color = color_wall;
@@ -731,16 +737,16 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                         color = color_occupied;
                     }
                     
-                    f32 center_x = screen_center_x - meters_to_pixels * game_state->camera_pos.offset_x + (f32)rel_col * tile_side_pixels;
-                    f32 center_y = screen_center_y + meters_to_pixels * game_state->camera_pos.offset_y - (f32)rel_row * tile_side_pixels;
+                    v2 half_tile_pixels = { 0.5f * tile_side_pixels, 0.5f * tile_side_pixels };
+                    v2 center = { 
+                        screen_center_x - meters_to_pixels * game_state->camera_pos.offset.x + (f32)rel_col * tile_side_pixels,
+                        screen_center_y + meters_to_pixels * game_state->camera_pos.offset.y - (f32)rel_row * tile_side_pixels 
+                    };
                     
-                    f32 min_x = center_x - half_tile_pixels;
-                    f32 min_y = center_y - half_tile_pixels;
+                    v2 min = center - half_tile_pixels;
+                    v2 max = center + half_tile_pixels;
                     
-                    f32 max_x = center_x + half_tile_pixels;
-                    f32 max_y = center_y + half_tile_pixels;
-                    
-                    draw_rect(bitmap_buffer, min_x, min_y, max_x, max_y, color);
+                    draw_rect(bitmap_buffer, min, max, color);
                 }
             }
         }
@@ -748,29 +754,36 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     
     // draw player
     {
-        color_f32 color_player = { .1f, .0f, 1.0f };
+        v3 color_player = { .1f, .0f, 1.0f };
         
         Tile_map_diff diff = subtract_pos(tile_map, &game_state->player_pos, &game_state->camera_pos);
         
-        f32 player_ground_point_x = screen_center_x + diff.x * meters_to_pixels;
-        f32 player_ground_point_y = screen_center_y - diff.y * meters_to_pixels;
         
-        f32 player_left = player_ground_point_x - .5f * player_width * meters_to_pixels;
-        f32 player_top = player_ground_point_y  - player_height * meters_to_pixels;
+        v2 player_ground_point = { 
+            screen_center_x + diff.xy.x * meters_to_pixels,
+            screen_center_y - diff.xy.y * meters_to_pixels
+        };
         
-        draw_rect(bitmap_buffer,
-                  player_left,
-                  player_top,
-                  player_left + player_width * meters_to_pixels, 
-                  player_top + player_height * meters_to_pixels, 
-                  color_player);
+        v2 player_start = { 
+            player_ground_point.x - .5f * player_width * meters_to_pixels,
+            player_ground_point.y - player_height * meters_to_pixels 
+        };
+        
+        v2 player_end = {
+            player_start.x + player_width * meters_to_pixels, 
+            player_start.y + player_height * meters_to_pixels, 
+        };
+        
+        draw_rect(bitmap_buffer, player_start, player_end, color_player);
         
         Hero_bitmaps* hero_bitmap = &game_state->hero_bitmaps[game_state->hero_facing_direction];
-        draw_bitmap(bitmap_buffer, &hero_bitmap->hero_body, player_ground_point_x, player_ground_point_y, hero_bitmap->align_x, hero_bitmap->align_y);
+        draw_bitmap(bitmap_buffer, &hero_bitmap->hero_body, player_ground_point, hero_bitmap->align);
     }
 #if 0
     subpixel_test_udpdate(bitmap_buffer, game_state, input, COLOR_GOLD);
+#endif
     
+#if 0
     drops_update(bitmap_buffer, game_state, input);
 #endif
 }
