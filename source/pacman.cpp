@@ -1,11 +1,10 @@
-static
 void pacman_update(Game_bitmap_buffer* bitmap_buffer, Game_state* game_state, Game_input* input) {
     
     Pacman_state* pacman_state = &game_state->pacman_state;
     
     const i32 cols = 16*2;
     const i32 rows = 9*2;
-    static u32 tile_map[cols][rows] = {
+    local_persist u32 tile_map[cols][rows] = {
         {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
         {1, 2, 2, 2, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 2, 2, 2, 1},
         {1, 2, 1, 2, 1, 1, 1, 2, 1, 1, 2, 1, 1, 1, 2, 1, 2, 1},
@@ -121,7 +120,7 @@ void pacman_update(Game_bitmap_buffer* bitmap_buffer, Game_state* game_state, Ga
     
     // move ghost
     {
-        static i32 random_number_index = 0;
+        local_persist i32 random_number_index = 0;
         if ((pacman_state->ghost_move_timer += input->time_delta) >= 0.01f) {
             pacman_state->ghost_move_timer = 0;
             

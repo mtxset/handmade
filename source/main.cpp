@@ -1,4 +1,5 @@
 // https://www.youtube.com/watch?v=R8BiV_uYT6E
+
 #include <stdio.h>
 #include <stdint.h>
 #include <windows.h>
@@ -27,32 +28,35 @@
 */
 
 // if for recording of input and gamestate we use disk this will allocate file of PERMANENT_MEMORY_SIZE_MB + TRANSIENT_MEMORY_SIZE_MB size, and that will hang game till it's allocated
-static const i32           PERMANENT_MEMORY_SIZE_MB = 64;
-static const i32           TRANSIENT_MEMORY_SIZE_MB = 512;
+global_var const i32           PERMANENT_MEMORY_SIZE_MB = 64;
+global_var const i32           TRANSIENT_MEMORY_SIZE_MB = 512;
 
-static bool                Global_game_running = true;
-static bool                Global_pause_sound_debug_sync = false;
+global_var bool                Global_game_running = true;
+global_var bool                Global_pause_sound_debug_sync = false;
 
-static Win32_game_code     Global_game_code;
-static Win32_bitmap_buffer Global_backbuffer;
-static HBITMAP             Global_bitmap_handle;
-static HDC                 Global_bitmap_device_context;
-static LPDIRECTSOUNDBUFFER Global_sound_buffer;
-static i64                 Global_perf_freq;
+global_var Win32_game_code     Global_game_code;
+global_var Win32_bitmap_buffer Global_backbuffer;
+global_var HBITMAP             Global_bitmap_handle;
+global_var HDC                 Global_bitmap_device_context;
+global_var LPDIRECTSOUNDBUFFER Global_sound_buffer;
+global_var i64                 Global_perf_freq;
+global_var bool                Global_show_cursor;
+global_var WINDOWPLACEMENT     Global_window_last_position = { sizeof(Global_window_last_position) };
+global_var bool                Global_fullscreen = false;
 
 // making sure that if we don't have links to functions we don't crash because we use stubs
 typedef DWORD WINAPI x_input_get_state(DWORD dwUserIndex, XINPUT_STATE* pState);            // test 
 typedef DWORD WINAPI x_input_set_state(DWORD dwUserIndex, XINPUT_VIBRATION* pVibration);    // test
-static x_input_get_state* XInputGetState_;
-static x_input_set_state* XInputSetState_;
+global_var x_input_get_state* XInputGetState_;
+global_var x_input_set_state* XInputSetState_;
 #define XInputGetState XInputGetState_
 #define XInputSetState XInputSetState_
 
 typedef HRESULT WINAPI direct_sound_create(LPCGUID pcGuidDevice, LPDIRECTSOUND* ppDS, LPUNKNOWN pUnkOuter); // define delegate
-static direct_sound_create* DirectSoundCreate_;                                                             // define variable to hold it
+global_var direct_sound_create* DirectSoundCreate_;                                                             // define variable to hold it
 #define DirectSoundCreate DirectSoundCreate_                                                                // change name by which we reference upper-line mentioned variable
 
-static 
+internal
 void win32_get_exe_filename(Win32_state* win_state) {
     auto current_file_name_size = GetModuleFileNameA(0, win_state->exe_file_name, sizeof(win_state->exe_file_name));
     win_state->last_slash = win_state->exe_file_name;
@@ -62,12 +66,12 @@ void win32_get_exe_filename(Win32_state* win_state) {
     }
 }
 
-static 
+internal 
 void win32_build_exe_filename(Win32_state* win_state, char* filename, i32 dest_count, char* dest) {
     string_concat(win_state->last_slash - win_state->exe_file_name, win_state->exe_file_name, string_len(filename), filename, dest_count, dest);
 }
 
-static 
+internal 
 void win32_get_input_file_location(Win32_state* win_state, i32 index, i32 dest_count, char* dest) {
     char* file_name = "game.input";
     win32_build_exe_filename(win_state, file_name, dest_count, dest); 
@@ -76,7 +80,7 @@ void win32_get_input_file_location(Win32_state* win_state, i32 index, i32 dest_c
 // disgusting
 #include "record_memory.cpp"
 
-static 
+internal 
 void win32_init_direct_sound(HWND window, i32 samples_per_second, i32 buffer_size) {
     // NOTE: Load the library
     HMODULE DSoundLibrary = LoadLibrary("dsound.dll");
@@ -140,7 +144,7 @@ void win32_init_direct_sound(HWND window, i32 samples_per_second, i32 buffer_siz
     }
 }
 
-static
+internal
 void win32_clear_sound_buffer(Win32_sound_output* sound_output) {
     void* region_one;
     DWORD region_one_size;
@@ -165,7 +169,7 @@ void win32_clear_sound_buffer(Win32_sound_output* sound_output) {
     Global_sound_buffer->Unlock(region_one, region_one_size, region_two, region_two_size);
 }
 
-static
+internal
 void win32_fill_sound_buffer(Win32_sound_output* sound_output, DWORD bytes_to_lock, DWORD bytes_to_write, Game_sound_buffer* source_buffer) {
     void* region_one;
     DWORD region_one_size;
@@ -201,7 +205,7 @@ void win32_fill_sound_buffer(Win32_sound_output* sound_output, DWORD bytes_to_lo
     Global_sound_buffer->Unlock(region_one, region_one_size, region_two, region_two_size);
 }
 
-static 
+internal 
 f32 win32_xinput_cutoff_deadzone(SHORT thumb_value) {
     f32 result = 0;
     auto dead_zone_threshold = XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE;
@@ -225,7 +229,7 @@ FILETIME win32_get_last_write_time(char* filename) {
     return result;
 }
 
-static 
+internal 
 Win32_game_code win32_load_game_code(char* source_dll_filepath, char* source_temp_filepath, char* lock_filepath) {
     Win32_game_code result = {};
     
@@ -256,7 +260,7 @@ Win32_game_code win32_load_game_code(char* source_dll_filepath, char* source_tem
     return result;
 }
 
-static 
+internal 
 void win32_unload_game_code(Win32_game_code* game_code) {
     if (game_code->game_code_dll) {
         FreeLibrary(game_code->game_code_dll);
@@ -268,7 +272,7 @@ void win32_unload_game_code(Win32_game_code* game_code) {
     game_code->get_sound_samples = 0;
 }
 
-static 
+internal 
 bool win32_load_xinput() {
     // looks locally, looks in windows
     // support only for some windows
@@ -293,7 +297,7 @@ bool win32_load_xinput() {
     return true;
 }
 
-static
+internal
 Win32_window_dimensions get_window_dimensions(HWND window) {
     
     Win32_window_dimensions result;
@@ -308,7 +312,7 @@ Win32_window_dimensions get_window_dimensions(HWND window) {
 }
 
 // DIB - device independant section
-static
+internal
 void win32_resize_dib_section(Win32_bitmap_buffer* bitmap_buffer, i32 width, i32 height) {
     
     if (bitmap_buffer->memory) {
@@ -333,33 +337,48 @@ void win32_resize_dib_section(Win32_bitmap_buffer* bitmap_buffer, i32 width, i32
     bitmap_buffer->memory = VirtualAlloc(0, bitmap_memory_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 }
 
-static
+internal
 void win32_display_buffer_to_window(Win32_bitmap_buffer* bitmap_buffer, HDC device_context, i32 window_width, i32 window_height) {
-    i32 top = 10;
-    i32 left = 10;
+    i32 offset_x = 10;
+    i32 offset_y = 10;
     
-    PatBlt(device_context, 0, 0, window_width, top, BLACKNESS);
-    PatBlt(device_context, 0, top, left, bitmap_buffer->height, BLACKNESS);
-    PatBlt(device_context, 0, top + bitmap_buffer->height, window_width, window_height - bitmap_buffer->height - top, BLACKNESS);
-    PatBlt(device_context, left + bitmap_buffer->width, top, window_width - left - bitmap_buffer->width, bitmap_buffer->height, BLACKNESS);
-    
-    bool stretch_bitmap_to_window = false;
-    
-    if (!stretch_bitmap_to_window) {
+    if (!Global_fullscreen) {
+        PatBlt(device_context, 0, 0, window_width, offset_x, BLACKNESS);
+        PatBlt(device_context, 0, offset_x, offset_y, bitmap_buffer->height, BLACKNESS);
+        PatBlt(device_context, 0, offset_x + bitmap_buffer->height, window_width, window_height - bitmap_buffer->height - offset_x, BLACKNESS);
+        PatBlt(device_context, offset_y + bitmap_buffer->width, offset_x, window_width - offset_y - bitmap_buffer->width, bitmap_buffer->height, BLACKNESS);
+        
         window_width  = bitmap_buffer->width;
         window_height = bitmap_buffer->height;
     }
+    else {
+        // don't stretch just increase proportianally
+        bool stretch = false;
+        
+        if (!stretch) {
+            // center out
+            offset_y = 0;
+            offset_x = window_width / 2 - bitmap_buffer->width;
+            window_width  = bitmap_buffer->width * 2;
+            window_height = bitmap_buffer->height * 2;
+            
+            i32 end_of_bitmap_x = window_width + offset_x;
+            
+            PatBlt(device_context, 0, 0, offset_x, window_height, BLACKNESS);
+            PatBlt(device_context, end_of_bitmap_x, 0, offset_x, end_of_bitmap_x, BLACKNESS);
+        }
+    }
     
-    StretchDIBits(device_context, top, left, window_width, window_height, 0, 0, bitmap_buffer->width, bitmap_buffer->height, bitmap_buffer->memory, &bitmap_buffer->info, DIB_RGB_COLORS, SRCCOPY);
+    StretchDIBits(device_context, offset_x, offset_y, window_width, window_height, 0, 0, bitmap_buffer->width, bitmap_buffer->height, bitmap_buffer->memory, &bitmap_buffer->info, DIB_RGB_COLORS, SRCCOPY);
 }
 
-static
+internal
 void win32_process_xinput_button(DWORD xinput_button_state, DWORD button_bit, Game_button_state* old_state, Game_button_state* new_state) {
     new_state->ended_down = (xinput_button_state & button_bit) == button_bit;
     new_state->half_transition_count = old_state->ended_down != new_state->ended_down ? 1 : 0;
 }
 
-static
+internal
 void win32_process_keyboard_input(Game_button_state* new_state, bool is_down) {
     if (new_state->ended_down != is_down){ 
         new_state->ended_down = is_down;
@@ -367,7 +386,41 @@ void win32_process_keyboard_input(Game_button_state* new_state, bool is_down) {
     }
 }
 
-static
+/*
+    * Raymond Chen: https://devblogs.microsoft.com/oldnewthing/20100412-00/?p=14353
+    * this will just set window to take "fullscreen" but it won't be able to affect refresh rate
+* for that use: ChangeDisplaySettings
+*/
+void toggle_fullscreen(HWND window_handle) {
+    DWORD style = GetWindowLong(window_handle, GWL_STYLE);
+    
+    if (style & WS_OVERLAPPEDWINDOW) {
+        MONITORINFO monitor_info = { sizeof(monitor_info) };
+        if (GetWindowPlacement(window_handle, &Global_window_last_position) && GetMonitorInfo(MonitorFromWindow(window_handle, MONITOR_DEFAULTTOPRIMARY), &monitor_info)) {
+            
+            SetWindowLong(window_handle, GWL_STYLE, style & ~WS_OVERLAPPEDWINDOW);
+            
+            SetWindowPos(window_handle, HWND_TOP,
+                         monitor_info.rcMonitor.left, monitor_info.rcMonitor.top,
+                         monitor_info.rcMonitor.right - monitor_info.rcMonitor.left,
+                         monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top,
+                         SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+            
+            Global_fullscreen = true;
+            Global_show_cursor = false;
+        }
+    } 
+    else {
+        SetWindowLong(window_handle, GWL_STYLE, style | WS_OVERLAPPEDWINDOW);
+        SetWindowPlacement(window_handle, &Global_window_last_position);
+        SetWindowPos(window_handle, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        
+        Global_fullscreen = false;
+        Global_show_cursor = true;
+    }
+}
+
+internal
 void win32_handle_messages(Win32_state* win_state, Game_controller_input* keyboard_input) {
     MSG message;
     while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
@@ -424,6 +477,10 @@ void win32_handle_messages(Win32_state* win_state, Game_controller_input* keyboa
                 else if (vk_key == 'P' && is_down) {
                     Global_pause_sound_debug_sync = !Global_pause_sound_debug_sync;
                 } 
+                else if (vk_key == VK_RETURN && alt_is_down && is_down) { // alt enter
+                    if (message.hwnd)
+                        toggle_fullscreen(message.hwnd);
+                }
                 else if (vk_key == VK_F2 && is_down) {
                     if (win_state->playing_input_index == 0) {
                         if (win_state->recording_input_index == 0) {
@@ -452,6 +509,12 @@ LRESULT CALLBACK
 win32_window_proc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
     LRESULT result = 0;
     switch (message) {
+        case WM_SETCURSOR: {
+            if (Global_show_cursor)
+                result = DefWindowProcA(window, message, wParam, lParam);
+            else // hide cursor
+                SetCursor(0);
+        } break;
         case WM_KEYUP:
         case WM_KEYDOWN:
         case WM_SYSKEYUP:
@@ -505,7 +568,7 @@ f32 win32_get_seconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end) {
     return (f32)(end.QuadPart - start.QuadPart) / Global_perf_freq;
 }
 
-static 
+internal 
 void win32_debug_draw_vertical_line(Win32_bitmap_buffer* backbuffer, i32 x, i32 top, i32 bottom, u32 color) {
     
     if (x < 0 || x >= backbuffer->width)
@@ -583,7 +646,35 @@ void win32_debug_sync_display(Win32_bitmap_buffer* backbuffer, i32 marker_count,
     }
 }
 
-i32 main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
+internal
+HWND create_default_window(LRESULT win32_window_processor, HINSTANCE current_instance, char* class_name, i32 initial_window_width, i32 initial_window_height) {
+    
+    HWND result = {};
+    
+    WNDCLASSA window_class = {};
+    
+    window_class.style         = CS_HREDRAW | CS_HREDRAW; // redraw full window (vertical/horizontal) (streches)
+    window_class.lpfnWndProc   = (WNDPROC)win32_window_processor;
+    window_class.hInstance     = current_instance;
+    window_class.lpszClassName = class_name;
+    window_class.hCursor = LoadCursor(0, IDC_ARROW); // 0, otherwise it will try to load cursor from our executable
+    
+    if (RegisterClass(&window_class) == 0) {
+        OutputDebugStringA("RegisterClass failed\n");
+        return 0;
+    }
+    
+    result = CreateWindowEx(0, window_class.lpszClassName, "GG", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, initial_window_width + 150, initial_window_height + 150, 0, 0, current_instance, 0);
+    
+    if (result == 0) {
+        OutputDebugStringA("CreateWindow failed\n");
+        return 0;
+    }
+    
+    return result;
+}
+
+i32 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
     
     LARGE_INTEGER performance_freq, end_counter, last_counter, flip_wall_clock;
     QueryPerformanceFrequency(&performance_freq);
@@ -595,11 +686,9 @@ i32 main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
     char game_code_dll_name[]      = "game.dll";
     char temp_game_code_dll_name[] = "game_temp.dll";
     char lock_file_name[]          = "lock.tmp";
-    
     char game_code_full_path[MAX_PATH];
     char temp_game_code_full_path[MAX_PATH];
     char lock_file_full_path[MAX_PATH];
-    
     {
         win32_get_exe_filename(&win_state);
         
@@ -613,7 +702,7 @@ i32 main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
     UINT desired_scheduler_period_ms = 1;
     auto sleep_is_granular = timeBeginPeriod(desired_scheduler_period_ms) == TIMERR_NOERROR;
     
-    // create window
+    // window class
     // setting resolution my screen is 16:10
     i32 initial_window_width  = 960;
     i32 initial_window_height = 540;
@@ -621,27 +710,18 @@ i32 main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
     initial_window_width  = 960;
     initial_window_height = 600;
 #endif
+    
     win32_resize_dib_section(&Global_backbuffer, initial_window_width, initial_window_height);
-    WNDCLASSA window_class = {};
-    HWND window_handle;
-    {
-        window_class.style = CS_HREDRAW | CS_HREDRAW; // redraw full window (vertical/horizontal) (streches)
-        window_class.lpfnWndProc = win32_window_proc;
-        window_class.hInstance = currentInstance;
-        window_class.lpszClassName = "GG";
-        
-        if (RegisterClass(&window_class) == 0) {
-            OutputDebugStringA("RegisterClass failed\n");
-            return -1;
-        }
-        
-        window_handle = CreateWindowEx(0, window_class.lpszClassName, "GG", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, initial_window_width + 150, initial_window_height + 150, 0, 0, currentInstance, 0);
-        
-        if (window_handle == 0) {
-            OutputDebugStringA("CreateWindow failed\n");
-            return -1;
-        }
-    }
+    
+#if INTERNAL
+    Global_show_cursor = true;
+#else
+    Global_show_cursor = false;
+#endif
+    
+    HWND window_handle = create_default_window((LRESULT)win32_window_proc, current_instance, "GG", initial_window_width, initial_window_height);
+    
+    macro_assert(window_handle);
     
     thread_context thread = {};
     
@@ -653,8 +733,8 @@ i32 main(HINSTANCE currentInstance, HINSTANCE previousInstance, LPSTR commandLin
     
     if (win32_refresh_rate > 1)
         refresh_rate = win32_refresh_rate;
-    static const i32 monitor_refresh_rate     = refresh_rate;
-    static const i32 game_update_refresh_rate = monitor_refresh_rate / 2;
+    local_persist const i32 monitor_refresh_rate     = refresh_rate;
+    local_persist const i32 game_update_refresh_rate = monitor_refresh_rate / 2;
     
     f32 target_seconds_per_frame = 1.0f / (f32)game_update_refresh_rate;
     

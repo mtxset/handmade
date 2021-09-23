@@ -3,14 +3,12 @@
 #include "utils.h"
 #include "file_io.h"
 
-static 
 void debug_free_file(void* handle) {
     if (handle) { 
         VirtualFree(handle, 0, MEM_RELEASE);
     }
 }
 
-static 
 Debug_file_read_result debug_read_entire_file(char* file_name) {
     Debug_file_read_result result = {};
     
@@ -46,7 +44,6 @@ Debug_file_read_result debug_read_entire_file(char* file_name) {
     return result;
 }
 
-static 
 bool debug_write_entire_file(char* file_name, u32 memory_size, void* memory) {
     auto file_handle = CreateFileA(file_name, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
     

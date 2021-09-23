@@ -8,7 +8,7 @@
 :: -wd4668: 'x' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif' (found in win headers)
 set ignore_errors=-wd4100 -wd4189 -wd4201 -wd4459 -wd4505 -wd4668
 set enable_errors=-w44800 
-set common_compiler_flags=-Od -MTd -EHa- -Gm- -GR- -Oi -fp:fast -DINTERNAL=1 -DDEBUG=1 -WX -W4 %ignore_errors% %enable_errors% -FC -Fm -Z7 -nologo
+set common_compiler_flags=-Od -MTd -EHa- -Gm- -GR- -Oi -fp:fast -DAR1610 -DINTERNAL=1 -DDEBUG=1 -WX -W4 %ignore_errors% %enable_errors% -FC -Fm -Z7 -nologo
 set common_linker_flags=-incremental:no -opt:ref user32.lib gdi32.lib winmm.lib
 
 if not exist build mkdir build
@@ -26,6 +26,8 @@ for /F "tokens=1-4 delims=:.," %%a in ("%time%") do (
 
 :: 64-bit
 :: /O2 /Oi /fp:fast - optimizations
+:: lock is done so that vs has time to create debug file for dll, so breakpoints work for new code
+:: game wont load new code till there is lock file
 echo Waiting for pbd > lock.tmp
 cl.exe %common_compiler_flags% "..\source\game.cpp" /LD /link -incremental:no -opt:ref -PDB:game%random%.pdb  -EXPORT:game_get_sound_samples -EXPORT:game_update_render
 del lock.tmp

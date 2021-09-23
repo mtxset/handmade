@@ -51,7 +51,7 @@ i32 string_to_binary(char* str) {
 }
 
 char* i32_to_string(i32 n) {
-	static char binary[8];
+	local_persist char binary[8] = {};
 	for (auto x = 0; x < 8; x++) {
 		binary[x] = n & 0x80 ? '1' : '0';
 		n <<= 1;

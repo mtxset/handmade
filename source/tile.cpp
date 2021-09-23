@@ -54,7 +54,7 @@ Tile_chunk_position get_chunk_position_for(Tile_map* tile_map, u32 absolute_tile
     return result;
 }
 
-static
+internal
 u32 get_tile_value(Tile_map* tile_map, Tile_chunk* tile_chunk, u32 tile_x, u32 tile_y) {
     u32 result = 0;
     
@@ -66,7 +66,7 @@ u32 get_tile_value(Tile_map* tile_map, Tile_chunk* tile_chunk, u32 tile_x, u32 t
     return result;
 }
 
-static
+internal
 u32 get_tile_value(Tile_map* tile_map, u32 tile_abs_x, u32 tile_abs_y, u32 tile_abs_z) {
     u32 result = 0;
     
@@ -78,7 +78,7 @@ u32 get_tile_value(Tile_map* tile_map, u32 tile_abs_x, u32 tile_abs_y, u32 tile_
     return result;
 }
 
-static
+internal
 u32 get_tile_value(Tile_map* tile_map, Tile_map_position tile_pos) {
     
     u32 result = get_tile_value(tile_map, tile_pos.absolute_tile_x, tile_pos.absolute_tile_y, tile_pos.absolute_tile_z);
@@ -86,7 +86,7 @@ u32 get_tile_value(Tile_map* tile_map, Tile_map_position tile_pos) {
     return result;
 }
 
-static
+internal
 void set_tile_value(Tile_map* tile_map, Tile_chunk* tile_chunk, u32 tile_x, u32 tile_y, u32 tile_value) {
     if (!tile_chunk || !tile_chunk->tiles)
         return;
@@ -94,7 +94,7 @@ void set_tile_value(Tile_map* tile_map, Tile_chunk* tile_chunk, u32 tile_x, u32 
     set_tile_value_unchecked(tile_map, tile_chunk, tile_x, tile_y, tile_value);
 }
 
-static
+internal
 bool is_world_point_empty(Tile_map* tile_map, Tile_map_position tile_pos) {
     bool result = false;
     
@@ -125,7 +125,7 @@ Tile_map_position recanonicalize_position(Tile_map* tile_map, Tile_map_position 
     return result;
 }
 
-static
+internal
 void set_tile_value(Memory_arena* world_arena, Tile_map* tile_map, u32 tile_abs_x, u32 tile_abs_y, u32 tile_abs_z, u32 tile_value) {
     Tile_chunk_position chunk_pos = get_chunk_position_for(tile_map, tile_abs_x, tile_abs_y, tile_abs_z);
     Tile_chunk* tile_chunk = get_tile_chunk(tile_map, chunk_pos.tile_chunk_x, chunk_pos.tile_chunk_y, chunk_pos.tile_chunk_z);
