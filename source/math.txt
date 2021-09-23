@@ -1,0 +1,48 @@
+Complex numbers
+
+Geometry:
+ Euclidean
+
+Trigonometry:
+ Basic? 
+
+Calculus
+ Basic?
+ Partial differential equations (pde)
+ ordinary differential equations (ode)
+
+Linear algebra:
+ vectors
+ matrices
+ solving simultanious equations
+
+non-euclidean geometry
+ exponential maps
+ euler angles
+ quaternions
+ duals
+
+topology:
+ manifolds
+
+Minkowski algebra (collision)
+
+Control theory
+ feedback systems
+ springs
+ robotics
+
+interval arithmetic
+ arithmetic on ranges
+
+graph theory (pathing)
+
+operation research (metropolis algorithm, min/max)
+
+probability & statistics
+
+discrete math:
+ probability,
+ pseudo random number generators
+ cryptography
+

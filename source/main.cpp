@@ -68,7 +68,8 @@ void win32_get_exe_filename(Win32_state* win_state) {
 
 internal 
 void win32_build_exe_filename(Win32_state* win_state, char* filename, i32 dest_count, char* dest) {
-    string_concat(win_state->last_slash - win_state->exe_file_name, win_state->exe_file_name, string_len(filename), filename, dest_count, dest);
+    string_concat(win_state->last_slash - win_state->exe_file_name, win_state->exe_file_name, 
+                  string_len(filename), filename, dest_count, dest);
 }
 
 internal 
@@ -151,7 +152,9 @@ void win32_clear_sound_buffer(Win32_sound_output* sound_output) {
     void* region_two;
     DWORD region_two_size;
     
-    if (!SUCCEEDED(Global_sound_buffer->Lock(0, sound_output->buffer_size, &region_one, &region_one_size, &region_two, &region_two_size, 0))) {
+    if (!SUCCEEDED(Global_sound_buffer->Lock(0, sound_output->buffer_size, 
+                                             &region_one, &region_one_size, 
+                                             &region_two, &region_two_size, 0))) {
         // too much fails OutputDebugStringA("Failed to lock global sound buffer\n");
         return;
     }
@@ -176,7 +179,9 @@ void win32_fill_sound_buffer(Win32_sound_output* sound_output, DWORD bytes_to_lo
     void* region_two;
     DWORD region_two_size;
     
-    if (!SUCCEEDED(Global_sound_buffer->Lock(bytes_to_lock, bytes_to_write, &region_one, &region_one_size, &region_two, &region_two_size, 0))) {
+    if (!SUCCEEDED(Global_sound_buffer->Lock(bytes_to_lock, bytes_to_write, 
+                                             &region_one, &region_one_size, 
+                                             &region_two, &region_two_size, 0))) {
         // too much fails OutputDebugStringA("Failed to lock global sound buffer\n");
         return;
     }
@@ -413,7 +418,9 @@ void toggle_fullscreen(HWND window_handle) {
     else {
         SetWindowLong(window_handle, GWL_STYLE, style | WS_OVERLAPPEDWINDOW);
         SetWindowPlacement(window_handle, &Global_window_last_position);
-        SetWindowPos(window_handle, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        SetWindowPos(window_handle, NULL, 
+                     0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
         
         Global_fullscreen = false;
         Global_show_cursor = true;
@@ -625,24 +632,43 @@ void win32_debug_sync_display(Win32_bitmap_buffer* backbuffer, i32 marker_count,
             
             auto first_top = top;
             
-            win32_draw_sound_buffer_marker(backbuffer, sound_output, r, x_padding, top, bottom, current_marker->output_play_cursor, play_color);
-            win32_draw_sound_buffer_marker(backbuffer, sound_output, r, x_padding, top, bottom, current_marker->output_write_cursor, write_color);
+            win32_draw_sound_buffer_marker(backbuffer, sound_output, r, x_padding, 
+                                           top, bottom, 
+                                           current_marker->output_play_cursor, play_color);
+            
+            win32_draw_sound_buffer_marker(backbuffer, sound_output, r, x_padding, 
+                                           top, bottom, 
+                                           current_marker->output_write_cursor, write_color);
             
             top += line_height + y_padding;
             bottom += line_height + y_padding;
             
-            win32_draw_sound_buffer_marker(backbuffer, sound_output, r, x_padding, top, bottom, current_marker->output_location, play_color);
-            win32_draw_sound_buffer_marker(backbuffer, sound_output, r, x_padding, top, bottom, current_marker->output_location + current_marker->output_bytes, write_color);
+            win32_draw_sound_buffer_marker(backbuffer, sound_output, r, x_padding, 
+                                           top, bottom, 
+                                           current_marker->output_location, play_color);
+            win32_draw_sound_buffer_marker(backbuffer, sound_output, r, x_padding, 
+                                           top, bottom, 
+                                           current_marker->output_location + current_marker->output_bytes, write_color);
             
             top += line_height + y_padding;
             bottom += line_height + y_padding;
             
-            win32_draw_sound_buffer_marker(backbuffer, sound_output, r, x_padding, first_top, bottom, current_marker->expected_play_cursor, expected_write_color);
+            win32_draw_sound_buffer_marker(backbuffer, sound_output, r, x_padding, 
+                                           first_top, bottom, 
+                                           current_marker->expected_play_cursor, expected_write_color);
         }
         
-        win32_draw_sound_buffer_marker(backbuffer, sound_output, r, x_padding, top, bottom, current_marker->play_cursor, play_color);
-        win32_draw_sound_buffer_marker(backbuffer, sound_output, r, x_padding, top, bottom, current_marker->play_cursor + 480*sound_output->bytes_per_sample, play_window_color);
-        win32_draw_sound_buffer_marker(backbuffer, sound_output, r, x_padding, top, bottom, current_marker->write_cursor, write_color);
+        win32_draw_sound_buffer_marker(backbuffer, sound_output, r, x_padding, 
+                                       top, bottom, 
+                                       current_marker->play_cursor, play_color);
+        
+        win32_draw_sound_buffer_marker(backbuffer, sound_output, r, x_padding, 
+                                       top, bottom, 
+                                       current_marker->play_cursor + 480*sound_output->bytes_per_sample, play_window_color);
+        
+        win32_draw_sound_buffer_marker(backbuffer, sound_output, r, x_padding, 
+                                       top, bottom, 
+                                       current_marker->write_cursor, write_color);
     }
 }
 
@@ -664,7 +690,12 @@ HWND create_default_window(LRESULT win32_window_processor, HINSTANCE current_ins
         return 0;
     }
     
-    result = CreateWindowEx(0, window_class.lpszClassName, "GG", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, initial_window_width + 150, initial_window_height + 150, 0, 0, current_instance, 0);
+    result = CreateWindowEx(0, window_class.lpszClassName, "GG", 
+                            WS_OVERLAPPEDWINDOW | WS_VISIBLE, 
+                            CW_USEDEFAULT, CW_USEDEFAULT, 
+                            initial_window_width + 150, 
+                            initial_window_height + 150, 
+                            0, 0, current_instance, 0);
     
     if (result == 0) {
         OutputDebugStringA("CreateWindow failed\n");
@@ -719,7 +750,8 @@ i32 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLi
     Global_show_cursor = false;
 #endif
     
-    HWND window_handle = create_default_window((LRESULT)win32_window_proc, current_instance, "GG", initial_window_width, initial_window_height);
+    HWND window_handle = create_default_window((LRESULT)win32_window_proc, current_instance, "GG", 
+                                               initial_window_width, initial_window_height);
     
     macro_assert(window_handle);
     
@@ -765,7 +797,9 @@ i32 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLi
         // consider trying MEM_LARGE_PAGES which would enable larger virtual memory page sizes (2mb? compared to 4k pages).
         // That would allow Translation lookaside buffer (TLB) (cpu table between physical memory and virtual) to work faster, maybe.
         win_state.total_memory_size = memory.permanent_storage_size + memory.transient_storage_size;
-        win_state.game_memory_block = VirtualAlloc(base_address, (size_t)win_state.total_memory_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+        win_state.game_memory_block = VirtualAlloc(base_address,
+                                                   (size_t)win_state.total_memory_size, MEM_RESERVE|MEM_COMMIT, 
+                                                   PAGE_READWRITE);
         
         memory.permanent_storage = win_state.game_memory_block;
         memory.transient_storage = (u8*)memory.permanent_storage + memory.permanent_storage_size;
@@ -882,10 +916,17 @@ i32 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLi
                         new_gamepad->is_analog = true;
                     
                     auto threshold = 0.5f;
-                    win32_process_xinput_button((new_gamepad->stick_avg_x < -threshold) ? 1 : 0, 1, &old_gamepad->move_left,    &new_gamepad->move_left);
-                    win32_process_xinput_button((new_gamepad->stick_avg_x > threshold)  ? 1 : 0, 1, &old_gamepad->move_right,    &new_gamepad->move_right);
-                    win32_process_xinput_button((new_gamepad->stick_avg_y < -threshold) ? 1 : 0, 1, &old_gamepad->move_up,    &new_gamepad->move_up);
-                    win32_process_xinput_button((new_gamepad->stick_avg_y > threshold)  ? 1 : 0, 1, &old_gamepad->move_down,    &new_gamepad->move_down);
+                    win32_process_xinput_button((new_gamepad->stick_avg_x < -threshold) ? 1 : 0, 1, 
+                                                &old_gamepad->move_left, &new_gamepad->move_left);
+                    
+                    win32_process_xinput_button((new_gamepad->stick_avg_x > threshold)  ? 1 : 0, 1, 
+                                                &old_gamepad->move_right, &new_gamepad->move_right);
+                    
+                    win32_process_xinput_button((new_gamepad->stick_avg_y < -threshold) ? 1 : 0, 1, 
+                                                &old_gamepad->move_up, &new_gamepad->move_up);
+                    
+                    win32_process_xinput_button((new_gamepad->stick_avg_y > threshold)  ? 1 : 0, 1, 
+                                                &old_gamepad->move_down, &new_gamepad->move_down);
                     
                     win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_A, &old_gamepad->up,    &new_gamepad->up);
                     win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_B, &old_gamepad->right, &new_gamepad->right);
@@ -951,8 +992,11 @@ i32 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLi
             bytes_to_lock = (sound_output.running_sample_index * sound_output.bytes_per_sample) % sound_output.buffer_size;
             
             DWORD expected_sound_bytes_per_frame = (i32)((sound_output.samples_per_second * sound_output.bytes_per_sample) / game_update_refresh_rate);
+            
             f32 seconds_left_until_flip = target_seconds_per_frame - from_begin_to_audio_seconds;
+            
             DWORD expected_bytes_until_flip = (DWORD)(seconds_left_until_flip / target_seconds_per_frame) * expected_sound_bytes_per_frame;
+            
             DWORD expected_frame_boundry_byte = play_cursor + expected_bytes_until_flip;
             
             DWORD safe_write_cursor = write_cursor;
@@ -1005,7 +1049,9 @@ i32 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLi
             
 #if 0
             char buffer[256];
-            _snprintf_s(buffer, sizeof(buffer),  "play cursor: %u; byte to lock: %u; target cursor: %u; bytes_to_write: %u; delta: %u; t play cursor: %u; t write cursor: %u; latency: %f s\n", last_play_cursor, bytes_to_lock, target_cursor, bytes_to_write, cursor_bytes_delta, temp_play_cursor, temp_write_cursor, audio_latency_seconds);
+            _snprintf_s(buffer, sizeof(buffer),  
+                        "play cursor: %u; byte to lock: %u; target cursor: %u; bytes_to_write: %u; delta: %u; t play cursor: %u; t write cursor: %u; latency: %f s\n", 
+                        last_play_cursor, bytes_to_lock, target_cursor, bytes_to_write, cursor_bytes_delta, temp_play_cursor, temp_write_cursor, audio_latency_seconds);
             OutputDebugStringA(buffer);
 #endif
             
@@ -1013,7 +1059,9 @@ i32 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLi
             bool draw_debug_sound_markers = false;
             
             if (draw_debug_sound_markers)
-                win32_debug_sync_display(&Global_backbuffer, macro_array_count(debug_time_marker_list), debug_last_marker_index - 1, debug_time_marker_list, &sound_output, target_seconds_per_frame);
+                win32_debug_sync_display(&Global_backbuffer, 
+                                         macro_array_count(debug_time_marker_list), debug_last_marker_index - 1,
+                                         debug_time_marker_list, &sound_output, target_seconds_per_frame);
             
 #endif
             goto exit;

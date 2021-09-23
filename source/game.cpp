@@ -340,13 +340,21 @@ void subpixel_test_udpdate(Game_bitmap_buffer* buffer, Game_state* game_state, G
     f32 start_y = 400;
     f32 end_y = start_y + 100;
     
-    draw_rect(buffer, 300.0f, start_y, 400.0f, end_y, {color.r * subpixels->transition_state, color.g * subpixels->transition_state, color.b * subpixels->transition_state});
+    draw_rect(buffer, 300.0f, start_y, 400.0f, end_y, 
+              {
+                  color.r * subpixels->transition_state, 
+                  color.g * subpixels->transition_state, 
+                  color.b * subpixels->transition_state });
     
     color_hex = (round_f32_u32(color.r * 255.0f * (1 - subpixels->transition_state)) << 16 | 
                  round_f32_u32(color.g * 255.0f * (1 - subpixels->transition_state)) << 8  |
                  round_f32_u32(color.b * 255.0f * (1 - subpixels->transition_state)) << 0);
     
-    draw_rect(buffer, 400.0f, start_y, 500.0f, end_y, {color.r * (1 - subpixels->transition_state), color.g * (1 - subpixels->transition_state), color.b * (1 - subpixels->transition_state)});
+    draw_rect(buffer, 
+              400.0f, start_y, 500.0f, end_y, 
+              { color.r * (1 - subpixels->transition_state),
+                  color.g * (1 - subpixels->transition_state), 
+                  color.b * (1 - subpixels->transition_state) });
     
     *pixel_two = color_hex;
 }
@@ -377,25 +385,50 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         // load sprites
         {
             game_state->background = debug_load_bmp("../data/bg_nebula.bmp");
-            game_state->hero_bitmaps[0].hero_body = debug_load_bmp("../data/george-right-0.bmp");
-            game_state->hero_bitmaps[0].align_x = 24;
-            game_state->hero_bitmaps[0].align_y = 41;
-            
-            game_state->hero_bitmaps[1].hero_body = debug_load_bmp("../data/george-back-0.bmp");
-            game_state->hero_bitmaps[1].align_x = 24;
-            game_state->hero_bitmaps[1].align_y = 41;
-            
-            game_state->hero_bitmaps[2].hero_body = debug_load_bmp("../data/george-left-0.bmp");
-            game_state->hero_bitmaps[2].align_x = 24;
-            game_state->hero_bitmaps[2].align_y = 41;
-            
-            game_state->hero_bitmaps[3].hero_body = debug_load_bmp("../data/george-front-0.bmp");
-            game_state->hero_bitmaps[3].align_x = 24;
-            game_state->hero_bitmaps[3].align_y = 41;
+#if 0
+            // load george
+            {
+                game_state->hero_bitmaps[0].hero_body = debug_load_bmp("../data/george-right-0.bmp");
+                game_state->hero_bitmaps[0].align_x = 24;
+                game_state->hero_bitmaps[0].align_y = 41;
+                
+                game_state->hero_bitmaps[1].hero_body = debug_load_bmp("../data/george-back-0.bmp");
+                game_state->hero_bitmaps[1].align_x = 24;
+                game_state->hero_bitmaps[1].align_y = 41;
+                
+                game_state->hero_bitmaps[2].hero_body = debug_load_bmp("../data/george-left-0.bmp");
+                game_state->hero_bitmaps[2].align_x = 24;
+                game_state->hero_bitmaps[2].align_y = 41;
+                
+                game_state->hero_bitmaps[3].hero_body = debug_load_bmp("../data/george-front-0.bmp");
+                game_state->hero_bitmaps[3].align_x = 24;
+                game_state->hero_bitmaps[3].align_y = 41;
+            }
+#endif
+            // load blender guy
+            {
+                game_state->hero_bitmaps[0].hero_body = debug_load_bmp("../data/right.bmp");
+                game_state->hero_bitmaps[0].align_x = 38;
+                game_state->hero_bitmaps[0].align_y = 119;
+                
+                game_state->hero_bitmaps[1].hero_body = debug_load_bmp("../data/back.bmp");
+                game_state->hero_bitmaps[1].align_x = 40;
+                game_state->hero_bitmaps[1].align_y = 112;
+                
+                game_state->hero_bitmaps[2].hero_body = debug_load_bmp("../data/left.bmp");
+                game_state->hero_bitmaps[2].align_x = 40;
+                game_state->hero_bitmaps[2].align_y = 119;
+                
+                game_state->hero_bitmaps[3].hero_body = debug_load_bmp("../data/front.bmp");
+                game_state->hero_bitmaps[3].align_x = 39;
+                game_state->hero_bitmaps[3].align_y = 115;
+            }
         }
         
         // init memory arenas
-        initialize_arena(&game_state->world_arena, memory->permanent_storage_size - sizeof(Game_state), (u8*)memory->permanent_storage + sizeof(Game_state));
+        initialize_arena(&game_state->world_arena, 
+                         memory->permanent_storage_size - sizeof(Game_state), 
+                         (u8*)memory->permanent_storage + sizeof(Game_state));
         
         game_state->world = push_struct(&game_state->world_arena, World);
         World* world = game_state->world;
@@ -493,7 +526,8 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                                 tile = 4;
                         }
                         
-                        set_tile_value(&game_state->world_arena, tile_map, absolute_tile_x, absolute_tile_y, absolute_tile_z, tile);
+                        set_tile_value(&game_state->world_arena, tile_map, 
+                                       absolute_tile_x, absolute_tile_y, absolute_tile_z, tile);
                     }
                 }
                 
@@ -654,7 +688,9 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         
 #if 0
         char buffer[256];
-        _snprintf_s(buffer, sizeof(buffer), "tile(x,y): %u, %u; relative(x,y): %f, %f\n", game_state->player_pos.absolute_tile_x, game_state->player_pos.absolute_tile_y, game_state->player_pos.offset_x, game_state->player_pos.offset_y);
+        _snprintf_s(buffer, sizeof(buffer), "tile(x,y): %u, %u; relative(x,y): %f, %f\n", 
+                    game_state->player_pos.absolute_tile_x, game_state->player_pos.absolute_tile_y,
+                    game_state->player_pos.offset_x, game_state->player_pos.offset_y);
         OutputDebugStringA(buffer);
 #endif
     }
@@ -734,9 +770,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     }
 #if 0
     subpixel_test_udpdate(bitmap_buffer, game_state, input, COLOR_GOLD);
-#endif
     
-#if 1
     drops_update(bitmap_buffer, game_state, input);
 #endif
 }
