@@ -16,4 +16,8 @@ typedef unsigned long long u64;
 typedef float              f32;
 typedef double             f64;
 
+#define internal static
+#define global_var static
+#define local_persist static
+
 #endif //TYPES_H

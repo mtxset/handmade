@@ -3,7 +3,7 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-static const float PI = 3.14159265358979323846f;
+global_var const float PI = 3.14159265358979323846f;
 
 #if DEBUG
 #define macro_assert(expr) if (!(expr)) {*(i32*)0 = 0;}

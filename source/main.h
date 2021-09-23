@@ -25,7 +25,6 @@ struct Win32_window_dimensions {
 struct Win32_sound_output {
     i32 samples_per_second;
     i32 latency_sample_count;
-    f32 sine_val;
     i32 bytes_per_sample;
     u32 buffer_size;
     i32 safety_bytes;
@@ -72,7 +71,7 @@ struct Win32_state {
     char* last_slash;
 };
 
-static
+internal
 void initialize_arena(Memory_arena* arena, size_t size, u8* base) {
     arena->size = size;
     arena->base = base;

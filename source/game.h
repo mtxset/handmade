@@ -191,7 +191,7 @@ Game_controller_input* get_gamepad(Game_input* input, i32 input_index) {
 
 void render_255_gradient(Game_bitmap_buffer* bitmap_buffer, i32 blue_offset, i32 green_offset);
 
-static 
+internal
 void game_output_sound(Game_sound_buffer* sound_buffer, i32 tone_hz, Game_state* state);
 
 typedef 

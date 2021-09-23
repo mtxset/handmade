@@ -27,7 +27,7 @@ void clear_screen(Game_bitmap_buffer* bitmap_buffer, u32 color) {
 }
 
 void render_255_gradient(Game_bitmap_buffer* bitmap_buffer, i32 blue_offset, i32 green_offset) {
-    static i32 offset = 1;
+    local_persist i32 offset = 1;
     auto row = (u8*)bitmap_buffer->memory;
     
     clear_screen(bitmap_buffer, color_gray_byte);
@@ -54,7 +54,7 @@ void render_255_gradient(Game_bitmap_buffer* bitmap_buffer, i32 blue_offset, i32
         row += bitmap_buffer->pitch;
     }
     
-    static bool go_up = true;
+    local_persist bool go_up = true;
     i32 step = 1;
     
     if (go_up)
@@ -69,7 +69,7 @@ void render_255_gradient(Game_bitmap_buffer* bitmap_buffer, i32 blue_offset, i32
         go_up = true;
 }
 
-static 
+internal
 void game_output_sound(Game_sound_buffer* sound_buffer, i32 tone_hz, Game_state* state) {
     i16 tone_volume = 3000;
     i32 wave_period = sound_buffer->samples_per_second / tone_hz;
@@ -98,7 +98,7 @@ void game_output_sound(Game_sound_buffer* sound_buffer, i32 tone_hz, Game_state*
 #endif
 }
 
-static
+internal
 void draw_rect(Game_bitmap_buffer* buffer, f32 start_x, f32 start_y, f32 end_x, f32 end_y, color_f32 color) {
     u32 color_hex = 0;
     
@@ -131,7 +131,7 @@ void debug_read_and_write_random_file() {
     }
 }
 
-static
+internal
 void drops_update(Game_bitmap_buffer* bitmap_buffer, Game_state* state, Game_input* input) {
     
     // draw mouse pointer
@@ -190,7 +190,7 @@ void drops_update(Game_bitmap_buffer* bitmap_buffer, Game_state* state, Game_inp
 #include "pacman.cpp"
 #endif
 
-static
+internal
 Loaded_bmp debug_load_bmp(char* file_name) {
     Loaded_bmp result = {};
     
@@ -236,7 +236,7 @@ Loaded_bmp debug_load_bmp(char* file_name) {
     return result;
 }
 
-static 
+internal
 void draw_bitmap(Game_bitmap_buffer* bitmap_buffer, Loaded_bmp* bitmap_data, f32 start_x, f32 start_y, i32 align_x = 0, i32 align_y = 0) {
     
     start_x -= (f32)align_x;
@@ -305,7 +305,7 @@ void draw_bitmap(Game_bitmap_buffer* bitmap_buffer, Loaded_bmp* bitmap_data, f32
     }
 }
 
-static
+internal
 void subpixel_test_udpdate(Game_bitmap_buffer* buffer, Game_state* game_state, Game_input* input, color_f32 color) {
     
     clear_screen(buffer, color_black_byte);
@@ -734,6 +734,10 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     }
 #if 0
     subpixel_test_udpdate(bitmap_buffer, game_state, input, COLOR_GOLD);
+#endif
+    
+#if 1
+    drops_update(bitmap_buffer, game_state, input);
 #endif
 }
 
