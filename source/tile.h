@@ -3,9 +3,10 @@
 #ifndef TILE_H
 #define TILE_H
 
+#include "vectors.h"
+
 struct Tile_map_diff {
-    f32 x; 
-    f32 y;
+    v2 xy;
     f32 z;
 };
 
@@ -14,8 +15,7 @@ struct Tile_map_position {
     u32 absolute_tile_y;
     u32 absolute_tile_z;
     
-    f32 offset_x; 
-    f32 offset_y;
+    v2 offset; 
 };
 
 struct Tile_chunk {

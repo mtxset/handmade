@@ -87,8 +87,7 @@ struct thread_context {
 struct drop {
     bool active;
     f32 a;
-    f32 pos_x;
-    f32 pos_y;
+    v2 pos;
 };
 
 struct Memory_arena {
@@ -156,8 +155,7 @@ struct Bitmap_header {
 #pragma pack(pop)
 
 struct Hero_bitmaps {
-    i32 align_x; // starting pointx for drawing that bitmap
-    i32 align_y;
+    v2 align; // starting pointx for drawing that bitmap
     Loaded_bmp hero_body;
 };
 
