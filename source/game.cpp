@@ -396,7 +396,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         // load sprites
         {
             game_state->background = debug_load_bmp("../data/bg_nebula.bmp");
-#if 1
+#if 0
             // load george
             {
                 game_state->hero_bitmaps[0].hero_body = debug_load_bmp("../data/george-right-0.bmp");
@@ -586,8 +586,8 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     macro_assert(tile_map);
     
     // check input
-    v2 player_delta = {};
-    f32 move_offset = 2.0f;
+    v2 player_acceleration_dd = {};
+    bool shift_was_pressd = false;
     {
         for (i32 i = 0; i < macro_array_count(input->gamepad); i++) {
             auto input_state = get_gamepad(input, i);
@@ -596,42 +596,43 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 // analog
                 if (input_state->move_up.ended_down) {
                     game_state->hero_facing_direction = 1;
-                    player_delta.y = 1.0f;
+                    player_acceleration_dd.y = 1.0f;
                 }
                 if (input_state->move_down.ended_down) {
                     game_state->hero_facing_direction = 3;
-                    player_delta.y = -1.0f;
+                    player_acceleration_dd.y = -1.0f;
                 }
                 if (input_state->move_left.ended_down) {
                     game_state->hero_facing_direction = 2;
-                    player_delta.x = -1.0f;
+                    player_acceleration_dd.x = -1.0f;
                 }
                 if (input_state->move_right.ended_down) {
                     game_state->hero_facing_direction = 0;
-                    player_delta.x = 1.0f;
+                    player_acceleration_dd.x = 1.0f;
                 }
             } 
             else {
                 // digital
                 if (input_state->up.ended_down) {
                     game_state->hero_facing_direction = 1;
-                    player_delta.y = 1.0f;
+                    player_acceleration_dd.y = 1.0f;
                 }
                 if (input_state->down.ended_down) {
                     game_state->hero_facing_direction = 3;
-                    player_delta.y = -1.0f;
+                    player_acceleration_dd.y = -1.0f;
                 }
                 if (input_state->left.ended_down) {
                     game_state->hero_facing_direction = 2;
-                    player_delta.x = -1.0f;
+                    player_acceleration_dd.x = -1.0f;
                 }
                 if (input_state->right.ended_down) {
                     game_state->hero_facing_direction = 0;
-                    player_delta.x = 1.0f;
+                    player_acceleration_dd.x = 1.0f;
                 }
-                
-                if (input_state->shift.ended_down) move_offset *= 6;
             }
+            
+            if (input_state->shift.ended_down || input_state->cross_or_a.ended_down)
+                shift_was_pressd = true;
         }
     }
     
@@ -642,11 +643,27 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     {
         Tile_map_position new_player_pos = game_state->player_pos;
         
-        if (player_delta.x && player_delta.y) {
-            player_delta *= 0.7071f;
+        if (player_acceleration_dd.x && player_acceleration_dd.y) {
+            player_acceleration_dd *= 0.7071f;
         }
         
-        new_player_pos.offset += player_delta * (move_offset * input->time_delta);
+        f32 move_speed = 15.0f;
+        
+        if (shift_was_pressd)
+            move_speed = 50;
+        
+        player_acceleration_dd *= move_speed;
+        
+        player_acceleration_dd += -2.75f * game_state->player_velocity_d;
+        
+        // p' = (1/2) * at^2 + vt + p
+        new_player_pos.offset = 
+            0.5f * player_acceleration_dd * square(input->time_delta) + 
+            game_state->player_velocity_d * input->time_delta +
+            new_player_pos.offset;
+        
+        // v' = at + v
+        game_state->player_velocity_d = player_acceleration_dd * input->time_delta + game_state->player_velocity_d;
         
         new_player_pos = recanonicalize_position(tile_map, new_player_pos);
         
@@ -679,7 +696,6 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         game_state->camera_pos.absolute_tile_z = game_state->player_pos.absolute_tile_z;
         
         Tile_map_diff diff = subtract_pos(tile_map, &game_state->player_pos, &game_state->camera_pos);
-        
         
         if (diff.xy.x > 8.5 * tile_map->tile_side_meters)
             game_state->camera_pos.absolute_tile_x += 17;
@@ -757,7 +773,6 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         v3 color_player = { .1f, .0f, 1.0f };
         
         Tile_map_diff diff = subtract_pos(tile_map, &game_state->player_pos, &game_state->camera_pos);
-        
         
         v2 player_ground_point = { 
             screen_center_x + diff.xy.x * meters_to_pixels,

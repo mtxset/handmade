@@ -98,4 +98,11 @@ v2 operator *= (v2 &a, f32 b) {
     a = b * a;
     return a;
 }
+
+inline 
+bool is_zero_v2(v2 a)
+{
+    bool result = a.x == 0 && a.y == 0;
+    return result;
+}
 #endif //MATH_H

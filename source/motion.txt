@@ -1,0 +1,15 @@
+gravity
+ f = m1*m2 / r^2
+
+rigid body dynamics:
+ linear
+ angular
+
+f = ma
+
+f(t)   = position     = 5t^2 + 2t + 3
+f'(t)  = velocity     = 10t + 2
+f''(t) = acceleration = 10
+
+p' = (1/2) * at^2 + vt + p 
+v' = at + v
