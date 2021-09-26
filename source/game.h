@@ -35,7 +35,7 @@ struct Game_controller_input {
     f32 stick_avg_y;
     
     union {
-        Game_button_state buttons[13];
+        Game_button_state buttons[15];
         struct {
             Game_button_state move_up;
             Game_button_state move_down;
@@ -46,12 +46,16 @@ struct Game_controller_input {
             Game_button_state down;
             Game_button_state left;
             Game_button_state right;
-            Game_button_state l1;
-            Game_button_state r1;
+            
+            Game_button_state cross_or_a;
+            Game_button_state circle_or_b;
+            Game_button_state triangle_or_y;
+            Game_button_state box_or_x;
             
             Game_button_state shift;
             
             Game_button_state start;
+            // if assert fails increase buttons[x] by amount of new buttons, so total matches count of buttons in this struct
             // back button has to be last entry cuz there is macro which relies on that
             // file: game.cpp function: game_update_render
             Game_button_state back;
@@ -162,9 +166,11 @@ struct Hero_bitmaps {
 struct Game_state {
     Memory_arena world_arena;
     World* world;
-    Tile_map_position player_pos;
     Tile_map_position camera_pos;
     f32 t_sine;
+    
+    Tile_map_position player_pos;
+    v2 player_velocity_d;
     
     Loaded_bmp background;
     

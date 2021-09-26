@@ -92,4 +92,13 @@ Bit_scan_result find_least_significant_first_bit(u32 value) {
     return result;
 }
 
+inline
+f32 square(f32 value) {
+    f32 result;
+    
+    result = value * value;
+    
+    return result;
+}
+
 #endif //INTRINSICS_H

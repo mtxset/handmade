@@ -46,3 +46,6 @@ discrete math:
  pseudo random number generators
  cryptography
 
+now:
+ vectors
+ derivatives/integration

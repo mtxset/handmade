@@ -1,4 +1,4 @@
-// https://www.youtube.com/watch?v=R8BiV_uYT6E
+// https://youtu.be/LoTRzRFEk5I?t=4758
 
 #include <stdio.h>
 #include <stdint.h>
@@ -887,6 +887,7 @@ i32 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLi
                 auto our_controller_index = i + 1;
                 auto old_gamepad = get_gamepad(old_input, our_controller_index);
                 auto new_gamepad = get_gamepad(new_input, our_controller_index);
+                new_gamepad->is_analog = false;
                 
                 XINPUT_STATE state;
                 ZeroMemory(&state, sizeof(XINPUT_STATE));
@@ -900,15 +901,15 @@ i32 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLi
                     auto* pad = &state.Gamepad;
                     
                     // button is enabled if pad->wButton dword (32 bits - 4 bytes) and (&) with some bytes (0x0001 0x0002 ..)
-                    auto button_left_thumb  = pad->wButtons & XINPUT_GAMEPAD_LEFT_THUMB;
-                    auto button_right_thumb = pad->wButtons & XINPUT_GAMEPAD_RIGHT_THUMB;
-                    auto button_left_shoulder = pad->wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER;
-                    auto button_right_shoulder = pad->wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER;
+                    bool button_left_thumb     = (pad->wButtons & XINPUT_GAMEPAD_LEFT_THUMB) ? true : false;
+                    bool button_right_thumb    = (pad->wButtons & XINPUT_GAMEPAD_RIGHT_THUMB) ? true : false;
+                    bool button_left_shoulder  = (pad->wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) ? true : false;
+                    bool button_right_shoulder = (pad->wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER) ? true : false;
                     
                     new_gamepad->stick_avg_y = pad->wButtons & XINPUT_GAMEPAD_DPAD_UP    ? 1.0f  : 0.0f;
+                    new_gamepad->stick_avg_x = pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT ? 1.0f  : 0.0f;
                     new_gamepad->stick_avg_y = pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN  ? -1.0f : 0.0f;
                     new_gamepad->stick_avg_x = pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT  ? -1.0f : 0.0f;
-                    new_gamepad->stick_avg_x = pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT ? 1.0f  : 0.0f;
                     
                     new_gamepad->stick_avg_x = win32_xinput_cutoff_deadzone(pad->sThumbLX);
                     new_gamepad->stick_avg_y = win32_xinput_cutoff_deadzone(pad->sThumbLY);
@@ -924,18 +925,23 @@ i32 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLi
                                                 &old_gamepad->move_right, &new_gamepad->move_right);
                     
                     win32_process_xinput_button((new_gamepad->stick_avg_y < -threshold) ? 1 : 0, 1, 
-                                                &old_gamepad->move_up, &new_gamepad->move_up);
-                    
-                    win32_process_xinput_button((new_gamepad->stick_avg_y > threshold)  ? 1 : 0, 1, 
                                                 &old_gamepad->move_down, &new_gamepad->move_down);
                     
-                    win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_A, &old_gamepad->up,    &new_gamepad->up);
-                    win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_B, &old_gamepad->right, &new_gamepad->right);
-                    win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_X, &old_gamepad->left,  &new_gamepad->left);
-                    win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_Y, &old_gamepad->up,    &new_gamepad->up);
+                    win32_process_xinput_button((new_gamepad->stick_avg_y > threshold)  ? 1 : 0, 1, 
+                                                &old_gamepad->move_up, &new_gamepad->move_up);
+                    
+                    win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_DPAD_UP,    &old_gamepad->up,    &new_gamepad->up);
+                    win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_DPAD_RIGHT, &old_gamepad->right, &new_gamepad->right);
+                    win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_DPAD_DOWN,  &old_gamepad->down,  &new_gamepad->down);
+                    win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_DPAD_LEFT,  &old_gamepad->left,  &new_gamepad->left);
                     
                     win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_START, &old_gamepad->start, &new_gamepad->start);
                     win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_BACK,  &old_gamepad->back,  &new_gamepad->back);
+                    
+                    win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_A, &old_gamepad->cross_or_a, &new_gamepad->cross_or_a);
+                    win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_B, &old_gamepad->circle_or_b, &new_gamepad->circle_or_b);
+                    win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_X, &old_gamepad->box_or_x,  &new_gamepad->box_or_x);
+                    win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_Y, &old_gamepad->triangle_or_y, &new_gamepad->triangle_or_y);
                     
                     XINPUT_VIBRATION vibration;
                     vibration.wLeftMotorSpeed = 60000;
