@@ -49,3 +49,6 @@ discrete math:
 now:
  vectors
  derivatives/integration
+ Hadamard product
+ dot/inner product
+ unit circle
