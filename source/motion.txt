@@ -11,5 +11,9 @@ f(t)   = position     = 5t^2 + 2t + 3
 f'(t)  = velocity     = 10t + 2
 f''(t) = acceleration = 10
 
+t = delta time between frames
+p = initial position
+
 p' = (1/2) * at^2 + vt + p 
 v' = at + v
+a = 10

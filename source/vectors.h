@@ -105,4 +105,14 @@ bool is_zero_v2(v2 a)
     bool result = a.x == 0 && a.y == 0;
     return result;
 }
+
+inline
+f32 inner(v2 a, v2 b) {
+    f32 result;
+    
+    result = a.x * b.x + a.y * b.y;
+    
+    return result;
+}
+
 #endif //MATH_H

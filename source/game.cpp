@@ -641,20 +641,20 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     
     // move player
     {
-        Tile_map_position new_player_pos = game_state->player_pos;
-        
         if (player_acceleration_dd.x && player_acceleration_dd.y) {
             player_acceleration_dd *= 0.7071f;
         }
         
-        f32 move_speed = 15.0f;
+        f32 move_speed = 25.0f;
         
         if (shift_was_pressd)
-            move_speed = 50;
+            move_speed = 100;
         
         player_acceleration_dd *= move_speed;
         
-        player_acceleration_dd += -2.75f * game_state->player_velocity_d;
+        player_acceleration_dd += -5.0f * game_state->player_velocity_d;
+        
+        Tile_map_position new_player_pos = game_state->player_pos;
         
         // p' = (1/2) * at^2 + vt + p
         new_player_pos.offset = 
@@ -675,17 +675,55 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         player_right.offset.x += (player_width / 2);
         player_right = recanonicalize_position(tile_map, player_right);
         
-        if (is_world_point_empty(tile_map, new_player_pos) &&
-            is_world_point_empty(tile_map, player_left) &&
-            is_world_point_empty(tile_map, player_right)) {
+        bool collided = false;
+        Tile_map_position collision_pos = {0, 0};
+        
+        if (!is_world_point_empty(tile_map, new_player_pos)) {
+            collision_pos = new_player_pos;
+            collided = true;
+        }
+        
+        if (!is_world_point_empty(tile_map, player_left)) {
+            collision_pos = player_left;
+            collided = true;
+        }
+        
+        if (!is_world_point_empty(tile_map, player_right)) {
+            collision_pos = player_right;
+            collided = true;
+        }
+        
+        if (collided) {
+            // wall
+            v2 r = {0, 0};
+            if (collision_pos.absolute_tile_x < game_state->player_pos.absolute_tile_x) {
+                r = v2 {1, 0};
+            }
             
+            if (collision_pos.absolute_tile_x > game_state->player_pos.absolute_tile_x) {
+                r = v2 {-1, 0};
+            }
+            
+            if (collision_pos.absolute_tile_y < game_state->player_pos.absolute_tile_y) {
+                r = v2 {0, 1};
+            }
+            
+            if (collision_pos.absolute_tile_y > game_state->player_pos.absolute_tile_y) {
+                r = v2 {0, -1};
+            }
+            
+            //v' = v - 2v`r * r
+            v2 v = game_state->player_velocity_d;
+            game_state->player_velocity_d = v - 1 * inner(v, r) * r;
+        }
+        else {
             if (!are_on_same_tile(&game_state->player_pos, &new_player_pos)) {
                 u32 tile_value = get_tile_value(tile_map, new_player_pos);
-                // door up
-                if (tile_value == 3) {
+                
+                if (tile_value == 3) { // door up
                     new_player_pos.absolute_tile_z++;
                 }
-                else if(tile_value == 4) {
+                else if(tile_value == 4) { // door down
                     new_player_pos.absolute_tile_z--;
                 }
             }
