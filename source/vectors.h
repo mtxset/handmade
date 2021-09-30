@@ -115,4 +115,22 @@ f32 inner(v2 a, v2 b) {
     return result;
 }
 
+inline
+f32 length_squared_v2(v2 a) {
+    f32 result;
+    
+    result = inner(a, a);
+    
+    return result;
+}
+
+inline
+v2 perpendicular_v2(v2 a) {
+    v2 result;
+    
+    result = { -a.y, a.x };
+    
+    return result;
+}
+
 #endif //MATH_H

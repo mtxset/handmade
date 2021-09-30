@@ -132,6 +132,97 @@ void debug_read_and_write_random_file() {
     }
 }
 
+
+internal
+void draw_pixel(Game_bitmap_buffer* bitmap_buffer, v2 pos, v3 color) {
+    v2 end = { pos.x + 1.0f, pos.y + 1.0f };
+    
+    draw_rect(bitmap_buffer, pos, end, color);
+}
+
+internal
+void draw_circle(Game_bitmap_buffer* bitmap_buffer, v2 start, f32 radius, v3 color) {
+    v2 screen_center = { 
+        (f32)bitmap_buffer->width / 2,
+        (f32)bitmap_buffer->height / 2 
+    };
+    
+    start.y = -start.y;
+    
+    // y = sin (angle) * r
+    // x = cos (angle) * r
+    for (f32 angle = 0; angle < 360; angle++) {
+        v2 v = { 
+            cos(angle) * radius, 
+            sin(angle) * radius 
+        };
+        draw_pixel(bitmap_buffer, v + screen_center + start, color);
+    }
+    
+}
+
+internal
+void draw_line(Game_bitmap_buffer* bitmap_buffer, v2 start, v2 end, v3 color) {
+    v2 screen_center = { 
+        (f32)bitmap_buffer->width / 2,
+        (f32)bitmap_buffer->height / 2 
+    };
+    
+    start.y = -start.y;
+    end.y = -end.y;
+    
+    start += screen_center;
+    end += screen_center;
+    
+    f32 m = (end.y - start.y) / (end.x - start.x);
+    // m - slope
+    // b - intercept
+    
+    // y - y1 = m(x - x1)
+    // y = m(x - x1) + y1
+    v2 vector = end - start;
+    
+    // sqrt(x^2 + y^2)
+    f32 vector_len = (f32)sqrt(square(vector.x) + square(vector.y));
+    
+    if (end.x > start.x) {
+        for (f32 x = start.x; x <= end.x; x += 0.1f) {
+            f32 y = m * (x - start.x) + start.y;
+            v2 pixel = { x, y };
+            draw_pixel(bitmap_buffer, pixel, color);
+        }
+    }
+    else {
+        for (f32 x = start.x; x >= end.x; x -= 0.1f) {
+            f32 y = m * (x - start.x) + start.y;
+            v2 pixel = { x, y };
+            draw_pixel(bitmap_buffer, pixel, color);
+        }
+    }
+}
+
+internal
+void vectors_update(Game_bitmap_buffer* bitmap_buffer, Game_state* state, Game_input* input) {
+    clear_screen(bitmap_buffer, color_gray_byte);
+    
+    f32 x = 100;
+    
+    v2 red_vec   = { x, x };
+    v2 green_vec = { -x, x };
+    v2 blue_vec  = { -x, -x };
+    v2 white_vec = { x, -x };
+    
+    v2 vec = white_vec;
+    
+    draw_line(bitmap_buffer, { 0, 0 }, vec, red_v3);
+    draw_line(bitmap_buffer, { 0, 0 }, perpendicular_v2(vec), green_v3);
+    
+    draw_circle(bitmap_buffer, { 50, 50 }, 100.0f, blue_v3);
+    //draw_line(bitmap_buffer, { 0, 0 }, green_vec, green_v3);
+    //draw_line(bitmap_buffer, { 0, 0 }, blue_vec, blue_v3);
+    //draw_line(bitmap_buffer, { 0, 0 }, white_vec, white_v3);
+}
+
 internal
 void drops_update(Game_bitmap_buffer* bitmap_buffer, Game_state* state, Game_input* input) {
     
@@ -585,6 +676,8 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     macro_assert(world);
     macro_assert(tile_map);
     
+    Tile_map_position old_player_pos = game_state->player_pos;
+    
     // check input
     v2 player_acceleration_dd = {};
     bool shift_was_pressd = false;
@@ -656,17 +749,18 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         
         Tile_map_position new_player_pos = game_state->player_pos;
         
-        // p' = (1/2) * at^2 + vt + p
-        new_player_pos.offset = 
+        // p' = (1/2) * at^2 + vt + ..
+        v2 player_delta =
             0.5f * player_acceleration_dd * square(input->time_delta) + 
-            game_state->player_velocity_d * input->time_delta +
-            new_player_pos.offset;
+            game_state->player_velocity_d * input->time_delta;
+        // p' = ... + p
+        new_player_pos.offset += player_delta;
         
         // v' = at + v
         game_state->player_velocity_d = player_acceleration_dd * input->time_delta + game_state->player_velocity_d;
         
         new_player_pos = recanonicalize_position(tile_map, new_player_pos);
-        
+#if 1
         Tile_map_position player_left = new_player_pos;
         player_left.offset.x -= (player_width / 2);
         player_left = recanonicalize_position(tile_map, player_left);
@@ -712,23 +806,76 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 r = v2 {0, -1};
             }
             
-            //v' = v - 2v`r * r
+            //v' = v - 2*dot(v,r) * r
             v2 v = game_state->player_velocity_d;
+            // game_state->player_velocity_d = v - 2 * inner(v, r) * r; // reflection
             game_state->player_velocity_d = v - 1 * inner(v, r) * r;
         }
         else {
-            if (!are_on_same_tile(&game_state->player_pos, &new_player_pos)) {
-                u32 tile_value = get_tile_value(tile_map, new_player_pos);
-                
-                if (tile_value == 3) { // door up
-                    new_player_pos.absolute_tile_z++;
-                }
-                else if(tile_value == 4) { // door down
-                    new_player_pos.absolute_tile_z--;
-                }
-            }
-            
             game_state->player_pos = new_player_pos;
+        }
+#else
+        
+        u32 min_tile_x = 0;
+        u32 min_tile_y = 0;
+        u32 one_past_max_tile_x = 0;
+        u32 one_past_max_tile_y = 0;
+        u32 abs_tile_z = 0;
+        Tile_map_position best_point = game_state->player_pos;
+        f32 best_distance_squared = length_squared_v2(player_delta);
+        
+        for (u32 abs_tile_y = 0; abs_tile_y != one_past_max_tile_y; abs_tile_y++) {
+            for (u32 abs_tile_x = 0; abs_tile_x != one_past_max_tile_x; abs_tile_x++) {
+                
+                Tile_map_position test_tile_pos = centered_tile_point(abs_tile_x, abs_tile_y, abs_tile_z);
+                u32 tile_value = get_tile_value(tile_map, test_tile_pos);
+                
+                if (!is_tile_map_empty(tile_value))
+                    continue;
+                
+                // assumption: compiler knows these values (min/max_coner) are not using anything from loop so it can pull it out
+                v2 min_corner = -0.5f * v2 { tile_map->tile_side_meters, tile_map->tile_side_meters };
+                v2 max_corner =  0.5f * v2 { tile_map->tile_side_meters, tile_map->tile_side_meters };
+                
+                Tile_map_diff rel_new_player_pos = subtract_pos(tile_map, &test_tile_pos, &new_player_pos);
+                
+                v2 test_point = closest_point_in_rect(min_corner, max_corner, rel_new_player_pos);
+                
+                test_distance_squared = ;
+                
+                if (best_distance_squared > test_distance_squared) {
+                    best_point = ;
+                    best_distance_squared = ;
+                }
+                
+            }
+        }
+#endif
+        
+#if 0
+        char buffer[256];
+        _snprintf_s(buffer, sizeof(buffer), "tile(x,y): %u, %u; relative(x,y): %f, %f\n", 
+                    game_state->player_pos.absolute_tile_x, game_state->player_pos.absolute_tile_y,
+                    game_state->player_pos.offset_x, game_state->player_pos.offset_y);
+        OutputDebugStringA(buffer);
+#endif
+    }
+    
+    
+    
+    
+    
+    // update camera and player z
+    {
+        if (!are_on_same_tile(&old_player_pos, &game_state->player_pos)) {
+            u32 tile_value = get_tile_value(tile_map, game_state->player_pos);
+            
+            if (tile_value == 3) { // door up
+                game_state->player_pos.absolute_tile_z++;
+            }
+            else if(tile_value == 4) { // door down
+                game_state->player_pos.absolute_tile_z--;
+            }
         }
         
         game_state->camera_pos.absolute_tile_z = game_state->player_pos.absolute_tile_z;
@@ -746,14 +893,6 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         
         if (diff.xy.y < -(5.0f * tile_map->tile_side_meters))
             game_state->camera_pos.absolute_tile_y -= 9;
-        
-#if 0
-        char buffer[256];
-        _snprintf_s(buffer, sizeof(buffer), "tile(x,y): %u, %u; relative(x,y): %f, %f\n", 
-                    game_state->player_pos.absolute_tile_x, game_state->player_pos.absolute_tile_y,
-                    game_state->player_pos.offset_x, game_state->player_pos.offset_y);
-        OutputDebugStringA(buffer);
-#endif
     }
     
     // draw background
@@ -764,7 +903,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     f32 screen_center_x = (f32)bitmap_buffer->width / 2;
     f32 screen_center_y = (f32)bitmap_buffer->height / 2;
     
-    // draw tiles
+    // render tiles
     {
         v3 color_wall     = { .0f, .5f, 1.0f };
         v3 color_empty    = { .3f, .3f, 1.0f };
@@ -785,7 +924,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                         color = color_wall;
                     
                     if (tile_id > 2) // stairs
-                        color = COLOR_GOLD;
+                        color = gold_v3;
                     
                     if (row == game_state->camera_pos.absolute_tile_y && col == game_state->camera_pos.absolute_tile_x) {
                         color = color_occupied;
@@ -832,12 +971,17 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         Hero_bitmaps* hero_bitmap = &game_state->hero_bitmaps[game_state->hero_facing_direction];
         draw_bitmap(bitmap_buffer, &hero_bitmap->hero_body, player_ground_point, hero_bitmap->align);
     }
+    
 #if 0
     subpixel_test_udpdate(bitmap_buffer, game_state, input, COLOR_GOLD);
 #endif
     
 #if 0
     drops_update(bitmap_buffer, game_state, input);
+#endif
+    
+#if 0
+    vectors_update(bitmap_buffer, game_state, input);
 #endif
 }
 

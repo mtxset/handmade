@@ -130,21 +130,21 @@ struct Loaded_bmp {
     u32* pixels;
 };
 
+// struct is from: https://www.fileformat.info/format/bmp/egff.htm
 // preventing compiler padding this struct
-// https://www.fileformat.info/format/bmp/egff.htm
 #pragma pack(push, 1)
 struct Bitmap_header {
     u16 FileType;        /* File type, always 4D42h ("BM") */
-	u32 FileSize;        /* Size of the file in bytes */
-	u16 Reserved1;       /* Always 0 */
-	u16 Reserved2;       /* Always 0 */
-	u32 BitmapOffset;    /* Starting position of image data in bytes */
+    u32 FileSize;        /* Size of the file in bytes */
+    u16 Reserved1;       /* Always 0 */
+    u16 Reserved2;       /* Always 0 */
+    u32 BitmapOffset;    /* Starting position of image data in bytes */
     
     u32 Size;            /* Size of this header in bytes */
     i32 Width;           /* Image width in pixels */
     i32 Height;          /* Image height in pixels */
-	u16 Planes;          /* Number of color planes */
-	u16 BitsPerPixel;    /* Number of bits per pixel */
+    u16 Planes;          /* Number of color planes */
+    u16 BitsPerPixel;    /* Number of bits per pixel */
     u32 Compression;     /* Compression methods used */
     u32 SizeOfBitmap;    /* Size of bitmap in bytes */
     i32 HorzResolution;  /* Horizontal resolution in pixels per meter */
