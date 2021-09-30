@@ -101,4 +101,32 @@ f32 square(f32 value) {
     return result;
 }
 
+inline
+f32 absolute(f32 value) {
+    f32 result;
+    
+    // fabsf casts double to float
+    result = (f32)fabs(value);
+    
+    return result;
+}
+
+inline
+u32 rotate_left(u32 value, i32 shift) {
+    u32 result;
+    
+    result = _rotl(value, shift);
+    
+    return result;
+}
+
+inline
+u32 rotate_right(u32 value, i32 shift) {
+    u32 result;
+    
+    result = _rotr(value, shift);
+    
+    return result;
+}
+
 #endif //INTRINSICS_H
