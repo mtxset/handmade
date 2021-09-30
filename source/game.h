@@ -163,18 +163,29 @@ struct Hero_bitmaps {
     Loaded_bmp hero_body;
 };
 
+struct Entity {
+    bool exists;
+    Tile_map_position position;
+    v2 velocity_d;
+    u32 facing_direction;
+    f32 width;
+    f32 height;
+};
+
 struct Game_state {
     Memory_arena world_arena;
     World* world;
     Tile_map_position camera_pos;
     f32 t_sine;
     
-    Tile_map_position player_pos;
-    v2 player_velocity_d;
+    u32 player_index_for_controller[macro_array_count(((Game_input*)0)->gamepad)]; // @disgusting
+    u32 entity_count;
+    Entity entity_list[256];
     
     Loaded_bmp background;
     
-    u32 hero_facing_direction;
+    u32 following_entity_index;
+    
     Hero_bitmaps hero_bitmaps[4];
 #if 0
     Pacman_state pacman_state;
