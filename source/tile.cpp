@@ -54,7 +54,7 @@ Tile_chunk_position get_chunk_position_for(Tile_map* tile_map, u32 absolute_tile
     return result;
 }
 
-internal
+inline
 u32 get_tile_value(Tile_map* tile_map, Tile_chunk* tile_chunk, u32 tile_x, u32 tile_y) {
     u32 result = 0;
     
@@ -66,7 +66,7 @@ u32 get_tile_value(Tile_map* tile_map, Tile_chunk* tile_chunk, u32 tile_x, u32 t
     return result;
 }
 
-internal
+inline
 u32 get_tile_value(Tile_map* tile_map, u32 tile_abs_x, u32 tile_abs_y, u32 tile_abs_z) {
     u32 result = 0;
     
@@ -78,7 +78,7 @@ u32 get_tile_value(Tile_map* tile_map, u32 tile_abs_x, u32 tile_abs_y, u32 tile_
     return result;
 }
 
-internal
+inline
 u32 get_tile_value(Tile_map* tile_map, Tile_map_position tile_pos) {
     
     u32 result = get_tile_value(tile_map, tile_pos.absolute_tile_x, tile_pos.absolute_tile_y, tile_pos.absolute_tile_z);
@@ -95,12 +95,21 @@ void set_tile_value(Tile_map* tile_map, Tile_chunk* tile_chunk, u32 tile_x, u32 
 }
 
 internal
+bool is_tile_map_empty(u32 tile_value) {
+    bool result = false;
+    
+    result = (tile_value == 1 || tile_value == 3 || tile_value == 4);
+    
+    return result;
+}
+
+internal
 bool is_world_point_empty(Tile_map* tile_map, Tile_map_position tile_pos) {
     bool result = false;
     
     u32 tile_chunk_value = get_tile_value(tile_map, tile_pos);
     
-    result = (tile_chunk_value == 1 || tile_chunk_value == 3 || tile_chunk_value == 4);
+    result = is_tile_map_empty(tile_chunk_value);
     
     return result;
 }
@@ -163,6 +172,17 @@ Tile_map_diff subtract_pos(Tile_map* tile_map, Tile_map_position* pos_a, Tile_ma
     result.xy = tile_map->tile_side_meters * delta_tile_xy + (pos_a->offset - pos_b->offset);
     
     result.z = tile_map->tile_side_meters * delta_tile_z;
+    
+    return result;
+}
+
+Tile_map_position centered_tile_point(u32 absolute_tile_x, u32 absolute_tile_y, u32 absolute_tile_z) {
+    
+    Tile_map_position result = {};
+    
+    result.absolute_tile_x = absolute_tile_x;
+    result.absolute_tile_y = absolute_tile_y;
+    result.absolute_tile_z = absolute_tile_z;
     
     return result;
 }

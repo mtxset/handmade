@@ -1,5 +1,7 @@
 /* date = September 22nd 2021 11:02 am */
 
+// https://pemavirtualhub.wordpress.com/2016/06/20/opengl-color-codes/
+
 #ifndef COLOR_H
 #define COLOR_H
 
@@ -14,6 +16,11 @@ global_var const u32 color_gold_byte   = 0x00b48c06;
 global_var const u32 color_yellow_byte = 0x00ffff00;
 global_var const u32 color_gray_byte   = 0x0075787b;
 
-global_var const v3 COLOR_GOLD = { 1.0f, 0.8f, .0f };
+global_var const v3 red_v3    = { 1.0f, 0.0f, 0.0f };
+global_var const v3 green_v3  = { 0.0f, 1.0f, 0.0f };
+global_var const v3 blue_v3   = { 0.0f, 0.0f, 1.0f };
+global_var const v3 gold_v3   = { 1.0f, 0.8f, 0.0f };
+global_var const v3 white_v3  = { 1.0f, 1.0f, 1.0f };
+global_var const v3 yellow_v3 = { 1.0f, 1.0f, 0.0f };
 
 #endif //COLOR_H
