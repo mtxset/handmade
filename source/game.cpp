@@ -513,8 +513,10 @@ void move_player(Game_state* game_state, Entity* entity, v2 player_acceleration_
     
     Tile_map* tile_map = game_state->world->tile_map;
     
-    if (player_acceleration_dd.x && player_acceleration_dd.y) {
-        player_acceleration_dd *= 0.7071f;
+    f32 accelecation_dd_length = length_squared_v2(player_acceleration_dd);
+    
+    if (accelecation_dd_length > 1.0f) {
+        player_acceleration_dd *= 1.0f / square_root(accelecation_dd_length);
     }
     
     f32 move_speed = 50.0f;
@@ -595,13 +597,14 @@ void move_player(Game_state* game_state, Entity* entity, v2 player_acceleration_
     }
 #else
     // search in p
-    u32 min_tile_x = 0;
-    u32 min_tile_y = 0;
-    u32 one_past_max_tile_x = 0;
-    u32 one_past_max_tile_y = 0;
-    u32 abs_tile_z = 0;
-    Tile_map_position best_point = entity->position;
-    f32 best_distance_squared = length_squared_v2(player_delta);
+    u32 min_tile_x          = min(old_player_pos.abs_tile_x, new_player_pos.abs_tile_x);
+    u32 min_tile_y          = min(old_player_pos.abs_tile_y, new_player_pos.abs_tile_y);
+    
+    u32 one_past_max_tile_x = max(old_player_pos.abs_tile_x, new_player_pos.abs_tile_x) + 1;
+    u32 one_past_max_tile_y = max(old_player_pos.abs_tile_y, new_player_pos.abs_tile_y) + 1;
+    
+    u32 abs_tile_z = entity->position.abs_tile_z;
+    f32 time_min = 1.0f;
     
     for (u32 abs_tile_y = 0; abs_tile_y != one_past_max_tile_y; abs_tile_y++) {
         for (u32 abs_tile_x = 0; abs_tile_x != one_past_max_tile_x; abs_tile_x++) {
@@ -609,24 +612,19 @@ void move_player(Game_state* game_state, Entity* entity, v2 player_acceleration_
             Tile_map_position test_tile_pos = centered_tile_point(abs_tile_x, abs_tile_y, abs_tile_z);
             u32 tile_value = get_tile_value(tile_map, test_tile_pos);
             
-            if (!is_tile_map_empty(tile_value))
+            if (is_tile_map_empty(tile_value))
                 continue;
             
             // assumption: compiler knows these values (min/max_coner) are not using anything from loop so it can pull it out
             v2 min_corner = -0.5f * v2 { tile_map->tile_side_meters, tile_map->tile_side_meters };
             v2 max_corner =  0.5f * v2 { tile_map->tile_side_meters, tile_map->tile_side_meters };
             
-            Tile_map_diff rel_new_player_pos = subtract_pos(tile_map, &test_tile_pos, &new_player_pos);
+            Tile_map_diff rel_new_player_diff = subtract_pos(tile_map, &test_tile_pos, &new_player_pos);
+            v2 rel_new_player_pos = rel_new_player_diff.xy;
             
-            v2 test_point = closest_point_in_rect(min_corner, max_corner, rel_new_player_pos);
+            t_result = (wall_x - rel_new_player_pos.x) / player_delta.x;
             
-            test_distance_squared = ;
-            
-            if (best_distance_squared > test_distance_squared) {
-                best_point = ;
-                best_distance_squared = ;
-            }
-            
+            test_wall(min_corner.x, min_corner.y, max_corner.y, rel_new_player_pos.x);
         }
     }
     

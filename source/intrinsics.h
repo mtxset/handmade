@@ -102,6 +102,15 @@ f32 square(f32 value) {
 }
 
 inline
+f32 square_root(f32 value) {
+    f32 result;
+    
+    result = sqrtf(value);
+    
+    return result;
+}
+
+inline
 f32 absolute(f32 value) {
     f32 result;
     
