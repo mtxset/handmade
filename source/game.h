@@ -13,8 +13,8 @@ struct Game_bitmap_buffer {
     i32 height;
     i32 pitch;
     i32 bytes_per_pixel;
-    i32 window_width;
-    i32 window_height;
+    u32 window_width;
+    u32 window_height;
 };
 
 struct Game_sound_buffer {
@@ -118,6 +118,11 @@ struct Pacman_state {
     bool can_move;
 };
 
+struct Each_monitor_pixel {
+    f32 x, y;
+    f32 timer;
+};
+
 struct Subpixel_test {
     f32 pixel_timer;
     f32 transition_state;
@@ -192,6 +197,8 @@ struct Game_state {
 #endif
     
     Subpixel_test subpixels;
+    
+    Each_monitor_pixel monitor_pixels;
     
     i32 drop_index;
     drop drops[32];

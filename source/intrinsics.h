@@ -11,6 +11,15 @@ struct Bit_scan_result {
     u32 index;
 };
 
+inline
+i32 sign_of(i32 value) {
+    i32 result;
+    
+    result = value >= 0 ? 1 : -1;
+    
+    return result;
+}
+
 i32 round_f32_i32(f32 value) {
     i32 result;
     

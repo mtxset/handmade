@@ -224,6 +224,29 @@ void vectors_update(Game_bitmap_buffer* bitmap_buffer, Game_state* state, Game_i
 }
 
 internal
+void each_pixel(Game_bitmap_buffer* bitmap_buffer, Game_state* state, f32 time_delta) {
+    clear_screen(bitmap_buffer, color_black_byte);
+    
+    Each_monitor_pixel* pixel_state = &state->monitor_pixels;
+    
+    if ((pixel_state->timer += time_delta) > 0.01f) {
+        pixel_state->timer = 0;
+        pixel_state->x++;
+        
+        if (pixel_state->x > bitmap_buffer->window_width) {
+            pixel_state->x = 0;
+            pixel_state->y++;
+        }
+        
+        if (pixel_state->y > bitmap_buffer->window_height) {
+            pixel_state->x = 0;
+            pixel_state->y = 0;
+        }
+    }
+    draw_pixel(bitmap_buffer, v2 { pixel_state->x, pixel_state->y }, red_v3);
+}
+
+internal
 void drops_update(Game_bitmap_buffer* bitmap_buffer, Game_state* state, Game_input* input) {
     
     // draw mouse pointer
@@ -499,8 +522,8 @@ void init_player(Game_state* game_state, u32 entity_index) {
     entity->position.absolute_tile_y = 4;
     entity->position.absolute_tile_z = 0;
     
-    entity->position.offset.x = 0;
-    entity->position.offset.y = 0;
+    entity->position._offset.x = 0;
+    entity->position._offset.y = 0;
     entity->height = .9f;
     entity->width  = .7f;
     
@@ -553,10 +576,8 @@ void move_player(Game_state* game_state, Entity* entity, v2 player_acceleration_
     // v' = at + v
     entity->velocity_d = player_acceleration_dd * time_delta + entity->velocity_d;
     
-    Tile_map_position new_player_pos = old_player_pos;
     // p' = ... + p
-    new_player_pos.offset += player_delta;
-    new_player_pos = recanonicalize_position(tile_map, new_player_pos);
+    Tile_map_position new_player_pos = offset(tile_map, old_player_pos, player_delta);
 #if 0
     Tile_map_position player_left = new_player_pos;
     player_left.offset.x -= entity->width/ 2;
@@ -615,43 +636,62 @@ void move_player(Game_state* game_state, Entity* entity, v2 player_acceleration_
     // search in p
     {
         // create our "bounding" rectangle
+#if 0
         u32 min_tile_x          = min(old_player_pos.absolute_tile_x, new_player_pos.absolute_tile_x);
         u32 min_tile_y          = min(old_player_pos.absolute_tile_y, new_player_pos.absolute_tile_y);
         
         u32 one_past_max_tile_x = max(old_player_pos.absolute_tile_x, new_player_pos.absolute_tile_x) + 1;
         u32 one_past_max_tile_y = max(old_player_pos.absolute_tile_y, new_player_pos.absolute_tile_y) + 1;
+#else
+        u32 start_tile_x = old_player_pos.absolute_tile_x;
+        u32 start_tile_y = old_player_pos.absolute_tile_y;
+        
+        u32 end_tile_x = new_player_pos.absolute_tile_x;
+        u32 end_tile_y = new_player_pos.absolute_tile_y;
+        
+        i32 delta_x = sign_of(end_tile_x - start_tile_x);
+        i32 delta_y = sign_of(end_tile_y - start_tile_y);
+#endif
         
         u32 abs_tile_z = entity->position.absolute_tile_z;
         f32 t_min = 1.0f;
         
         // go through all tiles around
-        for (u32 abs_tile_y = min_tile_y; abs_tile_y != one_past_max_tile_y; abs_tile_y++) {
-            for (u32 abs_tile_x = min_tile_x; abs_tile_x != one_past_max_tile_x; abs_tile_x++) {
+        u32 abs_tile_y = start_tile_y;
+        for (;;) {
+            u32 abs_tile_x = start_tile_x;
+            for (;;) {
                 Tile_map_position test_tile_pos = centered_tile_point(abs_tile_x, abs_tile_y, abs_tile_z);
                 u32 tile_value = get_tile_value(tile_map, test_tile_pos);
                 
-                if (is_tile_map_empty(tile_value))
-                    continue;
+                if (!is_tile_map_empty(tile_value)) {
+                    // assumption: compiler knows these values (min/max_coner) are not using anything from loop so it can pull it out
+                    v2 min_corner = -0.5f * v2 { tile_map->tile_side_meters, tile_map->tile_side_meters };
+                    v2 max_corner =  0.5f * v2 { tile_map->tile_side_meters, tile_map->tile_side_meters };
+                    
+                    Tile_map_diff rel_old_player_diff = subtract_pos(tile_map, &old_player_pos, &test_tile_pos);
+                    v2 rel = rel_old_player_diff.xy;
+                    
+                    test_wall(min_corner.x, rel.x, rel.y, player_delta.x, player_delta.y, &t_min, min_corner.y, max_corner.y);
+                    test_wall(max_corner.x, rel.x, rel.y, player_delta.x, player_delta.y, &t_min, min_corner.y, max_corner.y);
+                    
+                    test_wall(min_corner.y, rel.y, rel.x, player_delta.y, player_delta.x, &t_min, min_corner.x, max_corner.x);
+                    test_wall(max_corner.y, rel.y, rel.x, player_delta.y, player_delta.x, &t_min, min_corner.x, max_corner.x);
+                }
                 
-                // assumption: compiler knows these values (min/max_coner) are not using anything from loop so it can pull it out
-                v2 min_corner = -0.5f * v2 { tile_map->tile_side_meters, tile_map->tile_side_meters };
-                v2 max_corner =  0.5f * v2 { tile_map->tile_side_meters, tile_map->tile_side_meters };
-                
-                Tile_map_diff rel_old_player_diff = subtract_pos(tile_map, &old_player_pos, &test_tile_pos);
-                v2 rel = rel_old_player_diff.xy;
-                
-                test_wall(min_corner.x, rel.x, rel.y, player_delta.x, player_delta.y, &t_min, min_corner.y, max_corner.y);
-                test_wall(max_corner.x, rel.x, rel.y, player_delta.x, player_delta.y, &t_min, min_corner.y, max_corner.y);
-                
-                test_wall(min_corner.y, rel.y, rel.x, player_delta.y, player_delta.x, &t_min, min_corner.x, max_corner.x);
-                test_wall(max_corner.y, rel.y, rel.x, player_delta.y, player_delta.x, &t_min, min_corner.x, max_corner.x);
+                if (abs_tile_x == end_tile_x)
+                    break;
+                else
+                    abs_tile_x += delta_x;
             }
+            
+            if (abs_tile_y == end_tile_y)
+                break;
+            else
+                abs_tile_y += delta_y;
         }
         
-        new_player_pos = old_player_pos;
-        new_player_pos.offset += t_min * player_delta;
-        entity->position = new_player_pos;
-        new_player_pos = recanonicalize_position(tile_map, new_player_pos);
+        entity->position = offset(tile_map, old_player_pos, t_min * player_delta);
     }
 #endif
     if (!are_on_same_tile(&old_player_pos, &entity->position)) {
@@ -784,8 +824,14 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
             u32 tile_chunk_array_size = tile_map->tile_chunk_count_x * tile_map->tile_chunk_count_y * tile_map->tile_chunk_count_z;
             tile_map->tile_chunks = push_array(&game_state->world_arena, tile_chunk_array_size, Tile_chunk);
             
+            // starting from the middle
+#if 0
+            u32 screen_x = INT32_MAX / 2;
+            u32 screen_y = INT32_MAX / 2;
+#else
             u32 screen_x = 0;
             u32 screen_y = 0;
+#endif
             
             u32 room_goes_horizontal = 1;
             u32 room_has_stairs = 2;
@@ -969,10 +1015,10 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         }
     }
     
+    clear_screen(bitmap_buffer, color_gray_byte);
+    
     // draw background
     draw_bitmap(bitmap_buffer, &game_state->background, v2 {0, 0});
-    
-    //clear_screen(bitmap_buffer, color_gray_byte);
     
     f32 screen_center_x = (f32)bitmap_buffer->width / 2;
     f32 screen_center_y = (f32)bitmap_buffer->height / 2;
@@ -1006,8 +1052,8 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                     
                     v2 half_tile_pixels = { 0.5f * tile_side_pixels, 0.5f * tile_side_pixels };
                     v2 center = { 
-                        screen_center_x - meters_to_pixels * game_state->camera_pos.offset.x + (f32)rel_col * tile_side_pixels,
-                        screen_center_y + meters_to_pixels * game_state->camera_pos.offset.y - (f32)rel_row * tile_side_pixels 
+                        screen_center_x - meters_to_pixels * game_state->camera_pos._offset.x + (f32)rel_col * tile_side_pixels,
+                        screen_center_y + meters_to_pixels * game_state->camera_pos._offset.y - (f32)rel_row * tile_side_pixels 
                     };
                     
                     v2 min = center - 0.9 * half_tile_pixels;
@@ -1055,7 +1101,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     }
     
 #if 0
-    subpixel_test_udpdate(bitmap_buffer, game_state, input, COLOR_GOLD);
+    subpixel_test_udpdate(bitmap_buffer, game_state, input, gold_v3);
 #endif
     
 #if 0
@@ -1064,6 +1110,10 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     
 #if 0
     vectors_update(bitmap_buffer, game_state, input);
+#endif
+    
+#if 0
+    each_pixel(bitmap_buffer, game_state, input->time_delta);
 #endif
 }
 
