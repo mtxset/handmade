@@ -1,5 +1,4 @@
-// https://youtu.be/rWpZLvbT02o?t=976
-
+// https://youtu.be/CIe8J9ScmRo?t=1768
 #include <stdio.h>
 #include <stdint.h>
 #include <windows.h>
@@ -739,8 +738,8 @@ i32 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLi
     i32 initial_window_width  = 960;
     i32 initial_window_height = 540;
 #if AR1610
-    initial_window_width  = 960;
-    initial_window_height = 600;
+    initial_window_width  = 960; // 2560
+    initial_window_height = 600; // 1080 
 #endif
     
     win32_resize_dib_section(&Global_backbuffer, initial_window_width, initial_window_height);

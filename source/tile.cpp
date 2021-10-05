@@ -128,8 +128,8 @@ Tile_map_position recanonicalize_position(Tile_map* tile_map, Tile_map_position 
     
     Tile_map_position result = pos;
     
-    recanonicalize_coord(tile_map, &result.absolute_tile_x, &result.offset.x);
-    recanonicalize_coord(tile_map, &result.absolute_tile_y, &result.offset.y);
+    recanonicalize_coord(tile_map, &result.absolute_tile_x, &result._offset.x);
+    recanonicalize_coord(tile_map, &result.absolute_tile_y, &result._offset.y);
     
     return result;
 }
@@ -170,7 +170,7 @@ Tile_map_diff subtract_pos(Tile_map* tile_map, Tile_map_position* pos_a, Tile_ma
     
     f32 delta_tile_z = (f32)pos_a->absolute_tile_z - (f32)pos_b->absolute_tile_z;
     
-    result.xy = tile_map->tile_side_meters * delta_tile_xy + (pos_a->offset - pos_b->offset);
+    result.xy = tile_map->tile_side_meters * delta_tile_xy + (pos_a->_offset - pos_b->_offset);
     
     result.z = tile_map->tile_side_meters * delta_tile_z;
     
@@ -186,4 +186,13 @@ Tile_map_position centered_tile_point(u32 absolute_tile_x, u32 absolute_tile_y, 
     result.absolute_tile_z = absolute_tile_z;
     
     return result;
+}
+
+internal
+Tile_map_position offset(Tile_map* tile_map, Tile_map_position pos, v2 offset) {
+    
+    pos._offset += offset;
+    pos = recanonicalize_position(tile_map, pos);
+    
+    return pos;
 }

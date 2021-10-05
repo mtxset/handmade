@@ -15,7 +15,7 @@ struct Tile_map_position {
     u32 absolute_tile_y;
     u32 absolute_tile_z;
     
-    v2 offset; 
+    v2 _offset; 
 };
 
 struct Tile_chunk {
