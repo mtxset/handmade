@@ -509,6 +509,23 @@ void init_player(Game_state* game_state, u32 entity_index) {
     }
 }
 
+void test_wall(f32 wall_x, f32 rel_x, f32 rel_y, f32 player_delta_x, f32 player_delta_y, f32* t_min, f32 min_y, f32 max_y) {
+    
+    f32 t_epsilon = 0.0001f;
+    
+    if (player_delta_x == 0.0f)
+        return;
+    
+    f32 t_result = (wall_x - rel_x) / player_delta_x;
+    f32 y = rel_y + t_result * player_delta_y;
+    
+    if (t_result >= 0.0f && *t_min > t_result) {
+        if (y >= min_y && y <= max_y) {
+            *t_min = max(0.0f, t_result - t_epsilon);
+        }
+    }
+}
+
 void move_player(Game_state* game_state, Entity* entity, v2 player_acceleration_dd, f32 time_delta) {
     
     Tile_map* tile_map = game_state->world->tile_map;
@@ -529,19 +546,18 @@ void move_player(Game_state* game_state, Entity* entity, v2 player_acceleration_
     player_acceleration_dd += -8.0f * entity->velocity_d;
     
     Tile_map_position old_player_pos = entity->position;
-    Tile_map_position new_player_pos = entity->position;
     
     // p' = (1/2) * at^2 + vt + ..
-    v2 player_delta =
-        0.5f * player_acceleration_dd * square(time_delta) + entity->velocity_d * time_delta;
-    // p' = ... + p
-    new_player_pos.offset += player_delta;
+    v2 player_delta = 0.5f * player_acceleration_dd * square(time_delta) + entity->velocity_d * time_delta;
     
     // v' = at + v
     entity->velocity_d = player_acceleration_dd * time_delta + entity->velocity_d;
     
+    Tile_map_position new_player_pos = old_player_pos;
+    // p' = ... + p
+    new_player_pos.offset += player_delta;
     new_player_pos = recanonicalize_position(tile_map, new_player_pos);
-#if 1
+#if 0
     Tile_map_position player_left = new_player_pos;
     player_left.offset.x -= entity->width/ 2;
     player_left = recanonicalize_position(tile_map, player_left);
@@ -597,37 +613,46 @@ void move_player(Game_state* game_state, Entity* entity, v2 player_acceleration_
     }
 #else
     // search in p
-    u32 min_tile_x          = min(old_player_pos.abs_tile_x, new_player_pos.abs_tile_x);
-    u32 min_tile_y          = min(old_player_pos.abs_tile_y, new_player_pos.abs_tile_y);
-    
-    u32 one_past_max_tile_x = max(old_player_pos.abs_tile_x, new_player_pos.abs_tile_x) + 1;
-    u32 one_past_max_tile_y = max(old_player_pos.abs_tile_y, new_player_pos.abs_tile_y) + 1;
-    
-    u32 abs_tile_z = entity->position.abs_tile_z;
-    f32 time_min = 1.0f;
-    
-    for (u32 abs_tile_y = 0; abs_tile_y != one_past_max_tile_y; abs_tile_y++) {
-        for (u32 abs_tile_x = 0; abs_tile_x != one_past_max_tile_x; abs_tile_x++) {
-            
-            Tile_map_position test_tile_pos = centered_tile_point(abs_tile_x, abs_tile_y, abs_tile_z);
-            u32 tile_value = get_tile_value(tile_map, test_tile_pos);
-            
-            if (is_tile_map_empty(tile_value))
-                continue;
-            
-            // assumption: compiler knows these values (min/max_coner) are not using anything from loop so it can pull it out
-            v2 min_corner = -0.5f * v2 { tile_map->tile_side_meters, tile_map->tile_side_meters };
-            v2 max_corner =  0.5f * v2 { tile_map->tile_side_meters, tile_map->tile_side_meters };
-            
-            Tile_map_diff rel_new_player_diff = subtract_pos(tile_map, &test_tile_pos, &new_player_pos);
-            v2 rel_new_player_pos = rel_new_player_diff.xy;
-            
-            t_result = (wall_x - rel_new_player_pos.x) / player_delta.x;
-            
-            test_wall(min_corner.x, min_corner.y, max_corner.y, rel_new_player_pos.x);
+    {
+        // create our "bounding" rectangle
+        u32 min_tile_x          = min(old_player_pos.absolute_tile_x, new_player_pos.absolute_tile_x);
+        u32 min_tile_y          = min(old_player_pos.absolute_tile_y, new_player_pos.absolute_tile_y);
+        
+        u32 one_past_max_tile_x = max(old_player_pos.absolute_tile_x, new_player_pos.absolute_tile_x) + 1;
+        u32 one_past_max_tile_y = max(old_player_pos.absolute_tile_y, new_player_pos.absolute_tile_y) + 1;
+        
+        u32 abs_tile_z = entity->position.absolute_tile_z;
+        f32 t_min = 1.0f;
+        
+        // go through all tiles around
+        for (u32 abs_tile_y = min_tile_y; abs_tile_y != one_past_max_tile_y; abs_tile_y++) {
+            for (u32 abs_tile_x = min_tile_x; abs_tile_x != one_past_max_tile_x; abs_tile_x++) {
+                Tile_map_position test_tile_pos = centered_tile_point(abs_tile_x, abs_tile_y, abs_tile_z);
+                u32 tile_value = get_tile_value(tile_map, test_tile_pos);
+                
+                if (is_tile_map_empty(tile_value))
+                    continue;
+                
+                // assumption: compiler knows these values (min/max_coner) are not using anything from loop so it can pull it out
+                v2 min_corner = -0.5f * v2 { tile_map->tile_side_meters, tile_map->tile_side_meters };
+                v2 max_corner =  0.5f * v2 { tile_map->tile_side_meters, tile_map->tile_side_meters };
+                
+                Tile_map_diff rel_old_player_diff = subtract_pos(tile_map, &old_player_pos, &test_tile_pos);
+                v2 rel = rel_old_player_diff.xy;
+                
+                test_wall(min_corner.x, rel.x, rel.y, player_delta.x, player_delta.y, &t_min, min_corner.y, max_corner.y);
+                test_wall(max_corner.x, rel.x, rel.y, player_delta.x, player_delta.y, &t_min, min_corner.y, max_corner.y);
+                
+                test_wall(min_corner.y, rel.y, rel.x, player_delta.y, player_delta.x, &t_min, min_corner.x, max_corner.x);
+                test_wall(max_corner.y, rel.y, rel.x, player_delta.y, player_delta.x, &t_min, min_corner.x, max_corner.x);
+            }
         }
+        
+        new_player_pos = old_player_pos;
+        new_player_pos.offset += t_min * player_delta;
+        entity->position = new_player_pos;
+        new_player_pos = recanonicalize_position(tile_map, new_player_pos);
     }
-    
 #endif
     if (!are_on_same_tile(&old_player_pos, &entity->position)) {
         u32 tile_value = get_tile_value(tile_map, entity->position);
@@ -985,8 +1010,8 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                         screen_center_y + meters_to_pixels * game_state->camera_pos.offset.y - (f32)rel_row * tile_side_pixels 
                     };
                     
-                    v2 min = center - half_tile_pixels;
-                    v2 max = center + half_tile_pixels;
+                    v2 min = center - 0.9 * half_tile_pixels;
+                    v2 max = center + 0.9 * half_tile_pixels;
                     
                     draw_rect(bitmap_buffer, min, max, color);
                 }
