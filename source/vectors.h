@@ -3,6 +3,8 @@
 #ifndef MATH_H
 #define MATH_H
 
+#include "intrinsics.h"
+
 union v2 {
     struct {
         f32 x, y;
@@ -125,10 +127,51 @@ f32 length_squared_v2(v2 a) {
 }
 
 inline
+f32 length_v2(v2 a) {
+    f32 result;
+    
+    f32 dot = inner(a, a);
+    result = square_root(dot);
+    
+    return result;
+}
+
+inline
 v2 perpendicular_v2(v2 a) {
     v2 result;
     
     result = { -a.y, a.x };
+    
+    return result;
+}
+
+inline
+f32 arctan(f32 value) {
+    f32 result; 
+    
+    result = (f32)atan(value);
+    
+    return result;
+}
+
+inline
+u32 quadrant_v2(v2 a) {
+    u32 result = 0;
+    
+    if      (a.x >= 0 && a.y >= 0) {
+        result = 1;
+    }
+    else if (a.x < 0 && a.y >= 0) {
+        result = 2;
+    }
+    else if (a.x < 0 && a.y < 0) {
+        result = 3;
+    }
+    else if (a.x >= 0 && a.y < 0) {
+        result = 4;
+    }
+    
+    macro_assert(result > 0 && result < 5);
     
     return result;
 }

@@ -1,4 +1,4 @@
-// https://youtu.be/CIe8J9ScmRo?t=1768
+// https://www.youtube.com/watch?v=_g8DLrNyVsQ
 #include <stdio.h>
 #include <stdint.h>
 #include <windows.h>
@@ -26,7 +26,7 @@
 ...
 */
 
-// if for recording of input and gamestate we use disk this will allocate file of PERMANENT_MEMORY_SIZE_MB + TRANSIENT_MEMORY_SIZE_MB size, and that will hang game till it's allocated
+// if for recording of input and gamestate we use disk this will allocate file of PERMANENT_MEMORY_SIZE_MB + TRANSIENT_MEMORY_SIZE_MB size, and that will hang game till it's written
 global_var const i32           PERMANENT_MEMORY_SIZE_MB = 64;
 global_var const i32           TRANSIENT_MEMORY_SIZE_MB = 512;
 

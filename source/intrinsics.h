@@ -50,6 +50,15 @@ i32 truncate_f32_i32(f32 value) {
     return result;
 }
 
+inline
+i32 ceil_f32_i32(f32 value) {
+    i32 result;
+    
+    result = (i32)ceilf(value);
+    
+    return result;
+}
+
 i32 floor_f32_i32(f32 value) {
     i32 result;
     
@@ -143,6 +152,15 @@ u32 rotate_right(u32 value, i32 shift) {
     u32 result;
     
     result = _rotr(value, shift);
+    
+    return result;
+}
+
+inline
+f32 rad_to_degrees(f32 value) {
+    f32 result;
+    
+    result = value * (180.0f / PI);
     
     return result;
 }
