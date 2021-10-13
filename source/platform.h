@@ -27,6 +27,4 @@
 #include <intrin.h>
 #endif
 
-
-
 #endif //PLATFORM_H
