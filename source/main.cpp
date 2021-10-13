@@ -1,4 +1,4 @@
-// https://www.youtube.com/watch?v=_g8DLrNyVsQ
+// https://youtu.be/RQUP4ql86k0?t=446
 #include <stdio.h>
 #include <stdint.h>
 #include <windows.h>
@@ -705,8 +705,6 @@ HWND create_default_window(LRESULT win32_window_processor, HINSTANCE current_ins
 }
 
 i32 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
-    
-    
     LARGE_INTEGER performance_freq, end_counter, last_counter, flip_wall_clock;
     QueryPerformanceFrequency(&performance_freq);
     Global_perf_freq = performance_freq.QuadPart;

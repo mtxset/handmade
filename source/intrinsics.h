@@ -95,7 +95,7 @@ inline
 Bit_scan_result find_least_significant_first_bit(u32 value) {
     Bit_scan_result result = {};
     
-#if 0
+#if COMPILER_MSVC
     result.found = (_BitScanForward((unsigned long*)&result.index, value) > 0);
 #else
     for (u32 i = 0; i < 32; i++) {
@@ -141,8 +141,13 @@ f32 absolute(f32 value) {
 inline
 u32 rotate_left(u32 value, i32 shift) {
     u32 result;
-    
+#if COMPILER_MSVC
     result = _rotl(value, shift);
+#else
+    // no idea
+    result &= 31;
+    result = value << shift | value >> (32 - shift);
+#endif
     
     return result;
 }
@@ -150,8 +155,13 @@ u32 rotate_left(u32 value, i32 shift) {
 inline
 u32 rotate_right(u32 value, i32 shift) {
     u32 result;
-    
+#if COMPILER_MSVC
     result = _rotr(value, shift);
+#else
+    // no idea
+    result &= 31;
+    result = value >> shift | value << (32 - shift);
+#endif
     
     return result;
 }
