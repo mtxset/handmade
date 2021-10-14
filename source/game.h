@@ -35,7 +35,7 @@ struct Game_controller_input {
     f32 stick_avg_y;
     
     union {
-        Game_button_state buttons[15];
+        Game_button_state buttons[16];
         struct {
             Game_button_state move_up;
             Game_button_state move_down;
@@ -53,6 +53,7 @@ struct Game_controller_input {
             Game_button_state box_or_x;
             
             Game_button_state shift;
+            Game_button_state action;
             
             Game_button_state start;
             // if assert fails increase buttons[x] by amount of new buttons, so total matches count of buttons in this struct
@@ -168,6 +169,12 @@ struct Hero_bitmaps {
     Loaded_bmp hero_body;
 };
 
+enum Entity_type {
+    Entity_type_null,
+    Entity_type_hero,
+    Entity_type_wall
+};
+
 enum Entity_residence {
     Entity_residence_none,
     Entity_residence_dormant,
@@ -176,10 +183,13 @@ enum Entity_residence {
 };
 
 struct High_entity {
-    bool exists;
     v2 position;
     v2 velocity_d;
+    u32 abs_tile_z;
     u32 facing_direction;
+    
+    f32 z;
+    f32 z_velocity_d;
 };
 
 struct Low_entity {
@@ -187,8 +197,13 @@ struct Low_entity {
 };
 
 struct Dormant_entity {
+    Entity_type type;
+    
     Tile_map_position position;
     f32 width, height;
+    
+    bool collides;
+    i32 d_abs_tile_z;
 };
 
 struct Entity {
