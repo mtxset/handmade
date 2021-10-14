@@ -1,4 +1,4 @@
-// https://youtu.be/RQUP4ql86k0?t=446
+//https://www.youtube.com/watch?v=TfZUAFh-WJg
 #include <stdio.h>
 #include <stdint.h>
 #include <windows.h>
@@ -468,13 +468,16 @@ void win32_handle_messages(Win32_state* win_state, Game_controller_input* keyboa
                 else if (vk_key == VK_RIGHT) {
                     win32_process_keyboard_input(&keyboard_input->right, is_down);
                 } 
+                else if (vk_key == VK_SPACE) {
+                    win32_process_keyboard_input(&keyboard_input->action, is_down);
+                } 
                 else if (vk_key == VK_ESCAPE) {
                     win32_process_keyboard_input(&keyboard_input->back, is_down);
                 } 
-                else if (vk_key == VK_SPACE) {
+                else if (vk_key == VK_RETURN) {
                     win32_process_keyboard_input(&keyboard_input->start, is_down);
                 } 
-                else if (vk_key == VK_F4 && alt_is_down) {
+                else if (vk_key == VK_F4 && alt_is_down || vk_key == VK_F6) {
                     Global_game_running = false;
                 }
                 else if (vk_key == VK_SHIFT) {

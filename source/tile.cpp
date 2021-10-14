@@ -120,13 +120,15 @@ void recanonicalize_coord(Tile_map* tile_map, u32* tile, f32* tile_relative) {
     *tile_relative -= offset * tile_map->tile_side_meters;
     
     // 0.5 cuz we wanna start from tile's center
-    macro_assert(*tile_relative > -0.5001f * tile_map->tile_side_meters);
-    macro_assert(*tile_relative <  0.5001f * tile_map->tile_side_meters);
+    macro_assert(*tile_relative > -0.5f * tile_map->tile_side_meters);
+    macro_assert(*tile_relative <  0.5f * tile_map->tile_side_meters);
 }
 
-Tile_map_position recanonicalize_position(Tile_map* tile_map, Tile_map_position pos) {
+inline
+Tile_map_position map_into_tile_space(Tile_map* tile_map, Tile_map_position base_pos, v2 offset) {
     
-    Tile_map_position result = pos;
+    Tile_map_position result = base_pos;
+    result._offset += offset;
     
     recanonicalize_coord(tile_map, &result.absolute_tile_x, &result._offset.x);
     recanonicalize_coord(tile_map, &result.absolute_tile_y, &result._offset.y);
@@ -186,13 +188,4 @@ Tile_map_position centered_tile_point(u32 absolute_tile_x, u32 absolute_tile_y, 
     result.absolute_tile_z = absolute_tile_z;
     
     return result;
-}
-
-internal
-Tile_map_position offset(Tile_map* tile_map, Tile_map_position pos, v2 offset) {
-    
-    pos._offset += offset;
-    pos = recanonicalize_position(tile_map, pos);
-    
-    return pos;
 }
