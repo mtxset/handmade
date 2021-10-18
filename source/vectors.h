@@ -1,9 +1,8 @@
 /* date = September 23rd 2021 6:41 pm */
 
-#ifndef MATH_H
-#define MATH_H
-
-#include "intrinsics.h"
+#ifndef VECTORS_H
+#define VECTORS_H
+#include <math.h>
 
 union v2 {
     struct {
@@ -131,7 +130,7 @@ f32 length_v2(v2 a) {
     f32 result;
     
     f32 dot = inner(a, a);
-    result = square_root(dot);
+    result = sqrtf(dot);
     
     return result;
 }
@@ -176,4 +175,4 @@ u32 quadrant_v2(v2 a) {
     return result;
 }
 
-#endif //MATH_H
+#endif //VECTORS_H

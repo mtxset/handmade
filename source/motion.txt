@@ -14,6 +14,18 @@ f''(t) = acceleration = 10
 t = delta time between frames
 p = initial position
 
-p' = (1/2) * at^2 + vt + p 
-v' = at + v
+acceleration = x,y axis movement (-1..1)
+
+negate diagonal: 
+dot_product = dot(accleration)
+
+if (dot_product > 1.0f) 
+	acceleration = 1.0f / sqrt(dot_product) * acceleration
+
+acceleration *= movement_speed
+acceleration += resistance_coeficient * v
+
+p' = (1/2) * at^2 + vt + p - movement delta
+v' = at + v - velocity
+new pos = old pos + p'
 a = 10

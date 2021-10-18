@@ -1,6 +1,7 @@
 #include "tile.h"
 #include "main.h"
 
+internal
 Tile_chunk* get_tile_chunk(Tile_map* tile_map, u32 x, u32 y, u32 z) {
     Tile_chunk* result = 0;
     
@@ -17,6 +18,7 @@ Tile_chunk* get_tile_chunk(Tile_map* tile_map, u32 x, u32 y, u32 z) {
     return result;
 }
 
+internal
 u32 get_tile_value_unchecked(Tile_map* tile_map, Tile_chunk* chunk, u32 tile_x, u32 tile_y) {
     macro_assert(chunk);
     macro_assert(tile_x < tile_map->chunk_dimension);
@@ -31,6 +33,7 @@ u32 get_tile_value_unchecked(Tile_map* tile_map, Tile_chunk* chunk, u32 tile_x, 
     return result;
 }
 
+internal
 void set_tile_value_unchecked(Tile_map* tile_map, Tile_chunk* chunk, u32 tile_x, u32 tile_y, u32 tile_value) {
     macro_assert(chunk);
     macro_assert(tile_x < tile_map->chunk_dimension);
@@ -41,6 +44,7 @@ void set_tile_value_unchecked(Tile_map* tile_map, Tile_chunk* chunk, u32 tile_x,
     macro_assert(tile_value == get_tile_value_unchecked(tile_map, chunk, tile_x, tile_y));
 }
 
+internal
 Tile_chunk_position get_chunk_position_for(Tile_map* tile_map, u32 absolute_tile_x, u32 absolute_tile_y, u32 absolute_tile_z) {
     Tile_chunk_position result;
     
@@ -114,6 +118,7 @@ bool is_world_point_empty(Tile_map* tile_map, Tile_map_position tile_pos) {
     return result;
 }
 
+internal
 void recanonicalize_coord(Tile_map* tile_map, u32* tile, f32* tile_relative) {
     i32 offset = round_f32_i32((*tile_relative) / tile_map->tile_side_meters);
     *tile += offset;
@@ -155,6 +160,7 @@ void set_tile_value(Memory_arena* world_arena, Tile_map* tile_map, u32 tile_abs_
     set_tile_value(tile_map, tile_chunk, chunk_pos.tile_relative_x, chunk_pos.tile_relative_y, tile_value);
 }
 
+internal
 bool are_on_same_tile(Tile_map_position* pos_x, Tile_map_position* pos_y) {
     bool result = (pos_x->absolute_tile_x == pos_y->absolute_tile_x &&
                    pos_x->absolute_tile_y == pos_y->absolute_tile_y &&
@@ -162,6 +168,7 @@ bool are_on_same_tile(Tile_map_position* pos_x, Tile_map_position* pos_y) {
     return result;
 }
 
+internal
 Tile_map_diff subtract_pos(Tile_map* tile_map, Tile_map_position* pos_a, Tile_map_position* pos_b) {
     Tile_map_diff result = {};
     
@@ -179,6 +186,7 @@ Tile_map_diff subtract_pos(Tile_map* tile_map, Tile_map_position* pos_a, Tile_ma
     return result;
 }
 
+internal
 Tile_map_position centered_tile_point(u32 absolute_tile_x, u32 absolute_tile_y, u32 absolute_tile_z) {
     
     Tile_map_position result = {};

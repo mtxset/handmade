@@ -80,6 +80,7 @@ void initialize_arena(Memory_arena* arena, size_t size, u8* base) {
 
 #define push_struct(arena, type)       (type *)push_size_(arena, sizeof(type))
 #define push_array(arena, count, type) (type *)push_size_(arena, (count) * sizeof(type))
+
 void* push_size_(Memory_arena* arena, size_t size) {
     macro_assert(arena->used + size <= arena->size);
     
