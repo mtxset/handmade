@@ -6,6 +6,7 @@
 #include "utils.h"
 #include "utils.cpp"
 #include "intrinsics.h"
+
 #include "game.h"
 #include "tile.h"
 #include "tile.cpp"
@@ -14,6 +15,7 @@
 #include "vectors.h"
 #include "test.cpp"
 
+internal
 void clear_screen(Game_bitmap_buffer* bitmap_buffer, u32 color) {
     // 8 bit pointer to the beginning of the memory
     // 8 bit so we have arithemtic by 1 byte
@@ -125,6 +127,7 @@ void draw_rect(Game_bitmap_buffer* buffer, v2 start, v2 end, v3 color) {
     }
 }
 
+internal
 void debug_read_and_write_random_file() {
     auto bitmap_read = debug_read_entire_file(__FILE__);
     if (bitmap_read.content) {
@@ -132,7 +135,6 @@ void debug_read_and_write_random_file() {
         debug_free_file(bitmap_read.content);
     }
 }
-
 
 internal
 void draw_pixel(Game_bitmap_buffer* bitmap_buffer, v2 pos, v3 color) {
@@ -562,8 +564,6 @@ u32 add_player(Game_state* game_state) {
     entity.dormant->position.absolute_tile_y = 4;
     entity.dormant->position.absolute_tile_z = 0;
     
-    entity.dormant->position._offset.x = 0;
-    entity.dormant->position._offset.y = 0;
     entity.dormant->height = 0.5f;
     entity.dormant->width  = 1.0f;
     entity.dormant->collides = true;
@@ -577,6 +577,23 @@ u32 add_player(Game_state* game_state) {
     return entity_index;
 }
 
+internal
+u32 add_wall(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
+    u32 entity_index = add_entity(game_state, Entity_type_wall);
+    Entity entity = get_entity(game_state, Entity_residence_dormant, entity_index);
+    
+    entity.dormant->position.absolute_tile_x = abs_tile_x;
+    entity.dormant->position.absolute_tile_y = abs_tile_y;
+    entity.dormant->position.absolute_tile_z = abs_tile_z;
+    
+    entity.dormant->height = game_state->world->tile_map->tile_side_meters;
+    entity.dormant->width  = entity.dormant->height;
+    entity.dormant->collides = true;
+    
+    return entity_index;
+}
+
+internal
 bool test_wall(f32 wall_x, f32 rel_x, f32 rel_y, f32 player_delta_x, f32 player_delta_y, f32* t_min, f32 min_y, f32 max_y) {
     
     bool hit = false;
@@ -599,6 +616,7 @@ bool test_wall(f32 wall_x, f32 rel_x, f32 rel_y, f32 player_delta_x, f32 player_
     return hit;
 }
 
+internal
 void move_player(Game_state* game_state, Entity entity, v2 player_acceleration_dd, f32 time_delta) {
     
     Tile_map* tile_map = game_state->world->tile_map;
@@ -728,13 +746,64 @@ macro_assert(max_tile_x - min_tile_x < 32);
     }
     
     entity.dormant->position = map_into_tile_space(game_state->world->tile_map, game_state->camera_pos, entity.high->position);
-#if 1
+#if 0
     char buffer[256];
     _snprintf_s(buffer, sizeof(buffer), "tile(x,y): %u, %u; relative(x,y): %f, %f\n", 
                 entity.dormant->position.absolute_tile_x, entity.dormant->position.absolute_tile_y,
                 entity.high->position.x, entity.high->position.y);
     OutputDebugStringA(buffer);
 #endif
+
+}
+
+internal
+void set_camera(Game_state* game_state, Tile_map_position new_camera_pos) {
+    Tile_map* tile_map = game_state->world->tile_map;
+    
+    Tile_map_diff d_camera = subtract_pos(tile_map, &new_camera_pos, &game_state->camera_pos);
+    game_state->camera_pos = new_camera_pos;
+    
+    u32 tile_span_x = 17 * 3;
+    u32 tile_span_y = 9  * 3;
+    v2 tile_spans = {
+        (f32)tile_span_x,
+        (f32)tile_span_y
+    };
+    Rect camera_bounds = rect_center_dim(v2 {0, 0}, tile_map->tile_side_meters * tile_spans);
+    
+    v2 entity_offset_for_frame = -d_camera.xy;
+    
+    for (u32 entity_index = 1; entity_index < macro_array_count(game_state->high_entity_list); entity_index++) {
+        if (game_state->entity_residence[entity_index] != Entity_residence_high)
+            continue;
+        
+        High_entity* high_entity = game_state->high_entity_list + entity_index;
+        
+        high_entity->position += entity_offset_for_frame;
+        if (!is_in_rect(camera_bounds, high_entity->position)) {
+            change_entity_residence(game_state, entity_index, Entity_residence_dormant);
+        }
+    }
+    
+    u32 min_tile_x = new_camera_pos.absolute_tile_x - tile_span_x/2;
+    u32 max_tile_x = new_camera_pos.absolute_tile_x + tile_span_x/2;
+    u32 min_tile_y = new_camera_pos.absolute_tile_y - tile_span_y/2;
+    u32 max_tile_y = new_camera_pos.absolute_tile_y + tile_span_y/2;
+    
+    for (u32 entity_index = 1; entity_index < macro_array_count(game_state->dormant_entity_list); entity_index++) {
+        if (game_state->entity_residence[entity_index] != Entity_residence_dormant)
+            continue;
+        
+        Dormant_entity* dormant_entity = game_state->dormant_entity_list + entity_index;
+        
+        if (dormant_entity->position.absolute_tile_z == new_camera_pos.absolute_tile_z &&
+            dormant_entity->position.absolute_tile_x >= min_tile_x &&
+            dormant_entity->position.absolute_tile_x <= max_tile_x &&
+            dormant_entity->position.absolute_tile_y >= min_tile_y &&
+            dormant_entity->position.absolute_tile_y <= max_tile_y) {
+            change_entity_residence(game_state, entity_index, Entity_residence_high);
+        }
+    }
 }
 
 extern "C"
@@ -856,14 +925,18 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
             bool door_up    = false;
             bool door_down  = false;
             
-            for (u32 screen_index = 0; screen_index < 100; screen_index++) {
+            for (u32 screen_index = 0; screen_index < 2; screen_index++) {
                 macro_assert(random_number_index < macro_array_count(random_number_table));
                 u32 random_choise;
+#if 1
+                random_choise = random_number_table[random_number_index++] % 2;
+#else
                 if (door_up || door_down) {
                     random_choise = random_number_table[random_number_index++] % 2;
                 } else {
                     random_choise = random_number_table[random_number_index++] % 3;
                 }
+#endif
                 
                 bool created_z_door = false;
                 if (random_choise == room_has_stairs) {
@@ -913,6 +986,10 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                         
                         set_tile_value(&game_state->world_arena, tile_map, 
                                        absolute_tile_x, absolute_tile_y, absolute_tile_z, tile);
+                        
+                        u32 wall_tile = 2;
+                        if (tile == wall_tile)
+                            add_wall(game_state, absolute_tile_x, absolute_tile_y, absolute_tile_z);
                     }
                 }
                 
@@ -943,9 +1020,11 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
             }
         }
         
-        // player's initial tile position
-        game_state->camera_pos.absolute_tile_x = 17 / 2;
-        game_state->camera_pos.absolute_tile_y = 9 / 2;
+        // camera initial position
+        Tile_map_position new_campera_pos = {};
+        new_campera_pos.absolute_tile_x = 17 / 2;
+        new_campera_pos.absolute_tile_y = 9 / 2;
+        set_camera(game_state, new_campera_pos);
         
         memory->is_initialized = true;
     }
@@ -1012,23 +1091,35 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         Entity camera_follow_entity = get_entity(game_state, Entity_residence_high, game_state->following_entity_index);
         
         if (camera_follow_entity.residence != Entity_residence_none) {
-            Tile_map_position old_camera_pos = game_state->camera_pos;
-            game_state->camera_pos.absolute_tile_z = camera_follow_entity.dormant->position.absolute_tile_z;
-            
+
+            Tile_map_position new_camera_pos = game_state->camera_pos;
+            new_camera_pos.absolute_tile_z = camera_follow_entity.dormant->position.absolute_tile_z;
+#if 1
             if (camera_follow_entity.high->position.x > 8.5 * tile_map->tile_side_meters)
-                game_state->camera_pos.absolute_tile_x += 17;
+                new_camera_pos.absolute_tile_x += 17;
             
             if (camera_follow_entity.high->position.x < -(8.5f * tile_map->tile_side_meters))
-                game_state->camera_pos.absolute_tile_x -= 17;
+                new_camera_pos.absolute_tile_x -= 17;
             
             if (camera_follow_entity.high->position.y > 4.5f * tile_map->tile_side_meters)
-                game_state->camera_pos.absolute_tile_y += 9;
+                new_camera_pos.absolute_tile_y += 9;
             
             if (camera_follow_entity.high->position.y < -(5.0f * tile_map->tile_side_meters))
-                game_state->camera_pos.absolute_tile_y -= 9;
+                new_camera_pos.absolute_tile_y -= 9;
+#else
+            if (camera_follow_entity.high->position.x > 1.0f * tile_map->tile_side_meters)
+                new_camera_pos.absolute_tile_x += 1;
             
-            Tile_map_diff d_camera = subtract_pos(tile_map, &game_state->camera_pos, &old_camera_pos);
-            entity_offset_for_frame = -d_camera.xy;
+            if (camera_follow_entity.high->position.x < -(1.0f * tile_map->tile_side_meters))
+                new_camera_pos.absolute_tile_x -= 1;
+            
+            if (camera_follow_entity.high->position.y > 1.0f * tile_map->tile_side_meters)
+                new_camera_pos.absolute_tile_y += 1;
+            
+            if (camera_follow_entity.high->position.y < -(1.0f * tile_map->tile_side_meters))
+                new_camera_pos.absolute_tile_y -= 1;
+#endif
+            set_camera(game_state, new_camera_pos);
         }
     }
     
@@ -1041,6 +1132,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     f32 screen_center_y = (f32)bitmap_buffer->height / 2;
     
     // draw tiles
+#if 0
     {
         v3 color_wall     = { .0f, .5f, 1.0f };
         v3 color_empty    = { .3f, .3f, 1.0f };
@@ -1081,10 +1173,11 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
             }
         }
     }
+#endif
     
     // draw entities
     {
-        for (u32 entity_index = 0; entity_index < game_state->entity_count; entity_index++) {
+        for (u32 entity_index = 1; entity_index < game_state->entity_count; entity_index++) {
             u32 i = entity_index;
             
             if (game_state->entity_residence[i] != Entity_residence_high)
@@ -1098,17 +1191,20 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
             high->position += entity_offset_for_frame;
             
             // jump
-            f32 time_delta = input->time_delta;
-            f32 ddz = -9.8f;
-            f32 delta_z = .5f * ddz * square(time_delta) + high->z_velocity_d * time_delta;
-            high->z += delta_z;
-            high->z_velocity_d = ddz * time_delta + high->z_velocity_d;
-            
-            if (high->z < 0) {
-                high->z = 0;
+            f32 z;
+            {
+                f32 time_delta = input->time_delta;
+                f32 ddz = -9.8f;
+                f32 delta_z = .5f * ddz * square(time_delta) + high->z_velocity_d * time_delta;
+                high->z += delta_z;
+                high->z_velocity_d = ddz * time_delta + high->z_velocity_d;
+                
+                if (high->z < 0) {
+                    high->z = 0;
+                }
+                
+                z = -meters_to_pixels * high->z;
             }
-            
-            f32 z = -meters_to_pixels * high->z;
             
             v3 color_player = { .1f, .0f, 1.0f };
             
@@ -1127,10 +1223,13 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 player_start.y + dormant->height * meters_to_pixels, 
             };
             
-            draw_rect(bitmap_buffer, player_start, player_end, color_player);
-            
-            Hero_bitmaps* hero_bitmap = &game_state->hero_bitmaps[high->facing_direction];
-            draw_bitmap(bitmap_buffer, &hero_bitmap->hero_body, player_ground_point, hero_bitmap->align);
+            if (dormant->type == Entity_type_hero) {
+                Hero_bitmaps* hero_bitmap = &game_state->hero_bitmaps[high->facing_direction];
+                draw_bitmap(bitmap_buffer, &hero_bitmap->hero_body, player_ground_point, hero_bitmap->align);
+            }
+            else {
+                draw_rect(bitmap_buffer, player_start, player_end, color_player);
+            }
         }
     }
     
