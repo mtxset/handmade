@@ -753,6 +753,7 @@ macro_assert(max_tile_x - min_tile_x < 32);
                 entity.high->position.x, entity.high->position.y);
     OutputDebugStringA(buffer);
 #endif
+
 }
 
 internal
@@ -1090,6 +1091,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         Entity camera_follow_entity = get_entity(game_state, Entity_residence_high, game_state->following_entity_index);
         
         if (camera_follow_entity.residence != Entity_residence_none) {
+
             Tile_map_position new_camera_pos = game_state->camera_pos;
             new_camera_pos.absolute_tile_z = camera_follow_entity.dormant->position.absolute_tile_z;
 #if 1
