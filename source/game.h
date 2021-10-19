@@ -175,13 +175,6 @@ enum Entity_type {
     Entity_type_wall
 };
 
-enum Entity_residence {
-    Entity_residence_none,
-    Entity_residence_dormant,
-    Entity_residence_high, 
-    Entity_residence_low, 
-};
-
 struct High_entity {
     v2 position;
     v2 velocity_d;
@@ -190,13 +183,11 @@ struct High_entity {
     
     f32 z;
     f32 z_velocity_d;
+    
+    u32 low_entity_index;
 };
 
 struct Low_entity {
-    
-};
-
-struct Dormant_entity {
     Entity_type type;
     
     Tile_map_position position;
@@ -204,13 +195,14 @@ struct Dormant_entity {
     
     bool collides;
     i32 d_abs_tile_z;
+    
+    u32 high_entity_index;
 };
 
 struct Entity {
-    u32 residence;
-    Dormant_entity* dormant;
-    Low_entity*     low;
-    High_entity*    high;
+    u32 low_index;
+    Low_entity*  low;
+    High_entity* high;
 };
 
 struct Game_state {
@@ -221,11 +213,11 @@ struct Game_state {
     
     u32 player_index_for_controller[macro_array_count(((Game_input*)0)->gamepad)]; // @disgusting
     
-    u32 entity_count;
-    Entity_residence entity_residence[256];
-    High_entity      high_entity_list[256];
-    Low_entity       low_entity_list[256];
-    Dormant_entity   dormant_entity_list[256];
+    u32 low_entity_count;
+    Low_entity low_entity_list[4096];
+    
+    u32 high_entity_count;
+    High_entity high_entity_list[256];
     
     Loaded_bmp background;
     
