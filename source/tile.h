@@ -11,40 +11,41 @@ struct Tile_map_diff {
 };
 
 struct Tile_map_position {
-    u32 absolute_tile_x;
-    u32 absolute_tile_y;
-    u32 absolute_tile_z;
+    i32 absolute_tile_x;
+    i32 absolute_tile_y;
+    i32 absolute_tile_z;
     
     v2 _offset; 
 };
 
 struct Tile_chunk {
+    i32 tile_chunk_x;
+    i32 tile_chunk_y;
+    i32 tile_chunk_z;
+    
     u32* tiles;
+    
+    Tile_chunk* next_hash;
 };
 
 struct Tile_chunk_position {
     // 24 high bits are tile chunk, 8 low bits are tile index of that chunk
-    u32 tile_chunk_x;
-    u32 tile_chunk_y;
-    u32 tile_chunk_z;
+    i32 tile_chunk_x;
+    i32 tile_chunk_y;
+    i32 tile_chunk_z;
     
-    u32 tile_relative_x;
-    u32 tile_relative_y;
+    i32 tile_relative_x;
+    i32 tile_relative_y;
 };
 
 struct Tile_map {
-    u32 chunk_shift;     // world chunk
-    u32 chunk_mask;      // tiles
-    u32 chunk_dimension; // how many tiles in a world chunk
+    i32 chunk_shift;     // world chunk
+    i32 chunk_mask;      // tiles
+    i32 chunk_dimension; // how many tiles in a world chunk
     
-    f32 tile_radius_meters;
     f32 tile_side_meters;
     
-    u32 tile_chunk_count_x;
-    u32 tile_chunk_count_y;
-    u32 tile_chunk_count_z;
-    
-    Tile_chunk* tile_chunks;
+    Tile_chunk tile_chunk_hash[4096];
 };
 
 #endif //TILE_H

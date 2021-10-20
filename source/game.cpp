@@ -572,7 +572,7 @@ void offset_and_check_freq_by_area(Game_state* game_state, v2 offset, Rect camer
 
 internal
 Low_entity* get_low_entity(Game_state* game_state, u32 index) {
-    Low_entity* entity {};
+    Low_entity* entity = 0;
     
     if (index > 0 && index < game_state->low_entity_count) {
         entity = game_state->low_entity_list + index;
@@ -610,10 +610,7 @@ u32 add_player(Game_state* game_state) {
     u32 entity_index = add_low_entity(game_state, Entity_type_hero);
     Low_entity* entity = get_low_entity(game_state, entity_index);
     
-    entity->position.absolute_tile_x = 2;
-    entity->position.absolute_tile_y = 4;
-    entity->position.absolute_tile_z = 0;
-    
+    entity->position = game_state->camera_pos;
     entity->height = 0.5f;
     entity->width  = 1.0f;
     entity->collides = true;
@@ -827,21 +824,21 @@ void set_camera(Game_state* game_state, Tile_map_position new_camera_pos) {
     
     offset_and_check_freq_by_area(game_state, entity_offset_for_frame, camera_bounds);
     
-    u32 min_tile_x = new_camera_pos.absolute_tile_x - tile_span_x / 2;
-    u32 max_tile_x = new_camera_pos.absolute_tile_x + tile_span_x / 2;
-    u32 min_tile_y = new_camera_pos.absolute_tile_y - tile_span_y / 2;
-    u32 max_tile_y = new_camera_pos.absolute_tile_y + tile_span_y / 2;
+    i32 min_tile_x = new_camera_pos.absolute_tile_x - tile_span_x / 2;
+    i32 max_tile_x = new_camera_pos.absolute_tile_x + tile_span_x / 2;
+    i32 min_tile_y = new_camera_pos.absolute_tile_y - tile_span_y / 2;
+    i32 max_tile_y = new_camera_pos.absolute_tile_y + tile_span_y / 2;
     
     for (u32 entity_index = 1; entity_index < game_state->low_entity_count; entity_index++) {
         Low_entity* low_entity = game_state->low_entity_list + entity_index;
         
         if (low_entity->high_entity_index == 0) {
-            bool entity_is_in_camera = 
+            bool entity_is_in_camera =
                 low_entity->position.absolute_tile_z == new_camera_pos.absolute_tile_z &&
                 low_entity->position.absolute_tile_x >= min_tile_x &&
                 low_entity->position.absolute_tile_x <= max_tile_x &&
-                low_entity->position.absolute_tile_y <= min_tile_y &&
-                low_entity->position.absolute_tile_y >= max_tile_y;
+                low_entity->position.absolute_tile_y >= min_tile_y &&
+                low_entity->position.absolute_tile_y <= max_tile_y;
             
             if (entity_is_in_camera) {
                 make_entity_high_freq(game_state, entity_index);
@@ -926,41 +923,26 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         World* world = game_state->world;
         world->tile_map = push_struct(&game_state->world_arena, Tile_map);
         
-        Tile_map* tile_map = world->tile_map;
+        u32 screen_base_x = 0;
+        u32 screen_base_y = 0;
+        u32 screen_base_z = 0;
+        
+        u32 screen_x        = screen_base_x;
+        u32 screen_y        = screen_base_y;
+        u32 absolute_tile_z = screen_base_z;
+        
+        // 256 x 256 tile chunks 
+        u32 tiles_per_width = 17;
+        u32 tiles_per_height = 9;
+        
         // create tiles
+        Tile_map* tile_map = world->tile_map;
         {
+            init_tile_map(tile_map, 1.4f);
+            
             u32 random_number_index = 0;
-            
-            // 256 x 256 tile chunks 
-            tile_map->chunk_shift = 4;
-            tile_map->chunk_mask  = (1 << tile_map->chunk_shift) - 1;
-            tile_map->chunk_dimension = (1 << tile_map->chunk_shift);
-            
-            tile_map->tile_chunk_count_x = 128;
-            tile_map->tile_chunk_count_y = 128;
-            tile_map->tile_chunk_count_z = 2;
-            
-            tile_map->tile_side_meters = 1.4f;
-            
-            u32 tiles_per_width = 17;
-            u32 tiles_per_height = 9;
-            
-            u32 tile_chunk_array_size = tile_map->tile_chunk_count_x * tile_map->tile_chunk_count_y * tile_map->tile_chunk_count_z;
-            tile_map->tile_chunks = push_array(&game_state->world_arena, tile_chunk_array_size, Tile_chunk);
-            
-            // starting from the middle
-#if 0
-            u32 screen_x = INT32_MAX / 2;
-            u32 screen_y = INT32_MAX / 2;
-#else
-            u32 screen_x = 0;
-            u32 screen_y = 0;
-#endif
-            
             u32 room_goes_horizontal = 1;
             u32 room_has_stairs = 2;
-            
-            u32 absolute_tile_z = 0;
             
             bool door_north = false;
             bool door_east  = false;
@@ -985,7 +967,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 bool created_z_door = false;
                 if (random_choise == room_has_stairs) {
                     created_z_door = true;
-                    if (absolute_tile_z == 0)
+                    if (absolute_tile_z == screen_base_z)
                         door_up = true;
                     else
                         door_down = true;
@@ -1052,8 +1034,10 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 }
                 
                 if (random_choise == room_has_stairs) {
-                    // toggle between 1 and 0
-                    absolute_tile_z = 1 - absolute_tile_z;
+                    if (absolute_tile_z == screen_base_z)
+                        absolute_tile_z = screen_base_z + 1;
+                    else
+                        absolute_tile_z = screen_base_z;
                 }
                 else if (random_choise == room_goes_horizontal) {
                     screen_x++;
@@ -1066,8 +1050,10 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         
         // camera initial position
         Tile_map_position new_campera_pos = {};
-        new_campera_pos.absolute_tile_x = 17 / 2;
-        new_campera_pos.absolute_tile_y = 9 / 2;
+        new_campera_pos.absolute_tile_x = screen_base_x * tiles_per_width  + 17 / 2;
+        new_campera_pos.absolute_tile_y = screen_base_y * tiles_per_height + 9 / 2;
+        new_campera_pos.absolute_tile_z = screen_base_z;
+        
         set_camera(game_state, new_campera_pos);
         
         memory->is_initialized = true;
