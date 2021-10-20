@@ -1,4 +1,4 @@
-//https://youtu.be/WyXBawK1jpE?t=6088
+//https://www.youtube.com/watch?v=NMfx9eVrNmQ
 #include <stdio.h>
 #include <stdint.h>
 #include <windows.h>
