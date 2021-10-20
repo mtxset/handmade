@@ -1,25 +1,63 @@
 #include "tile.h"
 #include "main.h"
 
-internal
-Tile_chunk* get_tile_chunk(Tile_map* tile_map, u32 x, u32 y, u32 z) {
-    Tile_chunk* result = 0;
+global_var const i32 TILE_CHUNK_SAFE_MARGIN = INT32_MAX/64;
+global_var const i32 TILE_CHUNK_UNINITIALIZED = INT32_MAX;
+
+inline
+Tile_chunk* get_tile_chunk(Tile_map* tile_map, i32 x, i32 y, i32 z, Memory_arena* arena = 0) {
+    Tile_chunk* chunk = 0;
     
-    if (x < tile_map->tile_chunk_count_x &&
-        y < tile_map->tile_chunk_count_y &&
-        z < tile_map->tile_chunk_count_z) {
-        u32 index = 
-            z * tile_map->tile_chunk_count_y * tile_map->tile_chunk_count_x +
-            y * tile_map->tile_chunk_count_x + 
-            x;
-        result = &tile_map->tile_chunks[index];
-    }
+    u32 hash_value = 19 * x + 7 * y + 3 * z;
+    u32 hash_slot = hash_value & (macro_array_count(tile_map->tile_chunk_hash) - 1);
+    macro_assert(hash_slot < macro_array_count(tile_map->tile_chunk_hash));
     
-    return result;
+    macro_assert(x > -TILE_CHUNK_SAFE_MARGIN);
+    macro_assert(y > -TILE_CHUNK_SAFE_MARGIN);
+    macro_assert(z > -TILE_CHUNK_SAFE_MARGIN);
+    macro_assert(x < TILE_CHUNK_SAFE_MARGIN);
+    macro_assert(y < TILE_CHUNK_SAFE_MARGIN);
+    macro_assert(z < TILE_CHUNK_SAFE_MARGIN);
+    
+    chunk = tile_map->tile_chunk_hash + hash_slot;
+    do {
+        
+        if (x == chunk->tile_chunk_x && 
+            y == chunk->tile_chunk_y &&
+            z == chunk->tile_chunk_z) {
+            break;
+        }
+        
+        if (arena && chunk->tile_chunk_x != TILE_CHUNK_UNINITIALIZED && !chunk->next_hash) {
+            chunk->next_hash = push_struct(arena, Tile_chunk);
+            chunk = chunk->next_hash;
+            chunk->tile_chunk_x = TILE_CHUNK_UNINITIALIZED;
+        }
+        
+        if (arena && chunk->tile_chunk_x == TILE_CHUNK_UNINITIALIZED) {
+            u32 tile_count = tile_map->chunk_dimension * tile_map->chunk_dimension;
+            
+            chunk->tile_chunk_x = x;
+            chunk->tile_chunk_y = y;
+            chunk->tile_chunk_z = z;
+            
+            chunk->tiles = push_array(arena, tile_count, u32);
+            for (u32 tile_index = 0; tile_index < tile_count; tile_index++) {
+                chunk->tiles[tile_index] = 1;
+            }
+            
+            chunk->next_hash = 0;
+            
+            break;
+        }
+        chunk = chunk->next_hash;
+    } while (chunk);
+    
+    return chunk;
 }
 
 internal
-u32 get_tile_value_unchecked(Tile_map* tile_map, Tile_chunk* chunk, u32 tile_x, u32 tile_y) {
+u32 get_tile_value_unchecked(Tile_map* tile_map, Tile_chunk* chunk, i32 tile_x, i32 tile_y) {
     macro_assert(chunk);
     macro_assert(tile_x < tile_map->chunk_dimension);
     macro_assert(tile_y < tile_map->chunk_dimension);
@@ -34,7 +72,7 @@ u32 get_tile_value_unchecked(Tile_map* tile_map, Tile_chunk* chunk, u32 tile_x, 
 }
 
 internal
-void set_tile_value_unchecked(Tile_map* tile_map, Tile_chunk* chunk, u32 tile_x, u32 tile_y, u32 tile_value) {
+void set_tile_value_unchecked(Tile_map* tile_map, Tile_chunk* chunk, i32 tile_x, i32 tile_y, u32 tile_value) {
     macro_assert(chunk);
     macro_assert(tile_x < tile_map->chunk_dimension);
     macro_assert(tile_y < tile_map->chunk_dimension);
@@ -119,7 +157,7 @@ bool is_world_point_empty(Tile_map* tile_map, Tile_map_position tile_pos) {
 }
 
 internal
-void recanonicalize_coord(Tile_map* tile_map, u32* tile, f32* tile_relative) {
+void recanonicalize_coord(Tile_map* tile_map, i32* tile, f32* tile_relative) {
     i32 offset = round_f32_i32((*tile_relative) / tile_map->tile_side_meters);
     *tile += offset;
     *tile_relative -= offset * tile_map->tile_side_meters;
@@ -144,18 +182,10 @@ Tile_map_position map_into_tile_space(Tile_map* tile_map, Tile_map_position base
 internal
 void set_tile_value(Memory_arena* world_arena, Tile_map* tile_map, u32 tile_abs_x, u32 tile_abs_y, u32 tile_abs_z, u32 tile_value) {
     Tile_chunk_position chunk_pos = get_chunk_position_for(tile_map, tile_abs_x, tile_abs_y, tile_abs_z);
-    Tile_chunk* tile_chunk = get_tile_chunk(tile_map, chunk_pos.tile_chunk_x, chunk_pos.tile_chunk_y, chunk_pos.tile_chunk_z);
     
-    macro_assert(tile_chunk);
-    
-    if (!tile_chunk->tiles) {
-        u32 array_size = tile_map->chunk_dimension * tile_map->chunk_dimension;
-        tile_chunk->tiles = push_array(world_arena, array_size, u32);
-        
-        for (u32 i = 0; i < array_size; i++) {
-            tile_chunk->tiles[i] = 1;
-        }
-    }
+    Tile_chunk* tile_chunk = get_tile_chunk(tile_map, 
+                                            chunk_pos.tile_chunk_x, chunk_pos.tile_chunk_y, chunk_pos.tile_chunk_z, 
+                                            world_arena);
     
     set_tile_value(tile_map, tile_chunk, chunk_pos.tile_relative_x, chunk_pos.tile_relative_y, tile_value);
 }
@@ -196,4 +226,16 @@ Tile_map_position centered_tile_point(u32 absolute_tile_x, u32 absolute_tile_y, 
     result.absolute_tile_z = absolute_tile_z;
     
     return result;
+}
+
+internal
+void init_tile_map(Tile_map* tile_map, f32 tile_side_meters) {
+    tile_map->chunk_shift = 4;
+    tile_map->chunk_mask  = (1 << tile_map->chunk_shift) - 1;
+    tile_map->chunk_dimension = (1 << tile_map->chunk_shift);
+    tile_map->tile_side_meters = tile_side_meters;
+    
+    for (u32 tile_chunk_index = 0; tile_chunk_index < macro_array_count(tile_map->tile_chunk_hash); tile_chunk_index++) {
+        tile_map->tile_chunk_hash[tile_chunk_index].tile_chunk_x = TILE_CHUNK_UNINITIALIZED;
+    }
 }
