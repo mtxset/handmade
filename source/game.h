@@ -4,7 +4,7 @@
 
 #include "types.h"
 #include "utils.h"
-#include "tile.h"
+#include "world.h"
 
 struct Game_bitmap_buffer {
     // pixels are always 32 bit, memory order BB GG RR XX (padding)
@@ -101,10 +101,6 @@ struct Memory_arena {
     size_t used;
 };
 
-struct World {
-    Tile_map* tile_map;
-};
-
 struct Pacman_state {
     i32 ghost_tile_x;
     i32 ghost_tile_y;
@@ -190,7 +186,7 @@ struct High_entity {
 struct Low_entity {
     Entity_type type;
     
-    Tile_map_position position;
+    World_position position;
     f32 width, height;
     
     bool collides;
@@ -208,13 +204,13 @@ struct Entity {
 struct Game_state {
     Memory_arena world_arena;
     World* world;
-    Tile_map_position camera_pos;
+    World_position camera_pos;
     f32 t_sine;
     
     u32 player_index_for_controller[macro_array_count(((Game_input*)0)->gamepad)]; // @disgusting
     
     u32 low_entity_count;
-    Low_entity low_entity_list[4096];
+    Low_entity low_entity_list[100000];
     
     u32 high_entity_count;
     High_entity high_entity_list[256];

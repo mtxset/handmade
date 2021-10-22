@@ -8,8 +8,8 @@
 #include "intrinsics.h"
 
 #include "game.h"
-#include "tile.h"
-#include "tile.cpp"
+#include "world.h"
+#include "world.cpp"
 #include "random.h"
 #include "color.h"
 #include "vectors.h"
@@ -513,7 +513,7 @@ High_entity* make_entity_high_freq(Game_state* game_state, u32 low_index) {
             u32 high_index = game_state->high_entity_count++;
             entity_high = game_state->high_entity_list + high_index;
             
-            Tile_map_diff diff = subtract_pos(game_state->world->tile_map, &entity_low->position, &game_state->camera_pos);
+            World_diff diff = subtract_pos(game_state->world, &entity_low->position, &game_state->camera_pos);
             
             entity_high->position = diff.xy;
             entity_high->velocity_d = v2 {0, 0};
@@ -631,7 +631,7 @@ u32 add_wall(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_til
     entity->position.absolute_tile_y = abs_tile_y;
     entity->position.absolute_tile_z = abs_tile_z;
     
-    entity->height = game_state->world->tile_map->tile_side_meters;
+    entity->height = game_state->world->tile_side_meters;
     entity->width  = entity->height;
     entity->collides = true;
     
@@ -664,7 +664,7 @@ bool test_wall(f32 wall_x, f32 rel_x, f32 rel_y, f32 player_delta_x, f32 player_
 internal
 void move_player(Game_state* game_state, Entity entity, v2 player_acceleration_dd, f32 time_delta) {
     
-    Tile_map* tile_map = game_state->world->tile_map;
+    World* world = game_state->world;
     
     f32 accelecation_dd_length = length_squared_v2(player_acceleration_dd);
     
@@ -795,7 +795,7 @@ macro_assert(max_tile_x - min_tile_x < 32);
             entity.high->facing_direction = 3;
     }
     
-    entity.low->position = map_into_tile_space(game_state->world->tile_map, game_state->camera_pos, entity.high->position);
+    entity.low->position = map_into_tile_space(game_state->world, game_state->camera_pos, entity.high->position);
 #if 0
     char buffer[256];
     _snprintf_s(buffer, sizeof(buffer), "tile(x,y): %u, %u; relative(x,y): %f, %f\n", 
@@ -807,10 +807,10 @@ macro_assert(max_tile_x - min_tile_x < 32);
 }
 
 internal
-void set_camera(Game_state* game_state, Tile_map_position new_camera_pos) {
-    Tile_map* tile_map = game_state->world->tile_map;
+void set_camera(Game_state* game_state, World_position new_camera_pos) {
+    World* world = game_state->world;
     
-    Tile_map_diff d_camera = subtract_pos(tile_map, &new_camera_pos, &game_state->camera_pos);
+    World_diff d_camera = subtract_pos(world, &new_camera_pos, &game_state->camera_pos);
     game_state->camera_pos = new_camera_pos;
     
     u32 tile_span_x = 17 * 3;
@@ -819,7 +819,7 @@ void set_camera(Game_state* game_state, Tile_map_position new_camera_pos) {
         (f32)tile_span_x,
         (f32)tile_span_y
     };
-    Rect camera_bounds = rect_center_dim(v2 {0, 0}, tile_map->tile_side_meters * tile_spans);
+    Rect camera_bounds = rect_center_dim(v2 {0, 0}, world->tile_side_meters * tile_spans);
     v2 entity_offset_for_frame = -d_camera.xy;
     
     offset_and_check_freq_by_area(game_state, entity_offset_for_frame, camera_bounds);
@@ -921,7 +921,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         
         game_state->world = push_struct(&game_state->world_arena, World);
         World* world = game_state->world;
-        world->tile_map = push_struct(&game_state->world_arena, Tile_map);
+        init_world(world, 1.4f);
         
         u32 screen_base_x = 0;
         u32 screen_base_y = 0;
@@ -936,9 +936,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         u32 tiles_per_height = 9;
         
         // create tiles
-        Tile_map* tile_map = world->tile_map;
         {
-            init_tile_map(tile_map, 1.4f);
             
             u32 random_number_index = 0;
             u32 room_goes_horizontal = 1;
@@ -1010,9 +1008,6 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                                 tile = 4;
                         }
                         
-                        set_tile_value(&game_state->world_arena, tile_map, 
-                                       absolute_tile_x, absolute_tile_y, absolute_tile_z, tile);
-                        
                         u32 wall_tile = 2;
                         if (tile == wall_tile)
                             add_wall(game_state, absolute_tile_x, absolute_tile_y, absolute_tile_z);
@@ -1049,7 +1044,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         }
         
         // camera initial position
-        Tile_map_position new_campera_pos = {};
+        World_position new_campera_pos = {};
         new_campera_pos.absolute_tile_x = screen_base_x * tiles_per_width  + 17 / 2;
         new_campera_pos.absolute_tile_y = screen_base_y * tiles_per_height + 9 / 2;
         new_campera_pos.absolute_tile_z = screen_base_z;
@@ -1060,13 +1055,12 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     }
     
     World* world = game_state->world;
-    Tile_map* tile_map = world->tile_map;
     
     i32 tile_side_pixels = 60;
-    f32 meters_to_pixels = tile_side_pixels / tile_map->tile_side_meters;
+    f32 meters_to_pixels = tile_side_pixels / world->tile_side_meters;
     
     macro_assert(world);
-    macro_assert(tile_map);
+    macro_assert(world);
     
     // check input and move player
     v2 player_acceleration_dd = {};
@@ -1121,31 +1115,31 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         
         if (camera_follow_entity.high) {
             
-            Tile_map_position new_camera_pos = game_state->camera_pos;
+            World_position new_camera_pos = game_state->camera_pos;
             new_camera_pos.absolute_tile_z = camera_follow_entity.low->position.absolute_tile_z;
 #if 1
-            if (camera_follow_entity.high->position.x > 8.5 * tile_map->tile_side_meters)
+            if (camera_follow_entity.high->position.x > 8.5 * world->tile_side_meters)
                 new_camera_pos.absolute_tile_x += 17;
             
-            if (camera_follow_entity.high->position.x < -(8.5f * tile_map->tile_side_meters))
+            if (camera_follow_entity.high->position.x < -(8.5f * world->tile_side_meters))
                 new_camera_pos.absolute_tile_x -= 17;
             
-            if (camera_follow_entity.high->position.y > 4.5f * tile_map->tile_side_meters)
+            if (camera_follow_entity.high->position.y > 4.5f * world->tile_side_meters)
                 new_camera_pos.absolute_tile_y += 9;
             
-            if (camera_follow_entity.high->position.y < -(5.0f * tile_map->tile_side_meters))
+            if (camera_follow_entity.high->position.y < -(5.0f * world->tile_side_meters))
                 new_camera_pos.absolute_tile_y -= 9;
 #else
-            if (camera_follow_entity.high->position.x > 1.0f * tile_map->tile_side_meters)
+            if (camera_follow_entity.high->position.x > 1.0f * world->tile_side_meters)
                 new_camera_pos.absolute_tile_x += 1;
             
-            if (camera_follow_entity.high->position.x < -(1.0f * tile_map->tile_side_meters))
+            if (camera_follow_entity.high->position.x < -(1.0f * world->tile_side_meters))
                 new_camera_pos.absolute_tile_x -= 1;
             
-            if (camera_follow_entity.high->position.y > 1.0f * tile_map->tile_side_meters)
+            if (camera_follow_entity.high->position.y > 1.0f * world->tile_side_meters)
                 new_camera_pos.absolute_tile_y += 1;
             
-            if (camera_follow_entity.high->position.y < -(1.0f * tile_map->tile_side_meters))
+            if (camera_follow_entity.high->position.y < -(1.0f * world->tile_side_meters))
                 new_camera_pos.absolute_tile_y -= 1;
 #endif
             
@@ -1174,7 +1168,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 u32 col = game_state->camera_pos.absolute_tile_x + rel_col;
                 u32 row = game_state->camera_pos.absolute_tile_y + rel_row;
                 
-                u32 tile_id = get_tile_value(tile_map, col, row, game_state->camera_pos.absolute_tile_z);
+                u32 tile_id = get_tile_value(world, col, row, game_state->camera_pos.absolute_tile_z);
                 
                 if (tile_id > 1) {
                     v3 color = color_empty;
