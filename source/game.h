@@ -174,7 +174,7 @@ enum Entity_type {
 struct High_entity {
     v2 position;
     v2 velocity_d;
-    u32 abs_tile_z;
+    u32 chunk_z;
     u32 facing_direction;
     
     f32 z;

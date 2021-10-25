@@ -11,9 +11,9 @@ struct World_diff {
 };
 
 struct World_position {
-    i32 absolute_tile_x;
-    i32 absolute_tile_y;
-    i32 absolute_tile_z;
+    i32 chunk_x;
+    i32 chunk_y;
+    i32 chunk_z;
     
     v2 _offset; 
 };
@@ -34,11 +34,10 @@ struct World_chunk {
 };
 
 struct World {
-    i32 chunk_shift;     // world chunk
-    i32 chunk_mask;      // tiles
-    i32 chunk_dimension; // how many tiles in a world chunk
-    
     f32 tile_side_meters;
+    f32 chunk_side_meters;
+    
+    World_entity_block* first_free;
     
     World_chunk chunk_hash[4096];
 };
