@@ -1,4 +1,4 @@
-//https://youtu.be/NMfx9eVrNmQ?t=1178
+// https://youtu.be/nAFuhA8xqTk?t=3842
 #include <stdio.h>
 #include <stdint.h>
 #include <windows.h>
@@ -485,10 +485,6 @@ void win32_handle_messages(Win32_state* win_state, Game_controller_input* keyboa
                 }
                 else if (vk_key == 'P' && is_down) {
                     Global_pause_sound_debug_sync = !Global_pause_sound_debug_sync;
-                } 
-                else if (vk_key == VK_RETURN && alt_is_down && is_down) { // alt enter
-                    if (message.hwnd)
-                        toggle_fullscreen(message.hwnd);
                 }
                 else if (vk_key == VK_F2 && is_down) {
                     if (win_state->playing_input_index == 0) {
@@ -505,6 +501,12 @@ void win32_handle_messages(Win32_state* win_state, Game_controller_input* keyboa
                     }
                     
                 }
+                
+                if (vk_key == VK_RETURN && alt_is_down && is_down) { // alt enter
+                    if (message.hwnd)
+                        toggle_fullscreen(message.hwnd);
+                }
+                
             } break;
             default: {
                 TranslateMessage(&message);

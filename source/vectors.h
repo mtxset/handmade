@@ -11,16 +11,6 @@ union v2 {
     f32 e[2];
 };
 
-union v3 {
-    struct {
-        f32 x, y, z;
-    };
-    struct {
-        f32 r, g, b;
-    };
-    f32 e[3];
-};
-
 union v4 {
     struct {
         f32 x, y, z, w;
@@ -171,6 +161,165 @@ u32 quadrant_v2(v2 a) {
     }
     
     macro_assert(result > 0 && result < 5);
+    
+    return result;
+}
+
+union v3 {
+    struct {
+        f32 x, y, z;
+    };
+    struct {
+        f32 r, g, b;
+    };
+    f32 e[3];
+};
+
+inline
+v3 operator + (v3 a, v3 b) {
+    v3 result;
+    
+    result.x = a.x + b.x;
+    result.y = a.y + b.y;
+    result.z = a.z + b.z;
+    
+    return result;
+}
+
+inline 
+v3 operator - (v3 a, v3 b) {
+    v3 result;
+    
+    result.x = a.x - b.x;
+    result.y = a.y - b.y;
+    result.z = a.z - b.z;
+    
+    return result;
+}
+
+inline
+v3 operator += (v3 &a, v3 b) {
+    a = a + b;
+    return a;
+}
+
+inline
+v3 operator -= (v3 &a, v3 b) {
+    a = a - b;
+    return a;
+}
+
+inline
+v3 operator - (v3 a) {
+    v3 result;
+    
+    result.x = -a.x;
+    result.y = -a.y;
+    result.z = -a.z;
+    
+    return result;
+}
+
+inline
+v3 operator * (f32 a, v3 b) {
+    v3 result;
+    
+    result.x = b.x * a;
+    result.y = b.y * a;
+    result.z = b.z * a;
+    
+    return result;
+}
+
+inline
+v3 operator * (v3 a, f32 b) {
+    v3 result;
+    
+    result = b * a;
+    
+    return result;
+}
+
+inline
+v3 operator *= (v3 &a, f32 b) {
+    a = b * a;
+    return a;
+}
+
+inline
+v3 operator / (f32 a, v3 b) {
+    v3 result;
+    
+    result = b * (1 / a);
+    
+    return result;
+}
+
+
+inline
+v3 operator / (v3 a, f32 b) {
+    v3 result;
+    
+    result = (1 / b) * a;
+    
+    return result;
+}
+
+inline 
+bool is_zero_v3(v3 a)
+{
+    bool result = a.x == 0 && a.y == 0 && a.z == 0;
+    return result;
+}
+
+inline
+f32 inner_v3(v3 a, v3 b) {
+    f32 result;
+    
+    result = a.x * b.x + a.y * b.y + a.z * b.z; 
+    
+    return result;
+}
+
+inline
+f32 dot_v3(v3 a, v3 b) {
+    return inner_v3(a, b);
+}
+
+v3 cross(v3 a, v3 b) {
+    v3 result;
+    
+    result.x = a.y * b.z - a.z * b.y;
+    result.y = a.z * b.x - a.x * b.z;
+    result.z = a.x * b.y - a.y * b.x;
+    
+    return result;
+}
+
+inline
+f32 length_squared_v3(v3 a) {
+    f32 result;
+    
+    result = inner_v3(a, a);
+    
+    return result;
+}
+
+inline
+f32 length_v3(v3 a) {
+    f32 result;
+    
+    f32 dot = inner_v3(a, a);
+    result = sqrtf(dot);
+    
+    return result;
+}
+
+inline
+v3 unit_vector_v3(v3 a) {
+    v3 result;
+    
+    result = a / length_v3(a);
     
     return result;
 }
