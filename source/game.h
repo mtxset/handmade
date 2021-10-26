@@ -216,7 +216,7 @@ struct Game_state {
     High_entity high_entity_list[256];
     
     Loaded_bmp background;
-    
+    Loaded_bmp tree;
     u32 following_entity_index;
     
     Hero_bitmaps hero_bitmaps[4];

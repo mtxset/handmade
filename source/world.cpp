@@ -7,12 +7,6 @@ global_var const i32 TILES_PER_CHUNK = 16;
 
 inline
 World_chunk* get_world_chunk(World* world, i32 x, i32 y, i32 z, Memory_arena* arena = 0) {
-    World_chunk* chunk = 0;
-    
-    u32 hash_value = 19 * x + 7 * y + 3 * z;
-    u32 hash_slot = hash_value & (macro_array_count(world->chunk_hash) - 1);
-    macro_assert(hash_slot < macro_array_count(world->chunk_hash));
-    
     macro_assert(x > -TILE_CHUNK_SAFE_MARGIN);
     macro_assert(y > -TILE_CHUNK_SAFE_MARGIN);
     macro_assert(z > -TILE_CHUNK_SAFE_MARGIN);
@@ -20,7 +14,11 @@ World_chunk* get_world_chunk(World* world, i32 x, i32 y, i32 z, Memory_arena* ar
     macro_assert(y < TILE_CHUNK_SAFE_MARGIN);
     macro_assert(z < TILE_CHUNK_SAFE_MARGIN);
     
-    chunk = world->chunk_hash + hash_slot;
+    u32 hash_value = 19 * x + 7 * y + 3 * z;
+    u32 hash_slot = hash_value & (macro_array_count(world->chunk_hash) - 1);
+    macro_assert(hash_slot < macro_array_count(world->chunk_hash));
+    
+    World_chunk* chunk = world->chunk_hash + hash_slot;
     do {
         
         if (x == chunk->chunk_x && 
@@ -80,7 +78,7 @@ void recanonicalize_coord(World* world, i32* tile, f32* tile_relative) {
 }
 
 inline
-World_position map_into_tile_space(World* world, World_position base_pos, v2 offset) {
+World_position map_into_chunk_space(World* world, World_position base_pos, v2 offset) {
     
     World_position result = base_pos;
     result._offset += offset;
@@ -111,8 +109,8 @@ World_position chunk_pos_from_tile_pos(World* world, i32 abs_tile_x, i32 abs_til
     result.chunk_y = abs_tile_y / TILES_PER_CHUNK;
     result.chunk_z = abs_tile_z / TILES_PER_CHUNK;
     
-    result._offset.x = f32(abs_tile_x - (result.chunk_x * TILES_PER_CHUNK)) * world->tile_side_meters;
-    result._offset.y = f32(abs_tile_y - (result.chunk_y * TILES_PER_CHUNK)) * world->tile_side_meters;
+    result._offset.x = (f32)(abs_tile_x - (result.chunk_x * TILES_PER_CHUNK)) * world->tile_side_meters;
+    result._offset.y = (f32)(abs_tile_y - (result.chunk_y * TILES_PER_CHUNK)) * world->tile_side_meters;
     
     return result;
 }
@@ -170,9 +168,11 @@ void change_entity_location(Memory_arena* arena, World* world, u32 low_entity_in
             macro_assert(chunk);
             
             if (chunk) {
+                bool not_found = true;
                 World_entity_block* first_block = &chunk->first_block;
-                for (World_entity_block* block = first_block; block; block = block->next) {
-                    for (u32 index = 0; index < block->entity_count; index++) {
+                
+                for (World_entity_block* block = first_block; block && not_found; block = block->next) {
+                    for (u32 index = 0; index < block->entity_count && not_found; index++) {
                         if (block->low_entity_index[index] == low_entity_index) {
                             macro_assert(first_block->entity_count > 0);
                             block->low_entity_index[index] = first_block->low_entity_index[--first_block->entity_count];
@@ -186,8 +186,7 @@ void change_entity_location(Memory_arena* arena, World* world, u32 low_entity_in
                                 }
                             }
                             
-                            block = 0;
-                            break;
+                            not_found = false;
                         }
                     }
                 }
