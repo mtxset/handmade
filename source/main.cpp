@@ -1,4 +1,4 @@
-// https://youtu.be/nAFuhA8xqTk?t=3842
+// https://youtu.be/W_z9VN1m2Oo?t=652
 #include <stdio.h>
 #include <stdint.h>
 #include <windows.h>
@@ -1129,8 +1129,8 @@ i32 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLi
             }
 #endif
             
+#if 0
             // output fps
-#if 1
             auto cycles_elapsed = (u32)(end_cycle_count - begin_cycle_count);
             auto counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
             

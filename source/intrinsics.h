@@ -189,6 +189,33 @@ f32 rad_to_degrees(f32 value) {
 }
 
 inline
+v2 get_min_corner(Rect rect) {
+    v2 result;
+    
+    result = rect.min;
+    
+    return result;
+}
+
+inline
+v2 get_max_corner(Rect rect) {
+    v2 result;
+    
+    result = rect.max;
+    
+    return result;
+}
+
+inline
+v2 get_center(Rect rect) {
+    v2 result;
+    
+    result = 0.5f * (rect.min + rect.max);
+    
+    return result;
+}
+
+inline
 Rect rect_min_max(v2 min, v2 max) {
     Rect result;
     
