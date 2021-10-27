@@ -168,7 +168,9 @@ struct Hero_bitmaps {
 enum Entity_type {
     Entity_type_null,
     Entity_type_hero,
-    Entity_type_wall
+    Entity_type_wall,
+    Entity_type_familiar,
+    Entity_type_monster
 };
 
 struct High_entity {
@@ -176,6 +178,8 @@ struct High_entity {
     v2 velocity_d;
     u32 chunk_z;
     u32 facing_direction;
+    
+    f32 t_bob;
     
     f32 z;
     f32 z_velocity_d;
@@ -201,6 +205,18 @@ struct Entity {
     High_entity* high;
 };
 
+struct Entity_visible_piece {
+    Loaded_bmp* bitmap;
+    v2 offset;
+    f32 offset_z;
+    f32 alpha;
+};
+
+struct Entity_visible_piece_group {
+    u32 count;
+    Entity_visible_piece piece_list[8];
+};
+
 struct Game_state {
     Memory_arena world_arena;
     World* world;
@@ -217,6 +233,8 @@ struct Game_state {
     
     Loaded_bmp background;
     Loaded_bmp tree;
+    Loaded_bmp monster;
+    Loaded_bmp familiar;
     u32 following_entity_index;
     
     Hero_bitmaps hero_bitmaps[4];

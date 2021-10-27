@@ -109,8 +109,19 @@ World_position chunk_pos_from_tile_pos(World* world, i32 abs_tile_x, i32 abs_til
     result.chunk_y = abs_tile_y / TILES_PER_CHUNK;
     result.chunk_z = abs_tile_z / TILES_PER_CHUNK;
     
-    result._offset.x = (f32)(abs_tile_x - (result.chunk_x * TILES_PER_CHUNK)) * world->tile_side_meters;
-    result._offset.y = (f32)(abs_tile_y - (result.chunk_y * TILES_PER_CHUNK)) * world->tile_side_meters;
+    if (abs_tile_x < 0)
+        result.chunk_x--;
+    
+    if (abs_tile_y < 0)
+        result.chunk_y--;
+    
+    if (abs_tile_z < 0)
+        result.chunk_z--;
+    
+    result._offset.x = (f32)((abs_tile_x - TILES_PER_CHUNK / 2) - (result.chunk_x * TILES_PER_CHUNK)) * world->tile_side_meters;
+    result._offset.y = (f32)((abs_tile_y - TILES_PER_CHUNK / 2) - (result.chunk_y * TILES_PER_CHUNK)) * world->tile_side_meters;
+    
+    macro_assert(is_canonical(world, result._offset));
     
     return result;
 }
