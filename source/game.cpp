@@ -379,9 +379,7 @@ Loaded_bmp debug_load_bmp(char* file_name) {
 }
 
 internal
-void draw_bitmap(Game_bitmap_buffer* bitmap_buffer, Loaded_bmp* bitmap_data, v2 start, v2 align = {0, 0}, f32 c_alpha = 1.0f) {
-    
-    start -= align;
+void draw_bitmap(Game_bitmap_buffer* bitmap_buffer, Loaded_bmp* bitmap_data, v2 start, f32 c_alpha = 1.0f) {
     
     i32 x0 = round_f32_u32(start.x);
     i32 y0 = round_f32_u32(start.y);
@@ -623,7 +621,7 @@ Low_entity* get_low_entity(Game_state* game_state, u32 index) {
 }
 
 internal
-Entity get_high_entity(Game_state* game_state, u32 index) {
+Entity force_entity_into_high(Game_state* game_state, u32 index) {
     Entity entity = {};
     
     if (index > 0 && index < game_state->low_entity_count) {
@@ -635,8 +633,15 @@ Entity get_high_entity(Game_state* game_state, u32 index) {
     return entity;
 }
 
+struct add_low_entity_result {
+    Low_entity* low;
+    u32 low_index;
+};
+
 internal
-u32 add_low_entity(Game_state* game_state, Entity_type type, World_position* pos) {
+add_low_entity_result add_low_entity(Game_state* game_state, Entity_type type, World_position* pos) {
+    add_low_entity_result result;
+    
     macro_assert(game_state->low_entity_count < macro_array_count(game_state->low_entity_list));
     u32 entity_index = game_state->low_entity_count++;
     
@@ -649,38 +654,62 @@ u32 add_low_entity(Game_state* game_state, Entity_type type, World_position* pos
         change_entity_location(&game_state->world_arena, game_state->world, entity_index, 0, pos);
     }
     
-    return entity_index;
+    result.low = entity_low;
+    result.low_index = entity_index;
+    
+    return result;
 }
 
 internal
-u32 add_player(Game_state* game_state) {
+add_low_entity_result add_player(Game_state* game_state) {
     World_position pos = game_state->camera_pos;
-    u32 entity_index = add_low_entity(game_state, Entity_type_hero, &pos);
-    Low_entity* entity = get_low_entity(game_state, entity_index);
+    add_low_entity_result entity = add_low_entity(game_state, Entity_type_hero, &pos);
     
-    entity->height = 0.5f;
-    entity->width  = 1.0f;
-    entity->collides = true;
+    entity.low->height = 0.5f;
+    entity.low->width  = 1.0f;
+    entity.low->collides = true;
     
     if (game_state->following_entity_index == 0) {
-        game_state->following_entity_index = entity_index;
+        game_state->following_entity_index = entity.low_index;
     }
     
-    return entity_index;
+    return entity;
 }
 
 internal
-u32 add_wall(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
+add_low_entity_result add_monster(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
     World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
-    u32 entity_index = add_low_entity(game_state, Entity_type_wall, &pos);
+    add_low_entity_result entity = add_low_entity(game_state, Entity_type_monster, &pos);
     
-    Low_entity* entity = get_low_entity(game_state, entity_index);
+    entity.low->height = 0.5f;
+    entity.low->width  = 1.0f;
+    entity.low->collides = true;
     
-    entity->height = game_state->world->tile_side_meters;
-    entity->width  = entity->height;
-    entity->collides = true;
+    return entity;
+}
+
+internal
+add_low_entity_result add_familiar(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
+    World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
+    add_low_entity_result entity = add_low_entity(game_state, Entity_type_familiar, &pos);
     
-    return entity_index;
+    entity.low->height = 0.5f;
+    entity.low->width  = 1.0f;
+    entity.low->collides = false;
+    
+    return entity;
+}
+
+internal
+add_low_entity_result add_wall(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
+    World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
+    add_low_entity_result entity = add_low_entity(game_state, Entity_type_wall, &pos);
+    
+    entity.low->height = game_state->world->tile_side_meters;
+    entity.low->width  = entity.low->height;
+    entity.low->collides = true;
+    
+    return entity;
 }
 
 internal
@@ -707,7 +736,7 @@ bool test_wall(f32 wall_x, f32 rel_x, f32 rel_y, f32 player_delta_x, f32 player_
 }
 
 internal
-void move_player(Game_state* game_state, Entity entity, v2 player_acceleration_dd, f32 time_delta, f32 boost) {
+void move_entity(Game_state* game_state, Entity entity, f32 time_delta, v2 player_acceleration_dd, f32 boost = 1.0f) {
     
     World* world = game_state->world;
     
@@ -927,6 +956,72 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
 }
 #else
 
+internal
+void update_entity(Game_state* game_state, Entity* entity, f32 dt) {
+}
+
+inline
+void push_piece(Entity_visible_piece_group* group, Loaded_bmp* bitmap, v2 offset, f32 offset_z, v2 align, f32 alpha = 1.0f) {
+    macro_assert(group->count < macro_array_count(group->piece_list));
+    Entity_visible_piece* piece = group->piece_list + group->count++;
+    piece->bitmap = bitmap;
+    piece->offset = offset - align;
+    piece->offset_z = offset_z;
+    piece->alpha = alpha;
+}
+
+inline
+Entity entity_from_high_index(Game_state* game_state, u32 entity_index) {
+    Entity result = {};
+    
+    if (entity_index) {
+        macro_assert(entity_index < macro_array_count(game_state->high_entity_list));
+        result.high = game_state->high_entity_list + entity_index;
+        result.low_index = result.high->low_entity_index;
+        result.low = game_state->low_entity_list + result.low_index;
+    }
+    
+    return result;
+}
+
+// https://youtu.be/KBCNjjeXezM
+inline
+void update_familiar(Game_state* game_state, Entity entity, f32 time_delta) {
+    Entity closest_hero = {};
+    f32 closest_hero_delta_squared = square(10.0f);
+    for (u32 entity_index = 1; entity_index < game_state->high_entity_count; entity_index++) {
+        Entity test_entity = entity_from_high_index(game_state, entity_index);
+        
+        if (test_entity.low->type != Entity_type_hero)
+            continue;
+        
+        f32 test_delta_squared = length_squared_v2(test_entity.high->position - entity.high->position);
+        
+        if (test_entity.low->type == Entity_type_hero) {
+            test_delta_squared *= 0.75f;
+        }
+        
+        if (closest_hero_delta_squared > test_delta_squared) {
+            closest_hero = test_entity;
+            closest_hero_delta_squared = test_delta_squared;
+        }
+    }
+    
+    v2 velocity = {};
+    if (closest_hero.high && closest_hero_delta_squared > 0.01f) {
+        f32 acceleration = 0.5f;
+        f32 one_over_length = acceleration / square_root(closest_hero_delta_squared);
+        velocity = one_over_length * (closest_hero.high->position - entity.high->position);
+    }
+    
+    move_entity(game_state, entity, time_delta, velocity);
+}
+
+
+inline
+void update_monster(Game_state* game_state, Entity entity, f32 time_delta) {
+}
+
 extern "C"
 void game_update_render(thread_context* thread, Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer) {
     
@@ -962,6 +1057,8 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         {
             game_state->background = debug_load_bmp("../data/bg_nebula.bmp");
             game_state->tree = debug_load_bmp("../data/tree.bmp");
+            game_state->monster = debug_load_bmp("../data/george-front-0.bmp");
+            game_state->familiar = debug_load_bmp("../data/ship.bmp");
 #if 0
             // load george
             {
@@ -1017,9 +1114,8 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         u32 tiles_per_height = 9;
         
         // create tiles
+        u32 random_number_index = 0;
         {
-            
-            u32 random_number_index = 0;
             u32 room_goes_horizontal = 1;
             u32 room_has_stairs = 2;
             
@@ -1128,10 +1224,21 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         
         // camera initial position
         World_position new_campera_pos = {};
-        new_campera_pos = chunk_pos_from_tile_pos(game_state->world,
-                                                  screen_base_x * tiles_per_width  + 17 / 2,
-                                                  screen_base_y * tiles_per_height + 9 / 2,
-                                                  screen_base_z);
+        u32 camera_tile_x = screen_base_x * tiles_per_width  + 17 / 2;
+        u32 camera_tile_y = screen_base_y * tiles_per_height + 9 / 2;
+        u32 camera_tile_z = screen_base_z;
+        new_campera_pos = chunk_pos_from_tile_pos(game_state->world, camera_tile_x, camera_tile_y, camera_tile_z);
+        
+        add_monster(game_state, camera_tile_x + 1, camera_tile_y + 1, camera_tile_z);
+        
+        for (u32 familiar_index = 0; familiar_index < 20; familiar_index++) {
+            i32 familiar_offset_x = (random_number_table[random_number_index++] % 10) - 7;
+            i32 familiar_offset_y = (random_number_table[random_number_index++] % 10) - 3;
+            
+            if (familiar_offset_y != 0 || familiar_offset_x != 0)
+                add_familiar(game_state, camera_tile_x + familiar_offset_x, camera_tile_y + familiar_offset_y, camera_tile_z);
+        }
+        
         
         set_camera(game_state, new_campera_pos);
         
@@ -1156,12 +1263,12 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
             
             if (low_index == 0) {
                 if (input_state->start.ended_down) {
-                    u32 entity_index = add_player(game_state);
+                    u32 entity_index = add_player(game_state).low_index;
                     game_state->player_index_for_controller[controller_index] = entity_index;
                 }
             }
             else {
-                Entity controlling_entity = get_high_entity(game_state, low_index);
+                Entity controlling_entity = force_entity_into_high(game_state, low_index);
                 if (input_state->is_analog) {
                     player_acceleration_dd = v2 {
                         input_state->stick_avg_x,
@@ -1192,15 +1299,14 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 if (input_state->shift.ended_down)
                     boost = 10.0f;
                 
-                move_player(game_state, controlling_entity, player_acceleration_dd, input->time_delta, boost);
+                move_entity(game_state, controlling_entity, input->time_delta, player_acceleration_dd, boost);
             }
         }
     }
     
     // update camera
-    v2 entity_offset_for_frame = {};
     {
-        Entity camera_follow_entity = get_high_entity(game_state, game_state->following_entity_index);
+        Entity camera_follow_entity = force_entity_into_high(game_state, game_state->following_entity_index);
         
         if (camera_follow_entity.high) {
             
@@ -1234,65 +1340,63 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     f32 screen_center_x = (f32)bitmap_buffer->width / 2;
     f32 screen_center_y = (f32)bitmap_buffer->height / 2;
     
-    // draw tiles
-#if 0
-    {
-        v3 color_wall     = { .0f, .5f, 1.0f };
-        v3 color_empty    = { .3f, .3f, 1.0f };
-        v3 color_occupied = { .9f, .0f, 1.0f };
-        // used to draw player from the middle of the tile
-        
-        for (i32 rel_row = -10; rel_row < 10; rel_row++) {
-            for (i32 rel_col = -20; rel_col < 20; rel_col++) {
-                u32 col = game_state->camera_pos.absolute_tile_x + rel_col;
-                u32 row = game_state->camera_pos.absolute_tile_y + rel_row;
-                
-                u32 tile_id = get_tile_value(world, col, row, game_state->camera_pos.absolute_tile_z);
-                
-                if (tile_id > 1) {
-                    v3 color = color_empty;
-                    
-                    if (tile_id == 2)
-                        color = color_wall;
-                    
-                    if (tile_id > 2) // stairs
-                        color = gold_v3;
-                    
-                    if (row == game_state->camera_pos.absolute_tile_y && col == game_state->camera_pos.absolute_tile_x) {
-                        color = color_occupied;
-                    }
-                    
-                    v2 half_tile_pixels = { 0.5f * tile_side_pixels, 0.5f * tile_side_pixels };
-                    v2 center = { 
-                        screen_center_x - meters_to_pixels * game_state->camera_pos._offset.x + (f32)rel_col * tile_side_pixels,
-                        screen_center_y + meters_to_pixels * game_state->camera_pos._offset.y - (f32)rel_row * tile_side_pixels 
-                    };
-                    
-                    v2 min = center - half_tile_pixels;
-                    v2 max = center + half_tile_pixels;
-                    
-                    draw_rect(bitmap_buffer, min, max, color);
-                }
-            }
-        }
-    }
-#endif
-    
     // draw entities
     {
+        Entity_visible_piece_group piece_group = {};
         for (u32 entity_index = 1; entity_index < game_state->high_entity_count; entity_index++) {
+            piece_group.count = 0;
             u32 i = entity_index;
             
             High_entity* high = game_state->high_entity_list + i;
             Low_entity*  low  = game_state->low_entity_list + high->low_entity_index;
             
-            // camera offset
-            high->position += entity_offset_for_frame;
+            Entity entity = {};
+            entity.low_index = high->low_entity_index;
+            entity.low = low;
+            entity.high = high;
+            
+            f32 time_delta = input->time_delta;
+            
+            v3 color_player = { .1f, .0f, 1.0f };
+            
+            // move entities
+            switch (low->type) {
+                case Entity_type_hero: {
+                    Hero_bitmaps* hero_bitmap = &game_state->hero_bitmaps[high->facing_direction];
+                    
+                    push_piece(&piece_group, &hero_bitmap->hero_body, v2{0, 0}, 0, hero_bitmap->align);
+                } break;
+                
+                case Entity_type_familiar: {
+                    update_familiar(game_state, entity, time_delta);
+                    v2 align = v2 {34, 72};
+                    entity.high->t_bob += time_delta;
+                    if (entity.high->t_bob > 2.0f*PI) {
+                        entity.high->t_bob -= 2.0f*PI;
+                    }
+                    push_piece(&piece_group, &game_state->familiar, v2{0, 0}, 10.0f*sin(2.0f*entity.high->t_bob), align);
+                } break;
+                
+                case Entity_type_monster: {
+                    update_monster(game_state, entity, time_delta);
+                    v2 align = v2 {25, 42};
+                    push_piece(&piece_group, &game_state->monster, v2{0, 0}, 0, align);
+                } break;
+                
+                case Entity_type_wall: {
+                    //draw_rect(bitmap_buffer, player_start, player_end, color_player);
+                    v2 align = v2 {50, 115};
+                    push_piece(&piece_group, &game_state->tree, v2{0, 0}, 0, align);
+                } break;
+                
+                default: {
+                    macro_assert(!"INVALID");
+                } break;
+            }
             
             // jump
-            f32 z;
+            f32 jump_z;
             {
-                f32 time_delta = input->time_delta;
                 f32 ddz = -9.8f;
                 f32 delta_z = .5f * ddz * square(time_delta) + high->z_velocity_d * time_delta;
                 high->z += delta_z;
@@ -1302,34 +1406,36 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                     high->z = 0;
                 }
                 
-                z = -meters_to_pixels * high->z;
+                jump_z = -meters_to_pixels * high->z;
             }
             
-            v3 color_player = { .1f, .0f, 1.0f };
-            
-            v2 player_ground_point = { 
+            v2 entity_ground_point = { 
                 screen_center_x + high->position.x * meters_to_pixels,
-                screen_center_y - high->position.y * meters_to_pixels + z
+                screen_center_y - high->position.y * meters_to_pixels
             };
-            
+            f32 entity_z = -meters_to_pixels*high->z;
+#if 0
             v2 player_start = { 
-                player_ground_point.x - .5f * low->width  * meters_to_pixels,
-                player_ground_point.y - .5f * low->height * meters_to_pixels
+                entity_ground_point.x - .5f * low->width  * meters_to_pixels,
+                entity_ground_point.y - .5f * low->height * meters_to_pixels
             };
             
             v2 player_end = {
                 player_start.x + low->width * meters_to_pixels, 
                 player_start.y + low->height * meters_to_pixels, 
             };
+#endif
             
-            if (low->type == Entity_type_hero) {
-                draw_rect(bitmap_buffer, player_start, player_end, color_player);
-                Hero_bitmaps* hero_bitmap = &game_state->hero_bitmaps[high->facing_direction];
-                draw_bitmap(bitmap_buffer, &hero_bitmap->hero_body, player_ground_point, hero_bitmap->align);
-            }
-            else {
-                //draw_rect(bitmap_buffer, player_start, player_end, color_player);
-                draw_bitmap(bitmap_buffer, &game_state->tree, v2{player_ground_point.x, player_ground_point.y + z}, v2{50,115});
+            // actually draw
+            for (u32 piece_index = 0; piece_index < piece_group.count; piece_index++) {
+                Entity_visible_piece* piece = piece_group.piece_list + piece_index;
+                
+                v2 temp_offset = { 
+                    piece->offset.x, 
+                    piece->offset.y + piece->offset_z + entity_z 
+                };
+                temp_offset += entity_ground_point;
+                draw_bitmap(bitmap_buffer, piece->bitmap, temp_offset, piece->alpha);
             }
         }
     }
