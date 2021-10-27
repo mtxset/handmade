@@ -1231,7 +1231,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         
         add_monster(game_state, camera_tile_x + 1, camera_tile_y + 1, camera_tile_z);
         
-        for (u32 familiar_index = 0; familiar_index < 20; familiar_index++) {
+        for (u32 familiar_index = 0; familiar_index < 3; familiar_index++) {
             i32 familiar_offset_x = (random_number_table[random_number_index++] % 10) - 7;
             i32 familiar_offset_y = (random_number_table[random_number_index++] % 10) - 3;
             
