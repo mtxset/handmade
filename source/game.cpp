@@ -379,38 +379,49 @@ Loaded_bmp debug_load_bmp(char* file_name) {
 }
 
 internal
-void draw_bitmap(Game_bitmap_buffer* bitmap_buffer, Loaded_bmp* bitmap_data, v2 start, f32 c_alpha = 1.0f) {
+void draw_bitmap(Game_bitmap_buffer* bitmap_buffer, Loaded_bmp* bitmap, v2 start, f32 c_alpha = 1.0f) {
     
-    i32 x0 = round_f32_u32(start.x);
-    i32 y0 = round_f32_u32(start.y);
+    i32 min_x = round_f32_i32(start.x);
+    i32 min_y = round_f32_i32(start.y);
+    i32 max_x = min_x + bitmap->width;
+    i32 max_y = min_y + bitmap->height;
     
     i32 source_offset_x = 0;
     i32 source_offset_y = 0;
     
-    if (x0 < 0)
-        source_offset_x = -x0;
+    if (min_x < 0) {
+        source_offset_x = -min_x;
+        min_x = 0;
+    }
     
-    if (y0 < 0)
-        source_offset_y = -y0;
+    if (min_y < 0) {
+        source_offset_y = -min_y;
+        min_y = 0;
+    }
     
-    i32 x1 = round_f32_u32(start.x + (f32)bitmap_data->width);
-    i32 y1 = round_f32_u32(start.y + (f32)bitmap_data->height);
+    if (max_x > bitmap_buffer->width) {
+        max_x = bitmap_buffer->width;
+    }
     
-    x0 = clamp_i32(x0, 0, bitmap_buffer->width);  x1 = clamp_i32(x1, 0, bitmap_buffer->width);
-    y0 = clamp_i32(y0, 0, bitmap_buffer->height); y1 = clamp_i32(y1, 0, bitmap_buffer->height);
+    if (max_y > bitmap_buffer->height) {
+        max_y = bitmap_buffer->height;
+    }
+    
     c_alpha = clamp_f32(c_alpha, 0.0f, 1.0f);
-    
     // reading bottom up
-    u32* source_row = bitmap_data->pixels + bitmap_data->width * (bitmap_data->height - 1);
-    source_row += -bitmap_data->width * source_offset_y + source_offset_x;
+    u32* source_row = bitmap->pixels + bitmap->width * (bitmap->height - 1);
+    source_row += -source_offset_y * bitmap->width + source_offset_x;
+    macro_assert(source_row);
     
-    u8* dest_row = (u8*)bitmap_buffer->memory + x0 * bitmap_buffer->bytes_per_pixel + y0 * bitmap_buffer->pitch;
+    u8* dest_row = ((u8*)bitmap_buffer->memory +
+                    min_x * bitmap_buffer->bytes_per_pixel + 
+                    min_y * bitmap_buffer->pitch);
     
-    for (i32 y = y0; y < y1; y++) {
+    for (i32 y = min_y; y < max_y; y++) {
         u32* dest = (u32*)dest_row; // incoming pixel
         u32* source = source_row;   // backbuffer pixel
         
-        for (i32 x = x0; x < x1; x++) {
+        for (i32 x = min_x; x < max_x; x++) {
             f32     a = (f32)((*source >> 24) & 0xff) / 255.0f;
             f32 src_r = (f32)((*source >> 16) & 0xff);
             f32 src_g = (f32)((*source >> 8)  & 0xff);
@@ -442,7 +453,7 @@ void draw_bitmap(Game_bitmap_buffer* bitmap_buffer, Loaded_bmp* bitmap_data, v2 
         }
         
         dest_row += bitmap_buffer->pitch;
-        source_row -= bitmap_data->width;
+        source_row -= bitmap->width;
     }
 }
 
@@ -665,6 +676,9 @@ add_low_entity_result add_player(Game_state* game_state) {
     World_position pos = game_state->camera_pos;
     add_low_entity_result entity = add_low_entity(game_state, Entity_type_hero, &pos);
     
+    entity.low->hit_points_max = 3;
+    entity.low->hit_point[2].filled_amount = HIT_POINT_SUB_COUNT;
+    entity.low->hit_point[0] = entity.low->hit_point[1] = entity.low->hit_point[2];
     entity.low->height = 0.5f;
     entity.low->width  = 1.0f;
     entity.low->collides = true;
@@ -956,18 +970,26 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
 }
 #else
 
-internal
-void update_entity(Game_state* game_state, Entity* entity, f32 dt) {
+inline
+void push_piece(Entity_visible_piece_group* group, Loaded_bmp* bitmap, v2 offset, f32 offset_z, v2 align, v2 dim, v4 color) {
+    macro_assert(group->count < macro_array_count(group->piece_list));
+    Entity_visible_piece* piece = group->piece_list + group->count++;
+    
+    piece->bitmap = bitmap;
+    piece->offset = group->game_state->meters_to_pixels * v2 { offset.x, -offset.y } - align;
+    piece->offset_z = group->game_state->meters_to_pixels * offset_z;
+    piece->color = color;
+    piece->dim = dim;
 }
 
 inline
-void push_piece(Entity_visible_piece_group* group, Loaded_bmp* bitmap, v2 offset, f32 offset_z, v2 align, f32 alpha = 1.0f) {
-    macro_assert(group->count < macro_array_count(group->piece_list));
-    Entity_visible_piece* piece = group->piece_list + group->count++;
-    piece->bitmap = bitmap;
-    piece->offset = offset - align;
-    piece->offset_z = offset_z;
-    piece->alpha = alpha;
+void push_bitmap(Entity_visible_piece_group* group, Loaded_bmp* bitmap, v2 offset, f32 offset_z, v2 align, f32 alpha = 1.0f) {
+    push_piece(group, bitmap, offset, offset_z, align, v2 {0, 0}, v4 {1.0f, 1.0f, 1.0f, alpha });
+}
+
+inline
+void push_rect(Entity_visible_piece_group* group, v2 offset, f32 offset_z, v2 dim, v4 color) {
+    push_piece(group, 0, offset, offset_z, v2{0, 0}, dim, color);
 }
 
 inline
@@ -988,6 +1010,7 @@ Entity entity_from_high_index(Game_state* game_state, u32 entity_index) {
 inline
 void update_familiar(Game_state* game_state, Entity entity, f32 time_delta) {
     Entity closest_hero = {};
+    // distance we want it start to follow
     f32 closest_hero_delta_squared = square(10.0f);
     for (u32 entity_index = 1; entity_index < game_state->high_entity_count; entity_index++) {
         Entity test_entity = entity_from_high_index(game_state, entity_index);
@@ -997,6 +1020,7 @@ void update_familiar(Game_state* game_state, Entity entity, f32 time_delta) {
         
         f32 test_delta_squared = length_squared_v2(test_entity.high->position - entity.high->position);
         
+        // giving some priority for hero
         if (test_entity.low->type == Entity_type_hero) {
             test_delta_squared *= 0.75f;
         }
@@ -1008,7 +1032,9 @@ void update_familiar(Game_state* game_state, Entity entity, f32 time_delta) {
     }
     
     v2 velocity = {};
-    if (closest_hero.high && closest_hero_delta_squared > 0.01f) {
+    f32 distance_to_stop = 2.5f;
+    bool move_closer = closest_hero_delta_squared > square(distance_to_stop);
+    if (closest_hero.high && move_closer) {
         f32 acceleration = 0.5f;
         f32 one_over_length = acceleration / square_root(closest_hero_delta_squared);
         velocity = one_over_length * (closest_hero.high->position - entity.high->position);
@@ -1020,6 +1046,7 @@ void update_familiar(Game_state* game_state, Entity entity, f32 time_delta) {
 
 inline
 void update_monster(Game_state* game_state, Entity entity, f32 time_delta) {
+    
 }
 
 extern "C"
@@ -1097,7 +1124,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                          memory->permanent_storage_size - sizeof(Game_state), 
                          (u8*)memory->permanent_storage + sizeof(Game_state));
         
-        game_state->world = push_struct(&game_state->world_arena, World);
+        game_state->world = mem_push_struct(&game_state->world_arena, World);
         World* world = game_state->world;
         init_world(world, 1.4f);
         
@@ -1246,10 +1273,10 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     }
     
     World* world = game_state->world;
-    
     i32 tile_side_pixels = 60;
-    f32 meters_to_pixels = tile_side_pixels / world->tile_side_meters;
+    game_state->meters_to_pixels = (f32)tile_side_pixels / (f32)world->tile_side_meters;
     
+    f32 meters_to_pixels = game_state->meters_to_pixels;
     macro_assert(world);
     macro_assert(world);
     
@@ -1343,6 +1370,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     // draw entities
     {
         Entity_visible_piece_group piece_group = {};
+        piece_group.game_state = game_state;
         for (u32 entity_index = 1; entity_index < game_state->high_entity_count; entity_index++) {
             piece_group.count = 0;
             u32 i = entity_index;
@@ -1364,7 +1392,35 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 case Entity_type_hero: {
                     Hero_bitmaps* hero_bitmap = &game_state->hero_bitmaps[high->facing_direction];
                     
-                    push_piece(&piece_group, &hero_bitmap->hero_body, v2{0, 0}, 0, hero_bitmap->align);
+                    push_bitmap(&piece_group, &hero_bitmap->hero_body, v2{0, 0}, 0, hero_bitmap->align);
+                    
+                    // draw health / draw hitpoints
+                    {
+                        if (low->hit_points_max > 0) {
+                            v2 health_dim = { 0.2f, 0.2f };
+                            f32 spacing_x = 1.5f * health_dim.x;
+                            v2 hit_p = { 
+                                -0.5f * (low->hit_points_max - 1) * spacing_x, 
+                                -0.25f 
+                            };
+                            
+                            v2 d_hit_p = {
+                                spacing_x,
+                                0.0f
+                            };
+                            
+                            for (u32 health_index = 0; health_index < low->hit_points_max; health_index++) {
+                                Hit_point* hit_point = low->hit_point + health_index;
+                                v4 color = { 1.0f, 0.0f, 0.0f, 1.0f };
+                                if (hit_point->filled_amount == 0) {
+                                    color = { 0.2f, 0.2f, 0.2f, 1.0f };
+                                }
+                                
+                                push_rect(&piece_group, hit_p, 0, health_dim, color);
+                                hit_p += d_hit_p;
+                            }
+                        }
+                    }
                 } break;
                 
                 case Entity_type_familiar: {
@@ -1374,19 +1430,19 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                     if (entity.high->t_bob > 2.0f*PI) {
                         entity.high->t_bob -= 2.0f*PI;
                     }
-                    push_piece(&piece_group, &game_state->familiar, v2{0, 0}, 10.0f*sin(2.0f*entity.high->t_bob), align);
+                    push_bitmap(&piece_group, &game_state->familiar, v2{0, 0}, 0.5f*sin(entity.high->t_bob), align);
                 } break;
                 
                 case Entity_type_monster: {
                     update_monster(game_state, entity, time_delta);
                     v2 align = v2 {25, 42};
-                    push_piece(&piece_group, &game_state->monster, v2{0, 0}, 0, align);
+                    push_bitmap(&piece_group, &game_state->monster, v2{0, 0}, 0, align);
                 } break;
                 
                 case Entity_type_wall: {
                     //draw_rect(bitmap_buffer, player_start, player_end, color_player);
                     v2 align = v2 {50, 115};
-                    push_piece(&piece_group, &game_state->tree, v2{0, 0}, 0, align);
+                    push_bitmap(&piece_group, &game_state->tree, v2{0, 0}, 0, align);
                 } break;
                 
                 default: {
@@ -1430,12 +1486,19 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
             for (u32 piece_index = 0; piece_index < piece_group.count; piece_index++) {
                 Entity_visible_piece* piece = piece_group.piece_list + piece_index;
                 
-                v2 temp_offset = { 
-                    piece->offset.x, 
-                    piece->offset.y + piece->offset_z + entity_z 
+                v2 center = { 
+                    entity_ground_point.x + piece->offset.x, 
+                    entity_ground_point.y + piece->offset.y + piece->offset_z + entity_z 
                 };
-                temp_offset += entity_ground_point;
-                draw_bitmap(bitmap_buffer, piece->bitmap, temp_offset, piece->alpha);
+                
+                if (piece->bitmap) {
+                    draw_bitmap(bitmap_buffer, piece->bitmap, center, piece->color.a);
+                }
+                else {
+                    v2 half_dim = 0.5f * meters_to_pixels * piece->dim;
+                    v3 temp_color = color_v3_v4(piece->color);
+                    draw_rect(bitmap_buffer, center - half_dim, center + half_dim, temp_color);
+                }
             }
         }
     }

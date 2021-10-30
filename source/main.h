@@ -78,10 +78,10 @@ void initialize_arena(Memory_arena* arena, size_t size, u8* base) {
     arena->used = 0;
 }
 
-#define push_struct(arena, type)       (type *)push_size_(arena, sizeof(type))
-#define push_array(arena, count, type) (type *)push_size_(arena, (count) * sizeof(type))
+#define mem_push_struct(arena, type)       (type *)mem_push_size_(arena, sizeof(type))
+#define mem_push_array(arena, count, type) (type *)mem_push_size_(arena, (count) * sizeof(type))
 
-void* push_size_(Memory_arena* arena, size_t size) {
+void* mem_push_size_(Memory_arena* arena, size_t size) {
     macro_assert(arena->used + size <= arena->size);
     
     void* result = arena->base + arena->used;

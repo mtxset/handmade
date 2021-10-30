@@ -22,5 +22,17 @@ global_var const v3 blue_v3   = { 0.0f, 0.0f, 1.0f };
 global_var const v3 gold_v3   = { 1.0f, 0.8f, 0.0f };
 global_var const v3 white_v3  = { 1.0f, 1.0f, 1.0f };
 global_var const v3 yellow_v3 = { 1.0f, 1.0f, 0.0f };
+global_var const v3 grey_v3   = { 0.1f, 0.1f, 0.1f };
+
+inline
+v3 color_v3_v4(v4 color) {
+    v3 result;
+    
+    result.r = color.r;
+    result.g = color.g;
+    result.b = color.b;
+    
+    return result;
+}
 
 #endif //COLOR_H
