@@ -187,6 +187,12 @@ struct High_entity {
     u32 low_entity_index;
 };
 
+#define HIT_POINT_SUB_COUNT 4
+struct Hit_point {
+    u8 flags;
+    u8 filled_amount;
+};
+
 struct Low_entity {
     Entity_type type;
     
@@ -197,6 +203,9 @@ struct Low_entity {
     i32 d_abs_tile_z;
     
     u32 high_entity_index;
+    
+    u32 hit_points_max;
+    Hit_point hit_point[16];
 };
 
 struct Entity {
@@ -209,12 +218,8 @@ struct Entity_visible_piece {
     Loaded_bmp* bitmap;
     v2 offset;
     f32 offset_z;
-    f32 alpha;
-};
-
-struct Entity_visible_piece_group {
-    u32 count;
-    Entity_visible_piece piece_list[8];
+    v4 color;
+    v2 dim;
 };
 
 struct Game_state {
@@ -222,6 +227,8 @@ struct Game_state {
     World* world;
     World_position camera_pos;
     f32 t_sine;
+    
+    f32 meters_to_pixels;
     
     u32 player_index_for_controller[macro_array_count(((Game_input*)0)->gamepad)]; // @disgusting
     
@@ -248,6 +255,13 @@ struct Game_state {
     
     i32 drop_index;
     drop drops[32];
+};
+
+
+struct Entity_visible_piece_group {
+    Game_state* game_state;
+    u32 count;
+    Entity_visible_piece piece_list[32];
 };
 
 Game_controller_input* get_gamepad(Game_input* input, i32 input_index) {

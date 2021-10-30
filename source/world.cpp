@@ -28,7 +28,7 @@ World_chunk* get_world_chunk(World* world, i32 x, i32 y, i32 z, Memory_arena* ar
         }
         
         if (arena && chunk->chunk_x != TILE_CHUNK_UNINITIALIZED && !chunk->next_hash) {
-            chunk->next_hash = push_struct(arena, World_chunk);
+            chunk->next_hash = mem_push_struct(arena, World_chunk);
             chunk = chunk->next_hash;
             chunk->chunk_x = TILE_CHUNK_UNINITIALIZED;
         }
@@ -216,7 +216,7 @@ void change_entity_location(Memory_arena* arena, World* world, u32 low_entity_in
                 world->first_free = old_block->next;
             }
             else {
-                old_block = push_struct(arena, World_entity_block);
+                old_block = mem_push_struct(arena, World_entity_block);
             }
             
             *old_block = *block;

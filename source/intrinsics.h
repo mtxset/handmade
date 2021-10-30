@@ -31,7 +31,6 @@ i32 round_f32_i32(f32 value) {
     i32 result;
     
     result = (i32)roundf(value);
-    // 0.5 cuz c will truncate decimal points, so 0.6 will be 0
     
     return result;
 }
