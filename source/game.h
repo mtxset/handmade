@@ -37,10 +37,10 @@ struct Game_controller_input {
     union {
         Game_button_state buttons[16];
         struct {
-            Game_button_state move_up;
-            Game_button_state move_down;
-            Game_button_state move_left;
-            Game_button_state move_right;
+            Game_button_state action_up;
+            Game_button_state action_down;
+            Game_button_state action_left;
+            Game_button_state action_right;
             
             Game_button_state up;
             Game_button_state down;
@@ -170,7 +170,8 @@ enum Entity_type {
     Entity_type_hero,
     Entity_type_wall,
     Entity_type_familiar,
-    Entity_type_monster
+    Entity_type_monster,
+    Entity_type_sword
 };
 
 struct High_entity {
@@ -206,6 +207,14 @@ struct Low_entity {
     
     u32 hit_points_max;
     Hit_point hit_point[16];
+    
+    u32 sword_low_index;
+    f32 sword_distance_remaining;
+};
+
+struct Add_low_entity_result {
+    Low_entity* low;
+    u32 low_index;
 };
 
 struct Entity {
@@ -242,6 +251,7 @@ struct Game_state {
     Loaded_bmp tree;
     Loaded_bmp monster;
     Loaded_bmp familiar;
+    Loaded_bmp sword;
     u32 following_entity_index;
     
     Hero_bitmaps hero_bitmaps[4];
