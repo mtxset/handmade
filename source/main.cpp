@@ -1,4 +1,4 @@
-// https://youtu.be/0_xzS8zxuq4?t=1979
+// https://youtu.be/bHGLcGgwpWg?t=3134
 #include <stdio.h>
 #include <stdint.h>
 #include <windows.h>
@@ -457,17 +457,17 @@ void win32_handle_messages(Win32_state* win_state, Game_controller_input* keyboa
                     win32_process_keyboard_input(&keyboard_input->right, is_down);
                 } 
                 else if (vk_key == VK_UP) {
-                    win32_process_keyboard_input(&keyboard_input->up, is_down);
+                    win32_process_keyboard_input(&keyboard_input->action_up, is_down);
                 } 
                 else if (vk_key == VK_LEFT) {
-                    win32_process_keyboard_input(&keyboard_input->left, is_down);
+                    win32_process_keyboard_input(&keyboard_input->action_left, is_down);
                 } 
                 else if (vk_key == VK_DOWN) {
-                    win32_process_keyboard_input(&keyboard_input->down, is_down);
+                    win32_process_keyboard_input(&keyboard_input->action_down, is_down);
                 } 
                 else if (vk_key == VK_RIGHT) {
-                    win32_process_keyboard_input(&keyboard_input->right, is_down);
-                } 
+                    win32_process_keyboard_input(&keyboard_input->action_right, is_down);
+                }
                 else if (vk_key == VK_SPACE) {
                     win32_process_keyboard_input(&keyboard_input->action, is_down);
                 } 
@@ -921,16 +921,16 @@ i32 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLi
                     
                     auto threshold = 0.5f;
                     win32_process_xinput_button((new_gamepad->stick_avg_x < -threshold) ? 1 : 0, 1, 
-                                                &old_gamepad->move_left, &new_gamepad->move_left);
+                                                &old_gamepad->left, &new_gamepad->left);
                     
                     win32_process_xinput_button((new_gamepad->stick_avg_x > threshold)  ? 1 : 0, 1, 
-                                                &old_gamepad->move_right, &new_gamepad->move_right);
+                                                &old_gamepad->right, &new_gamepad->right);
                     
                     win32_process_xinput_button((new_gamepad->stick_avg_y < -threshold) ? 1 : 0, 1, 
-                                                &old_gamepad->move_down, &new_gamepad->move_down);
+                                                &old_gamepad->down, &new_gamepad->down);
                     
                     win32_process_xinput_button((new_gamepad->stick_avg_y > threshold)  ? 1 : 0, 1, 
-                                                &old_gamepad->move_up, &new_gamepad->move_up);
+                                                &old_gamepad->up, &new_gamepad->up);
                     
                     win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_DPAD_UP,    &old_gamepad->up,    &new_gamepad->up);
                     win32_process_xinput_button(pad->wButtons, XINPUT_GAMEPAD_DPAD_RIGHT, &old_gamepad->right, &new_gamepad->right);

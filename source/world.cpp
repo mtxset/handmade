@@ -6,6 +6,22 @@ global_var const i32 TILE_CHUNK_UNINITIALIZED = INT32_MAX;
 global_var const i32 TILES_PER_CHUNK = 16;
 
 inline
+bool is_position_valid(World_position pos) {
+    bool result = pos.chunk_x != TILE_CHUNK_UNINITIALIZED;
+    
+    return result;
+}
+
+inline
+World_position null_position() {
+    World_position result = {};
+    
+    result.chunk_x = TILE_CHUNK_UNINITIALIZED;
+    
+    return result;
+};
+
+inline
 World_chunk* get_world_chunk(World* world, i32 x, i32 y, i32 z, Memory_arena* arena = 0) {
     macro_assert(x > -TILE_CHUNK_SAFE_MARGIN);
     macro_assert(y > -TILE_CHUNK_SAFE_MARGIN);
@@ -57,7 +73,6 @@ bool is_canonical(World* world, f32 tile_relative) {
     
     return result;
 }
-
 
 inline
 bool is_canonical(World* world, v2 offset) {
@@ -169,7 +184,11 @@ void init_world(World* world, f32 tile_side_meters) {
 }
 
 inline
-void change_entity_location(Memory_arena* arena, World* world, u32 low_entity_index, World_position* old_pos, World_position* new_pos) {
+void change_entity_location_raw(Memory_arena* arena, World* world, u32 low_entity_index, World_position* old_pos, World_position* new_pos) {
+    
+    macro_assert(!old_pos || is_position_valid(*old_pos));
+    macro_assert(!new_pos || is_position_valid(*new_pos));
+    
     if (old_pos && are_in_same_chunk(world, old_pos, new_pos)) {
         // no need to do anything
     }
@@ -204,27 +223,42 @@ void change_entity_location(Memory_arena* arena, World* world, u32 low_entity_in
             }
         }
         
-        World_chunk* chunk = get_world_chunk(world, new_pos->chunk_x, new_pos->chunk_y, new_pos->chunk_z, arena);
-        macro_assert(chunk);
-        
-        World_entity_block* block = &chunk->first_block;
-        if (block->entity_count == macro_array_count(block->low_entity_index)) {
-            // new block
-            World_entity_block* old_block = world->first_free;
+        if (new_pos) {
+            World_chunk* chunk = get_world_chunk(world, new_pos->chunk_x, new_pos->chunk_y, new_pos->chunk_z, arena);
+            macro_assert(chunk);
             
-            if (old_block) {
-                world->first_free = old_block->next;
-            }
-            else {
-                old_block = mem_push_struct(arena, World_entity_block);
+            World_entity_block* block = &chunk->first_block;
+            if (block->entity_count == macro_array_count(block->low_entity_index)) {
+                // new block
+                World_entity_block* old_block = world->first_free;
+                
+                if (old_block) {
+                    world->first_free = old_block->next;
+                }
+                else {
+                    old_block = mem_push_struct(arena, World_entity_block);
+                }
+                
+                *old_block = *block;
+                block->next = old_block;
+                block->entity_count = 0;
             }
             
-            *old_block = *block;
-            block->next = old_block;
-            block->entity_count = 0;
+            macro_assert(block->entity_count < macro_array_count(block->low_entity_index));
+            block->low_entity_index[block->entity_count++] = low_entity_index;
         }
-        
-        macro_assert(block->entity_count < macro_array_count(block->low_entity_index));
-        block->low_entity_index[block->entity_count++] = low_entity_index;
+    }
+}
+
+internal
+void change_entity_location(Memory_arena* arena, World* world, u32 low_entity_index, Low_entity* low_entity, World_position* old_pos, World_position* new_pos) {
+    
+    change_entity_location_raw(arena, world, low_entity_index, old_pos, new_pos);
+    
+    if (new_pos) {
+        low_entity->position = *new_pos;
+    }
+    else {
+        low_entity->position = null_position();
     }
 }
