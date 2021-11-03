@@ -194,6 +194,13 @@ struct Hit_point {
     u8 filled_amount;
 };
 
+struct Move_spec {
+    bool max_acceleration_vector;
+    f32 speed;
+    f32 drag;
+    f32 boost;
+};
+
 struct Low_entity {
     Entity_type type;
     
