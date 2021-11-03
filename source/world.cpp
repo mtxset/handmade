@@ -189,7 +189,7 @@ void change_entity_location_raw(Memory_arena* arena, World* world, u32 low_entit
     macro_assert(!old_pos || is_position_valid(*old_pos));
     macro_assert(!new_pos || is_position_valid(*new_pos));
     
-    if (old_pos && are_in_same_chunk(world, old_pos, new_pos)) {
+    if (old_pos && new_pos && are_in_same_chunk(world, old_pos, new_pos)) {
         // no need to do anything
     }
     else {
