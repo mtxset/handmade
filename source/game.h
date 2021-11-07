@@ -5,6 +5,7 @@
 #include "types.h"
 #include "utils.h"
 #include "world.h"
+#include "sim_region.h"
 
 struct Game_bitmap_buffer {
     // pixels are always 32 bit, memory order BB GG RR XX (padding)
@@ -174,20 +175,6 @@ enum Entity_type {
     Entity_type_sword
 };
 
-struct High_entity {
-    v2 position;
-    v2 velocity_d;
-    u32 chunk_z;
-    u32 facing_direction;
-    
-    f32 t_bob;
-    
-    f32 z;
-    f32 z_velocity_d;
-    
-    u32 low_entity_index;
-};
-
 #define HIT_POINT_SUB_COUNT 4
 struct Hit_point {
     u8 flags;
@@ -205,15 +192,17 @@ struct Low_entity {
     Entity_type type;
     
     World_position position;
+    v2 velocity_d;
     f32 width, height;
     
     bool collides;
     i32 d_abs_tile_z;
     
-    u32 high_entity_index;
-    
     u32 hit_points_max;
     Hit_point hit_point[16];
+    
+    u32 facing_direction;
+    f32 t_bob;
     
     u32 sword_low_index;
     f32 sword_distance_remaining;
@@ -222,12 +211,6 @@ struct Low_entity {
 struct Add_low_entity_result {
     Low_entity* low;
     u32 low_index;
-};
-
-struct Entity {
-    u32 low_index;
-    Low_entity*  low;
-    High_entity* high;
 };
 
 struct Entity_visible_piece {
@@ -250,9 +233,6 @@ struct Game_state {
     
     u32 low_entity_count;
     Low_entity low_entity_list[100000];
-    
-    u32 high_entity_count;
-    High_entity high_entity_list[256];
     
     Loaded_bmp background;
     Loaded_bmp tree;

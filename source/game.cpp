@@ -14,6 +14,7 @@
 #include "color.h"
 #include "vectors.h"
 #include "test.cpp"
+#include "sim_region.cpp"
 
 #if 0
 #define RUN_RAY
@@ -533,125 +534,12 @@ v2 get_camera_space_pos(Game_state* game_state, Low_entity* entity_low) {
     return result;
 }
 
-inline
-High_entity* make_entity_high_freq(Game_state* game_state, Low_entity* entity_low, u32 low_index, v2 camera_space_pos) {
-    High_entity* entity_high = 0;
-    
-    macro_assert(entity_low->high_entity_index == 0);
-    
-    if (entity_low->high_entity_index == 0) {
-        bool enough_space_for_high = game_state->high_entity_count < macro_array_count(game_state->high_entity_list);
-        if (enough_space_for_high) {
-            u32 high_index = game_state->high_entity_count++;
-            entity_high = game_state->high_entity_list + high_index;
-            
-            entity_high->position = camera_space_pos;
-            entity_high->velocity_d = v2 {0, 0};
-            entity_high->chunk_z = entity_low->position.chunk_z;
-            entity_high->facing_direction = 0;
-            entity_high->low_entity_index = low_index;
-            
-            entity_low->high_entity_index = high_index;
-        } else {
-            macro_assert(!"INVALID");
-        }
-    }
-    
-    return entity_high;
-}
-
-inline
-High_entity* make_entity_high_freq(Game_state* game_state, u32 low_index) {
-    High_entity* high_entity = 0;
-    
-    Low_entity* low_entity = game_state->low_entity_list + low_index;
-    
-    if (low_entity->high_entity_index) {
-        high_entity = game_state->high_entity_list + low_entity->high_entity_index;
-    }
-    else {
-        v2 camera_space_pos = get_camera_space_pos(game_state, low_entity);
-        high_entity = make_entity_high_freq(game_state, low_entity, low_index, camera_space_pos);
-    }
-    
-    return high_entity;
-}
-
-inline
-void make_entity_low_freq(Game_state* game_state, u32 low_index) {
-    Low_entity*  entity_low  = &game_state->low_entity_list[low_index];
-    u32 high_index = entity_low->high_entity_index;
-    
-    if (high_index) {
-        u32 last_high_index = game_state->high_entity_count - 1;
-        
-        if (high_index != last_high_index) {
-            High_entity* last_entity = game_state->high_entity_list + last_high_index;
-            High_entity* delete_entity = game_state->high_entity_list + high_index;
-            
-            *delete_entity = *last_entity;
-            game_state->low_entity_list[last_entity->low_entity_index].high_entity_index = high_index;
-        }
-        
-        game_state->high_entity_count--;
-        entity_low->high_entity_index = 0;
-    }
-}
-
-inline
-bool validate_entity_pairs(Game_state* game_state) {
-    bool result = true;
-    
-    // skipping null entity
-    for(u32 high_entity_index = 1; high_entity_index < game_state->high_entity_count; high_entity_index++)
-    {
-        High_entity* high = game_state->high_entity_list + high_entity_index;
-        result = result && game_state->low_entity_list[high->low_entity_index].high_entity_index == high_entity_index;
-    }
-    
-    return result;
-}
-
-inline
-void offset_and_check_freq_by_area(Game_state* game_state, v2 offset, Rect camera_bounds) {
-    
-    for (u32 entity_index = 1; entity_index < game_state->high_entity_count;) {
-        
-        High_entity* high_entity = game_state->high_entity_list + entity_index;
-        Low_entity* low_entity = game_state->low_entity_list + high_entity->low_entity_index;
-        
-        high_entity->position += offset;
-        
-        if (is_position_valid(low_entity->position) && is_in_rect(camera_bounds, high_entity->position)) {
-            entity_index++;
-        }
-        else {
-            macro_assert(game_state->low_entity_list[high_entity->low_entity_index].high_entity_index == entity_index);
-            make_entity_low_freq(game_state, high_entity->low_entity_index);
-        }
-    }
-    
-}
-
 internal
 Low_entity* get_low_entity(Game_state* game_state, u32 index) {
     Low_entity* entity = 0;
     
     if (index > 0 && index < game_state->low_entity_count) {
         entity = game_state->low_entity_list + index;
-    }
-    
-    return entity;
-}
-
-internal
-Entity force_entity_into_high(Game_state* game_state, u32 index) {
-    Entity entity = {};
-    
-    if (index > 0 && index < game_state->low_entity_count) {
-        entity.low_index = index;
-        entity.low = game_state->low_entity_list + index;
-        entity.high = make_entity_high_freq(game_state, index);
     }
     
     return entity;
@@ -937,63 +825,9 @@ macro_assert(max_tile_x - min_tile_x < 32);
 }
 
 internal
-void set_camera(Game_state* game_state, World_position new_camera_pos) {
-    World* world = game_state->world;
+void sim_camera_region(Game_state* game_state) {
     
-    macro_assert(validate_entity_pairs(game_state));
     
-    World_diff d_camera = subtract_pos(world, &new_camera_pos, &game_state->camera_pos);
-    game_state->camera_pos = new_camera_pos;
-    
-    u32 tile_span_x = 17 * 3;
-    u32 tile_span_y = 9  * 3;
-    v2 tile_spans = {
-        (f32)tile_span_x,
-        (f32)tile_span_y
-    };
-    Rect camera_bounds = rect_center_dim(v2 {0, 0}, world->tile_side_meters * tile_spans);
-    
-    v2 entity_offset_for_frame = -d_camera.xy;
-    offset_and_check_freq_by_area(game_state, entity_offset_for_frame, camera_bounds);
-    
-    macro_assert(validate_entity_pairs(game_state));
-    
-    World_position min_chunk_pos = map_into_chunk_space(world, new_camera_pos, get_min_corner(camera_bounds));
-    World_position max_chunk_pos = map_into_chunk_space(world, new_camera_pos, get_max_corner(camera_bounds));
-    
-    for (i32 chunk_y = min_chunk_pos.chunk_y; chunk_y <= max_chunk_pos.chunk_y; chunk_y++) {
-        for (i32 chunk_x = min_chunk_pos.chunk_x; chunk_x <= max_chunk_pos.chunk_x; chunk_x++) {
-            
-            World_chunk* chunk = get_world_chunk(world, chunk_x, chunk_y, new_camera_pos.chunk_z);
-            
-            if (!chunk)
-                continue;
-            
-            for (World_entity_block* block = &chunk->first_block; block; block = block->next) {
-                for (u32 entity_index = 0; entity_index < block->entity_count; entity_index++) {
-                    u32 low_entity_index = block->low_entity_index[entity_index];
-                    Low_entity* low_entity = game_state->low_entity_list + low_entity_index;
-                    
-                    if (low_entity->high_entity_index == 0) {
-                        
-                        v2 camera_space_pos = get_camera_space_pos(game_state, low_entity);
-                        
-                        if (is_in_rect(camera_bounds, camera_space_pos))
-                            make_entity_high_freq(game_state, low_entity, low_entity_index, camera_space_pos);
-                    }
-                }
-            }
-        }
-    }
-    
-    macro_assert(validate_entity_pairs(game_state));
-    
-#if 0
-    // logs high, low entity counts
-    char buffer[256];
-    _snprintf_s(buffer, sizeof(buffer), "low: %u, high: %u\n", game_state->low_entity_count, game_state->high_entity_count);
-    OutputDebugStringA(buffer);
-#endif
 }
 
 #ifdef RUN_RAY
@@ -1465,29 +1299,19 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     
     // update camera
     {
-        Entity camera_follow_entity = force_entity_into_high(game_state, game_state->following_entity_index);
         
-        if (camera_follow_entity.high) {
+        // sim
+        {
+            u32 tile_span_x = 17 * 3;
+            u32 tile_span_y = 9  * 3;
+            v2 tile_spans = {
+                (f32)tile_span_x,
+                (f32)tile_span_y
+            };
             
-            World_position new_camera_pos = game_state->camera_pos;
-            new_camera_pos.chunk_z = camera_follow_entity.low->position.chunk_z;
-#if 0
-            if (camera_follow_entity.high->position.x > 8.5 * world->tile_side_meters)
-                new_camera_pos.absolute_tile_x += 17;
+            Rect2 camera_bounds = rect_center_dim(v2 {0, 0}, world->tile_side_meters * tile_spans);
             
-            if (camera_follow_entity.high->position.x < -(8.5f * world->tile_side_meters))
-                new_camera_pos.absolute_tile_x -= 17;
-            
-            if (camera_follow_entity.high->position.y > 4.5f * world->tile_side_meters)
-                new_camera_pos.absolute_tile_y += 9;
-            
-            if (camera_follow_entity.high->position.y < -(5.0f * world->tile_side_meters))
-                new_camera_pos.absolute_tile_y -= 9;
-#else
-            // smooth follow
-            new_camera_pos = camera_follow_entity.low->position;
-#endif
-            set_camera(game_state, new_camera_pos);
+            begin_sim(sim_arena, game_state->world, game_state->camera_pos, camera_bounds);
         }
     }
     
@@ -1503,17 +1327,12 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     {
         Entity_visible_piece_group piece_group = {};
         piece_group.game_state = game_state;
-        for (u32 entity_index = 1; entity_index < game_state->high_entity_count; entity_index++) {
+        Entity* entity = sim_region->entity_list;
+        for (u32 entity_index = 0; entity_index < sim_region->entity_count; entity_index++) {
             piece_group.count = 0;
             u32 i = entity_index;
             
-            High_entity* high = game_state->high_entity_list + i;
-            Low_entity*  low  = game_state->low_entity_list + high->low_entity_index;
-            
-            Entity entity = {};
-            entity.low_index = high->low_entity_index;
-            entity.low = low;
-            entity.high = high;
+            Low_entity* low  = game_state->low_entity_list + high->storage_index;
             
             f32 time_delta = input->time_delta;
             
@@ -1522,21 +1341,21 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
             // move entities
             switch (low->type) {
                 case Entity_type_hero: {
-                    Hero_bitmaps* hero_bitmap = &game_state->hero_bitmaps[high->facing_direction];
+                    Hero_bitmaps* hero_bitmap = &game_state->hero_bitmaps[low->facing_direction];
                     
                     // jump
                     f32 jump_z;
                     {
                         f32 ddz = -9.8f;
-                        f32 delta_z = .5f * ddz * square(time_delta) + high->z_velocity_d * time_delta;
-                        high->z += delta_z;
-                        high->z_velocity_d = ddz * time_delta + high->z_velocity_d;
+                        f32 delta_z = .5f * ddz * square(time_delta) + entity->z_velocity_d * time_delta;
+                        entity->z += delta_z;
+                        entity->z_velocity_d = ddz * time_delta + entity->z_velocity_d;
                         
-                        if (high->z < 0) {
-                            high->z = 0;
+                        if (entity->z < 0) {
+                            entity->z = 0;
                         }
                         
-                        jump_z = -high->z;
+                        jump_z = -entity->z;
                     }
                     
                     push_bitmap(&piece_group, &hero_bitmap->hero_body, v2{0, 0}, jump_z, hero_bitmap->align);
@@ -1579,8 +1398,8 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
             }
             
             v2 entity_ground_point = { 
-                screen_center_x + high->position.x * meters_to_pixels,
-                screen_center_y - high->position.y * meters_to_pixels
+                screen_center_x + entity->position.x * meters_to_pixels,
+                screen_center_y - entity->position.y * meters_to_pixels
             };
             
 #if 0
@@ -1616,6 +1435,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         }
     }
     
+    end_sim(sim_region, game_state);
 #if 0
     subpixel_test_udpdate(bitmap_buffer, game_state, input, gold_v3);
 #endif
