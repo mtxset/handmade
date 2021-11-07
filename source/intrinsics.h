@@ -7,7 +7,7 @@
 #include "platform.h"
 #include "vectors.h"
 
-struct Rect {
+struct Rect2 {
     v2 min;
     v2 max;
 };
@@ -188,7 +188,7 @@ f32 rad_to_degrees(f32 value) {
 }
 
 inline
-v2 get_min_corner(Rect rect) {
+v2 get_min_corner(Rect2 rect) {
     v2 result;
     
     result = rect.min;
@@ -197,7 +197,7 @@ v2 get_min_corner(Rect rect) {
 }
 
 inline
-v2 get_max_corner(Rect rect) {
+v2 get_max_corner(Rect2 rect) {
     v2 result;
     
     result = rect.max;
@@ -206,7 +206,7 @@ v2 get_max_corner(Rect rect) {
 }
 
 inline
-v2 get_center(Rect rect) {
+v2 get_center(Rect2 rect) {
     v2 result;
     
     result = 0.5f * (rect.min + rect.max);
@@ -215,8 +215,8 @@ v2 get_center(Rect rect) {
 }
 
 inline
-Rect rect_min_max(v2 min, v2 max) {
-    Rect result;
+Rect2 rect_min_max(v2 min, v2 max) {
+    Rect2 result;
     
     result.min = min;
     result.max = max;
@@ -225,8 +225,8 @@ Rect rect_min_max(v2 min, v2 max) {
 }
 
 inline
-Rect rect_min_dim(v2 min, v2 dim) {
-    Rect result;
+Rect2 rect_min_dim(v2 min, v2 dim) {
+    Rect2 result;
     
     result.min = min;
     result.max = min + dim;
@@ -235,8 +235,8 @@ Rect rect_min_dim(v2 min, v2 dim) {
 }
 
 inline
-Rect rect_center_half_dim(v2 center, v2 half_dim) {
-    Rect result;
+Rect2 rect_center_half_dim(v2 center, v2 half_dim) {
+    Rect2 result;
     
     result.min = center - half_dim;
     result.max = center + half_dim;
@@ -245,8 +245,8 @@ Rect rect_center_half_dim(v2 center, v2 half_dim) {
 }
 
 inline
-Rect rect_center_dim(v2 center, v2 dim) {
-    Rect result;
+Rect2 rect_center_dim(v2 center, v2 dim) {
+    Rect2 result;
     
     result = rect_center_half_dim(center, 0.5f * dim);
     
@@ -254,7 +254,7 @@ Rect rect_center_dim(v2 center, v2 dim) {
 }
 
 inline
-bool is_in_rect(Rect rect, v2 point) {
+bool is_in_rect(Rect2 rect, v2 point) {
     bool result;
     
     result = 
