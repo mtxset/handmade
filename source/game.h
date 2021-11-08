@@ -166,46 +166,9 @@ struct Hero_bitmaps {
     Loaded_bmp hero_body;
 };
 
-enum Entity_type {
-    Entity_type_null,
-    Entity_type_hero,
-    Entity_type_wall,
-    Entity_type_familiar,
-    Entity_type_monster,
-    Entity_type_sword
-};
-
-#define HIT_POINT_SUB_COUNT 4
-struct Hit_point {
-    u8 flags;
-    u8 filled_amount;
-};
-
-struct Move_spec {
-    bool max_acceleration_vector;
-    f32 speed;
-    f32 drag;
-    f32 boost;
-};
-
 struct Low_entity {
-    Entity_type type;
-    
     World_position position;
-    v2 velocity_d;
-    f32 width, height;
-    
-    bool collides;
-    i32 d_abs_tile_z;
-    
-    u32 hit_points_max;
-    Hit_point hit_point[16];
-    
-    u32 facing_direction;
-    f32 t_bob;
-    
-    u32 sword_low_index;
-    f32 sword_distance_remaining;
+    Sim_entity sim;
 };
 
 struct Add_low_entity_result {
@@ -278,5 +241,16 @@ void (game_update_render_signature) (thread_context* thread, Game_memory* memory
 
 typedef 
 void (game_get_sound_samples_signature) (thread_context* thread, Game_memory* memory, Game_sound_buffer* sound_buffer);
+
+internal
+Low_entity* get_low_entity(Game_state* game_state, u32 index) {
+    Low_entity* entity = 0;
+    
+    if (index > 0 && index < game_state->low_entity_count) {
+        entity = game_state->low_entity_list + index;
+    }
+    
+    return entity;
+}
 
 #endif //GAME_H
