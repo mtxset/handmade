@@ -1,4 +1,4 @@
-// https://youtu.be/lHKso30LdU8?t=1169
+// https://youtu.be/XfBTNH0nL4I?t=1003
 #include <stdio.h>
 #include <stdint.h>
 #include <windows.h>
@@ -970,13 +970,11 @@ i32 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLi
             game_buffer.window_height = initial_window_height;
             game_buffer.bytes_per_pixel = Global_backbuffer.bytes_per_pixel;
             
-            if (win_state.recording_input_index) {
+            if (win_state.recording_input_index)
                 win32_record_input(&win_state, new_input);
-            }
             
-            if (win_state.playing_input_index) {
+            if (win_state.playing_input_index)
                 win32_playback_input(&win_state, new_input);
-            }
             
             if (game_code.update_and_render)
                 game_code.update_and_render(&thread, &memory, new_input, &game_buffer);

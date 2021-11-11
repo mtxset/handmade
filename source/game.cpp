@@ -15,6 +15,7 @@
 #include "vectors.h"
 #include "test.cpp"
 #include "sim_region.cpp"
+#include "entity.cpp"
 
 #if 0
 #define RUN_RAY
@@ -512,17 +513,6 @@ void subpixel_test_udpdate(Game_bitmap_buffer* buffer, Game_state* game_state, G
     *pixel_two = color_hex;
 }
 
-inline
-Move_spec default_move_spec() {
-    Move_spec result;
-    
-    result.max_acceleration_vector = false;
-    result.speed = 1.0f;
-    result.drag = 0.0f;
-    result.boost = 0.0f;
-    
-    return result;
-}
 
 inline
 v2 get_camera_space_pos(Game_state* game_state, Low_entity* entity_low) {
@@ -675,12 +665,12 @@ void push_rect(Entity_visible_piece_group* group, v2 offset, f32 offset_z, v2 di
 }
 
 inline
-void draw_hitpoints(Entity_visible_piece_group* piece_group, Low_entity* low) {
-    if (low->sim.hit_points_max > 0) {
+void draw_hitpoints(Entity_visible_piece_group* piece_group, Sim_entity* entity) {
+    if (entity->hit_points_max > 0) {
         v2 health_dim = { 0.2f, 0.2f };
         f32 spacing_x = 1.5f * health_dim.x;
         v2 hit_p = { 
-            -0.5f * (low->sim.hit_points_max - 1) * spacing_x, 
+            -0.5f * (entity->hit_points_max - 1) * spacing_x, 
             -0.25f 
         };
         
@@ -689,8 +679,8 @@ void draw_hitpoints(Entity_visible_piece_group* piece_group, Low_entity* low) {
             0.0f
         };
         
-        for (u32 health_index = 0; health_index < low->sim.hit_points_max; health_index++) {
-            Hit_point* hit_point = low->sim.hit_point + health_index;
+        for (u32 health_index = 0; health_index < entity->hit_points_max; health_index++) {
+            Hit_point* hit_point = entity->hit_point + health_index;
             
             v4 color = { 1.0f, 0.0f, 0.0f, 1.0f };
             if (hit_point->filled_amount == 0) {
@@ -701,74 +691,6 @@ void draw_hitpoints(Entity_visible_piece_group* piece_group, Low_entity* low) {
             hit_p += d_hit_p;
         }
     }
-}
-
-// https://youtu.be/KBCNjjeXezM
-inline
-void update_familiar(Game_state* game_state, Entity entity, f32 time_delta) {
-    Entity closest_hero = {};
-    // distance we want it start to follow
-    f32 closest_hero_delta_squared = square(10.0f);
-    for (u32 entity_index = 1; entity_index < game_state->high_entity_count; entity_index++) {
-        Entity test_entity = entity_from_high_index(game_state, entity_index);
-        
-        if (test_entity.low->sim.type != Entity_type_hero)
-            continue;
-        
-        f32 test_delta_squared = length_squared_v2(test_entity.high->position - entity.high->position);
-        
-        // giving some priority for hero
-        if (test_entity.low->sim.type == Entity_type_hero) {
-            test_delta_squared *= 0.75f;
-        }
-        
-        if (closest_hero_delta_squared > test_delta_squared) {
-            closest_hero = test_entity;
-            closest_hero_delta_squared = test_delta_squared;
-        }
-    }
-    
-    v2 velocity = {};
-    f32 distance_to_stop = 2.5f;
-    bool move_closer = closest_hero_delta_squared > square(distance_to_stop);
-    if (closest_hero.high && move_closer) {
-        f32 acceleration = 0.5f;
-        f32 one_over_length = acceleration / square_root(closest_hero_delta_squared);
-        velocity = one_over_length * (closest_hero.high->position - entity.high->position);
-    }
-    
-    Move_spec move_spec = default_move_spec();
-    move_spec.max_acceleration_vector = true;
-    move_spec.speed = 50.0f;
-    move_spec.drag = 8.0f;
-    move_spec.boost = 1.0f;
-    
-    move_entity(game_state, entity, time_delta, &move_spec, velocity);
-}
-
-inline
-void update_sword(Game_state* game_state, Entity entity, f32 time_delta) {
-    Move_spec move_spec = {};
-    move_spec.max_acceleration_vector = false;
-    move_spec.speed = 0.0f;
-    move_spec.drag = 0.0f;
-    move_spec.boost = 0.0f;
-    
-    v2 old_pos = entity.high->position;
-    move_entity(game_state, entity, time_delta, &move_spec, v2 {0, 0});
-    
-    f32 distance_travelled = length_v2(entity.high->position - old_pos);
-    entity.low->sim.sword_distance_remaining -= distance_travelled;
-    
-    if (entity.low->sim.sword_distance_remaining < 0.0f) {
-        change_entity_location(&game_state->world_arena, game_state->world, 
-                               entity.low_index, entity.low, &entity.low->sim.position, 0);
-    }
-}
-
-inline
-void update_monster(Game_state* game_state, Entity entity, f32 time_delta) {
-    
 }
 
 extern "C"
@@ -788,7 +710,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     {
         // reserve null entity for ?
         add_low_entity(game_state, Entity_type_null, 0);
-        game_state->high_entity_count = 1;
+        
 #if 0
         // pacman init
         {
@@ -1001,23 +923,22 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     macro_assert(world);
     
     // check input and move player
-    v2 player_acceleration_dd = {};
-    bool shift_was_pressd = false;
     {
         for (i32 controller_index = 0; controller_index < macro_array_count(input->gamepad); controller_index++) {
             auto input_state = get_gamepad(input, controller_index);
-            u32 low_index = game_state->player_index_for_controller[controller_index];
+            Controlled_hero* controlled = game_state->controlled_hero_list + controller_index;
             
-            if (low_index == 0) {
+            if (controlled->entity_index == 0) {
                 if (input_state->start.ended_down) {
-                    u32 entity_index = add_player(game_state).low_index;
-                    game_state->player_index_for_controller[controller_index] = entity_index;
+                    *controlled = {};
+                    controlled->entity_index = add_player(game_state).low_index;
                 }
             }
             else {
-                Entity controlling_entity = force_entity_into_high(game_state, low_index);
+                controlled->dd_player = {};
+                
                 if (input_state->is_analog) {
-                    player_acceleration_dd = v2 {
+                    controlled->dd_player = v2 {
                         input_state->stick_avg_x,
                         input_state->stick_avg_y
                     };
@@ -1025,86 +946,57 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 else {
                     // digital
                     if (input_state->up.ended_down) {
-                        player_acceleration_dd.y = 1.0f;
+                        controlled->dd_player.y = 1.0f;
                     }
                     if (input_state->down.ended_down) {
-                        player_acceleration_dd.y = -1.0f;
+                        controlled->dd_player.y = -1.0f;
                     }
                     if (input_state->left.ended_down) {
-                        player_acceleration_dd.x = -1.0f;
+                        controlled->dd_player.x = -1.0f;
                     }
                     if (input_state->right.ended_down) {
-                        player_acceleration_dd.x = 1.0f;
-                    }
-                }
-                
-                // sword input check
-                v2 sword_delta = {};
-                {
-                    if (input_state->action_up.ended_down) {
-                        sword_delta = { 0.0f, 1.0f };
-                    }
-                    if (input_state->action_down.ended_down) {
-                        sword_delta = { 0.0f, -1.0f };
-                    }
-                    if (input_state->action_left.ended_down) {
-                        sword_delta = { -1.0f, 0.0f };
-                    }
-                    if (input_state->action_right.ended_down) {
-                        sword_delta = { 1.0f, 0.0f };
+                        controlled->dd_player.x = 1.0f;
                     }
                 }
                 
                 if (input_state->action.ended_down)
-                    controlling_entity.high->z_velocity_d = 4.0f;
+                    controlled->d_z = 4.0f;
                 
-                f32 boost = 1.0f;
-                
-                if (input_state->shift.ended_down)
-                    boost = 10.0f;
-                
-                Move_spec move_spec = default_move_spec();
-                move_spec.max_acceleration_vector = true;
-                move_spec.speed = 50.0f;
-                move_spec.drag = 8.0f;
-                move_spec.boost = boost;
-                
-                move_entity(game_state, controlling_entity, input->time_delta, &move_spec, player_acceleration_dd);
-                
-                if (!is_zero_v2(sword_delta)) {
-                    u32 sword_index = controlling_entity.low->sim.sword_low_index;
-                    Low_entity* sword_low = get_low_entity(game_state, controlling_entity.low->sim.sword_low_index);
-                    
-                    if (sword_low && !is_position_valid(sword_low->sim.position)) {
-                        World_position sword_pos = controlling_entity.low->sim.position;
-                        
-                        change_entity_location(&game_state->world_arena, game_state->world, sword_index, sword_low, 0, &sword_pos);
-                        Entity sword_entity = force_entity_into_high(game_state, sword_index);
-                        
-                        sword_entity.low->sim.sword_distance_remaining = 5.0f;
-                        sword_entity.high->velocity_d = 5.0f * sword_delta;
+                // sword input check
+                controlled->d_sword = {};
+                {
+                    if (input_state->action_up.ended_down) {
+                        controlled->d_sword = { 0.0f, 1.0f };
+                    }
+                    if (input_state->action_down.ended_down) {
+                        controlled->d_sword = { 0.0f, -1.0f };
+                    }
+                    if (input_state->action_left.ended_down) {
+                        controlled->d_sword = { -1.0f, 0.0f };
+                    }
+                    if (input_state->action_right.ended_down) {
+                        controlled->d_sword = { 1.0f, 0.0f };
                     }
                 }
             }
         }
     }
     
-    // update camera
+    // sim
+    Sim_region* sim_region = {};
     {
+        u32 tile_span_x = 17 * 3;
+        u32 tile_span_y = 9  * 3;
+        v2 tile_spans = {
+            (f32)tile_span_x,
+            (f32)tile_span_y
+        };
         
-        // sim
-        {
-            u32 tile_span_x = 17 * 3;
-            u32 tile_span_y = 9  * 3;
-            v2 tile_spans = {
-                (f32)tile_span_x,
-                (f32)tile_span_y
-            };
-            
-            Rect2 camera_bounds = rect_center_dim(v2 {0, 0}, world->tile_side_meters * tile_spans);
-            
-            begin_sim(sim_arena, game_state->world, game_state->camera_pos, camera_bounds);
-        }
+        Rect2 camera_bounds = rect_center_dim(v2 {0, 0}, world->tile_side_meters * tile_spans);
+        Memory_arena sim_arena;
+        initialize_arena(&sim_arena, memory->transient_storage_size, memory->transient_storage);
+        
+        sim_region = begin_sim(&sim_arena, game_state, game_state->world, game_state->camera_pos, camera_bounds);
     }
     
     clear_screen(bitmap_buffer, color_gray_byte);
@@ -1119,21 +1011,48 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     {
         Entity_visible_piece_group piece_group = {};
         piece_group.game_state = game_state;
-        Entity* entity = sim_region->entity_list;
-        for (u32 entity_index = 0; entity_index < sim_region->entity_count; entity_index++) {
+        Sim_entity* entity = sim_region->entity_list;
+        for (u32 entity_index = 0; entity_index < sim_region->entity_count; entity_index++, entity++) {
             piece_group.count = 0;
             u32 i = entity_index;
-            
-            Low_entity* low  = game_state->low_entity_list + high->storage_index;
             
             f32 time_delta = input->time_delta;
             
             v3 color_player = { .1f, .0f, 1.0f };
             
             // move entities
-            switch (low->sim.type) {
+            switch (entity->type) {
                 case Entity_type_hero: {
-                    Hero_bitmaps* hero_bitmap = &game_state->hero_bitmaps[low->sim.facing_direction];
+                    
+                    u32 hero_count = macro_array_count(game_state->controlled_hero_list);
+                    for (u32 control_index = 0; control_index < hero_count; control_index++) {
+                        Controlled_hero* con_hero = game_state->controlled_hero_list + control_index;
+                        
+                        if (entity->storage_index == con_hero->entity_index) {
+                            entity->z_velocity_d = con_hero->d_z;
+                            
+                            Move_spec move_spec = default_move_spec();
+                            move_spec.max_acceleration_vector = true;
+                            move_spec.speed = 50.0f;
+                            move_spec.drag = 8.0f;
+                            //move_spec.boost = boost;
+                            
+                            move_entity(sim_region, entity, input->time_delta, &move_spec, con_hero->dd_player);
+                            
+                            if (!is_zero_v2(con_hero->d_sword)) {
+                                Sim_entity* sword = entity->sword.pointer;
+                                
+                                if (sword) {
+                                    sword->position = entity->position;
+                                    
+                                    sword->sword_distance_remaining = 5.0f;
+                                    sword->velocity_d = 5.0f * con_hero->d_sword;
+                                }
+                            }
+                        }
+                    }
+                    
+                    Hero_bitmaps* hero_bitmap = &game_state->hero_bitmaps[entity->facing_direction];
                     
                     // jump
                     f32 jump_z;
@@ -1152,28 +1071,28 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                     
                     push_bitmap(&piece_group, &hero_bitmap->hero_body, v2{0, 0}, jump_z, hero_bitmap->align);
                     
-                    draw_hitpoints(&piece_group, low);
+                    draw_hitpoints(&piece_group, entity);
                 } break;
                 
                 case Entity_type_familiar: {
-                    update_familiar(game_state, entity, time_delta);
+                    update_familiar(sim_region, entity, time_delta);
                     v2 align = {34, 72};
-                    entity.high->t_bob += time_delta;
-                    if (entity.high->t_bob > 2.0f * PI) {
-                        entity.high->t_bob -= 2.0f * PI;
+                    entity->t_bob += time_delta;
+                    if (entity->t_bob > 2.0f * PI) {
+                        entity->t_bob -= 2.0f * PI;
                     }
-                    push_bitmap(&piece_group, &game_state->familiar, v2{0, 0}, 0.5f * sin(entity.high->t_bob), align);
+                    push_bitmap(&piece_group, &game_state->familiar, v2{0, 0}, 0.5f * sin(entity->t_bob), align);
                 } break;
                 
                 case Entity_type_monster: {
-                    update_monster(game_state, entity, time_delta);
+                    update_monster(sim_region, entity, time_delta);
                     v2 align = {25, 42};
                     push_bitmap(&piece_group, &game_state->monster, v2{0, 0}, 0, align);
-                    draw_hitpoints(&piece_group, low);
+                    draw_hitpoints(&piece_group, entity);
                 } break;
                 
                 case Entity_type_sword: {
-                    update_sword(game_state, entity, time_delta);
+                    update_sword(sim_region, entity, time_delta);
                     v2 align = {33, 29};
                     push_bitmap(&piece_group, &game_state->sword, v2{0, 0}, 0, align);
                 } break;

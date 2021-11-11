@@ -3,6 +3,8 @@
 #ifndef SIM_REGION_H
 #define SIM_REGION_H
 
+#include "intrinsics.h"
+
 struct Move_spec {
     bool max_acceleration_vector;
     f32 speed;

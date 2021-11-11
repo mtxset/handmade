@@ -1,3 +1,6 @@
+things unclear:
+wchar_t/L"string" purpose
+
 latests controls:
 F2 to start and end recording
 F6 or alt+F4 quits the game

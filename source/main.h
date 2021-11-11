@@ -71,16 +71,18 @@ struct Win32_state {
     char* last_slash;
 };
 
-internal
-void initialize_arena(Memory_arena* arena, size_t size, u8* base) {
+inline
+void initialize_arena(Memory_arena* arena, size_t size, void* base) {
     arena->size = size;
-    arena->base = base;
+    arena->base = (u8*)base;
     arena->used = 0;
 }
 
 #define mem_push_struct(arena, type)       (type *)mem_push_size_(arena, sizeof(type))
 #define mem_push_array(arena, count, type) (type *)mem_push_size_(arena, (count) * sizeof(type))
+#define mem_zero_struct(instance)                  mem_zero_size_(sizeof(instance), &(instance))
 
+inline
 void* mem_push_size_(Memory_arena* arena, size_t size) {
     macro_assert(arena->used + size <= arena->size);
     
@@ -90,5 +92,11 @@ void* mem_push_size_(Memory_arena* arena, size_t size) {
     return result;
 }
 
+inline
+void mem_zero_size_(size_t size, void* pointer) {
+    u8* byte = (u8*)pointer;
+    while (size--)
+        *byte = 0;
+}
 
 #endif //MAIN_H

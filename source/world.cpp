@@ -66,10 +66,11 @@ World_chunk* get_world_chunk(World* world, i32 x, i32 y, i32 z, Memory_arena* ar
 inline
 bool is_canonical(World* world, f32 tile_relative) {
     bool result;
+    f32 epsilon = 0.0000f;
     // 0.5 cuz we wanna start from tile's center
     result = 
-        tile_relative >= -0.5f * world->chunk_side_meters &&
-        tile_relative <=  0.5f * world->chunk_side_meters;
+        tile_relative >= (-0.5f * world->chunk_side_meters + epsilon) &&
+        tile_relative <=  (0.5f * world->chunk_side_meters + epsilon);
     
     return result;
 }
