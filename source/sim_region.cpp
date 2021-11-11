@@ -17,7 +17,9 @@ Sim_entity_hash* get_hash_from_storage_index(Sim_region* sim_region, u32 storage
     u32 hash_value = storage_index;
     for (u32 offset = 0; offset < macro_array_count(sim_region->hash); offset++) {
         // look for first free entry
-        Sim_entity_hash* entry = sim_region->hash + ((hash_value + offset) & (macro_array_count(sim_region->hash) - 1));
+        u32 hash_mask = macro_array_count(sim_region->hash) - 1;
+        u32 hash_index = (hash_value + offset) & hash_mask;
+        Sim_entity_hash* entry = sim_region->hash + hash_index;
         
         if (entry->index == 0 || entry->index == storage_index) {
             result = entry;
@@ -101,6 +103,7 @@ internal
 Sim_entity* add_entity(Game_state* game_state, Sim_region* sim_region, u32 storage_index, Low_entity* source, v2* simulation_pos) {
     
     Sim_entity* dest = add_entity(game_state, sim_region, storage_index, source);
+    
     if (dest) {
         if (simulation_pos)
             dest->position = *simulation_pos;
@@ -108,18 +111,20 @@ Sim_entity* add_entity(Game_state* game_state, Sim_region* sim_region, u32 stora
             dest->position = get_sim_space_pos(sim_region, source);
     }
     
+    return dest;
 }
 
 internal
 Sim_region* begin_sim(Memory_arena* sim_arena, Game_state* game_state, World* world, World_position origin, Rect2 bounds) {
     
     Sim_region* sim_region = mem_push_struct(sim_arena, Sim_region);
+    mem_zero_struct(sim_region->hash);
     
     sim_region->world  = world;
     sim_region->origin = origin;
     sim_region->bounds = bounds;
     
-    sim_region->max_entity_count = 1024;
+    sim_region->max_entity_count = 4096;
     sim_region->entity_count = 0;
     sim_region->entity_list = mem_push_array(sim_arena, sim_region->max_entity_count, Sim_entity);
     
@@ -146,7 +151,7 @@ Sim_region* begin_sim(Memory_arena* sim_arena, Game_state* game_state, World* wo
             }
         }
     }
-    
+    return sim_region;
 }
 
 internal

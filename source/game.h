@@ -6,6 +6,7 @@
 #include "utils.h"
 #include "world.h"
 #include "sim_region.h"
+#include "entity.h"
 
 struct Game_bitmap_buffer {
     // pixels are always 32 bit, memory order BB GG RR XX (padding)
@@ -184,6 +185,13 @@ struct Entity_visible_piece {
     v2 dim;
 };
 
+struct Controlled_hero {
+    u32 entity_index;
+    v2 dd_player;
+    v2 d_sword;
+    f32 d_z;
+};
+
 struct Game_state {
     Memory_arena world_arena;
     World* world;
@@ -192,7 +200,7 @@ struct Game_state {
     
     f32 meters_to_pixels;
     
-    u32 player_index_for_controller[macro_array_count(((Game_input*)0)->gamepad)]; // @disgusting
+    Controlled_hero controlled_hero_list[macro_array_count(((Game_input*)0)->gamepad)]; // @disgusting
     
     u32 low_entity_count;
     Low_entity low_entity_list[100000];
