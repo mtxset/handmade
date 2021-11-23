@@ -525,17 +525,19 @@ v2 get_camera_space_pos(Game_state* game_state, Low_entity* entity_low) {
 }
 
 internal
-Add_low_entity_result add_low_entity(Game_state* game_state, Entity_type type, World_position* pos) {
-    Add_low_entity_result result;
-    
+Add_low_entity_result 
+add_low_entity(Game_state* game_state, Entity_type type, World_position pos) {
     macro_assert(game_state->low_entity_count < macro_array_count(game_state->low_entity_list));
+    
+    Add_low_entity_result result;
     u32 entity_index = game_state->low_entity_count++;
     
     Low_entity* entity_low = game_state->low_entity_list + entity_index;
     *entity_low = {};
     entity_low->sim.type = type;
+    entity_low->position = null_position();
     
-    change_entity_location(&game_state->world_arena, game_state->world, entity_index, entity_low, 0, pos);
+    change_entity_location(&game_state->world_arena, game_state->world, entity_index, entity_low, pos);
     
     result.low = entity_low;
     result.low_index = entity_index;
@@ -557,11 +559,10 @@ void init_hit_points(Low_entity* entity_low, u32 hit_point_count) {
 
 internal
 Add_low_entity_result add_sword(Game_state* game_state) {
-    Add_low_entity_result entity = add_low_entity(game_state, Entity_type_sword, 0);
+    Add_low_entity_result entity = add_low_entity(game_state, Entity_type_sword, null_position());
     
     entity.low->sim.height = 0.5f;
     entity.low->sim.width  = 1.0f;
-    entity.low->sim.collides = false;
     
     return entity;
 }
@@ -569,12 +570,12 @@ Add_low_entity_result add_sword(Game_state* game_state) {
 internal
 Add_low_entity_result add_player(Game_state* game_state) {
     World_position pos = game_state->camera_pos;
-    Add_low_entity_result entity = add_low_entity(game_state, Entity_type_hero, &pos);
+    Add_low_entity_result entity = add_low_entity(game_state, Entity_type_hero, pos);
     
     init_hit_points(entity.low, 3);
     entity.low->sim.height = 0.5f;
     entity.low->sim.width  = 1.0f;
-    entity.low->sim.collides = true;
+    add_flag(&entity.low->sim, Entity_flag_collides);
     
     Add_low_entity_result sword = add_sword(game_state);
     entity.low->sim.sword.index = sword.low_index;
@@ -589,12 +590,12 @@ Add_low_entity_result add_player(Game_state* game_state) {
 internal
 Add_low_entity_result add_monster(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
     World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
-    Add_low_entity_result entity = add_low_entity(game_state, Entity_type_monster, &pos);
+    Add_low_entity_result entity = add_low_entity(game_state, Entity_type_monster, pos);
     
     init_hit_points(entity.low, 2);
     entity.low->sim.height = 0.5f;
     entity.low->sim.width  = 1.0f;
-    entity.low->sim.collides = true;
+    add_flag(&entity.low->sim, Entity_flag_collides);
     
     return entity;
 }
@@ -602,31 +603,26 @@ Add_low_entity_result add_monster(Game_state* game_state, u32 abs_tile_x, u32 ab
 internal
 Add_low_entity_result add_familiar(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
     World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
-    Add_low_entity_result entity = add_low_entity(game_state, Entity_type_familiar, &pos);
+    Add_low_entity_result entity = add_low_entity(game_state, Entity_type_familiar, pos);
     
     entity.low->sim.height = 0.5f;
     entity.low->sim.width  = 1.0f;
-    entity.low->sim.collides = false;
+    add_flag(&entity.low->sim, Entity_flag_collides);
     
     return entity;
 }
 
 internal
-Add_low_entity_result add_wall(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
+Add_low_entity_result 
+add_wall(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
     World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
-    Add_low_entity_result entity = add_low_entity(game_state, Entity_type_wall, &pos);
+    Add_low_entity_result entity = add_low_entity(game_state, Entity_type_wall, pos);
     
     entity.low->sim.height = game_state->world->tile_side_meters;
     entity.low->sim.width  = entity.low->sim.height;
-    entity.low->sim.collides = true;
+    add_flag(&entity.low->sim, Entity_flag_collides);
     
     return entity;
-}
-
-internal
-void sim_camera_region(Game_state* game_state) {
-    
-    
 }
 
 #ifdef RUN_RAY
@@ -709,7 +705,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     if (!memory->is_initialized)
     {
         // reserve null entity for ?
-        add_low_entity(game_state, Entity_type_null, 0);
+        add_low_entity(game_state, Entity_type_null, null_position());
         
 #if 0
         // pacman init
@@ -766,12 +762,14 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         
         // init memory arenas
         initialize_arena(&game_state->world_arena, 
-                         memory->permanent_storage_size - sizeof(Game_state), 
+                         memory->permanent_storage_size - sizeof(Game_state),
                          (u8*)memory->permanent_storage + sizeof(Game_state));
         
         game_state->world = mem_push_struct(&game_state->world_arena, World);
         World* world = game_state->world;
-        init_world(world, 1.4f);
+        
+        const f32 meters_to_pixels = 1.4f; 
+        init_world(world, meters_to_pixels);
         
         u32 screen_base_x = 0;
         u32 screen_base_y = 0;
@@ -798,7 +796,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
             bool door_up    = false;
             bool door_down  = false;
             
-            u32 max_screens = 2000;
+            const u32 max_screens = 2000;
             
             for (u32 screen_index = 0; screen_index < max_screens; screen_index++) {
                 macro_assert(random_number_index < macro_array_count(random_number_table));
@@ -901,6 +899,8 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         u32 camera_tile_z = screen_base_z;
         new_campera_pos = chunk_pos_from_tile_pos(game_state->world, camera_tile_x, camera_tile_y, camera_tile_z);
         
+        game_state->camera_pos = new_campera_pos;
+        
         add_monster(game_state, camera_tile_x + 1, camera_tile_y + 1, camera_tile_z);
         
         for (u32 familiar_index = 0; familiar_index < 3; familiar_index++) {
@@ -936,6 +936,9 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
             }
             else {
                 controlled->dd_player = {};
+                controlled->d_sword = {};
+                controlled->d_z = {};
+                controlled->boost = 0;;
                 
                 if (input_state->is_analog) {
                     controlled->dd_player = v2 {
@@ -962,8 +965,10 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 if (input_state->action.ended_down)
                     controlled->d_z = 4.0f;
                 
+                if (input_state->shift.ended_down)
+                    controlled->boost = 10.0f;
+                
                 // sword input check
-                controlled->d_sword = {};
                 {
                     if (input_state->action_up.ended_down) {
                         controlled->d_sword = { 0.0f, 1.0f };
@@ -1013,6 +1018,10 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         piece_group.game_state = game_state;
         Sim_entity* entity = sim_region->entity_list;
         for (u32 entity_index = 0; entity_index < sim_region->entity_count; entity_index++, entity++) {
+            
+            if (!entity->updatable)
+                continue;
+            
             piece_group.count = 0;
             u32 i = entity_index;
             
@@ -1020,7 +1029,10 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
             
             v3 color_player = { .1f, .0f, 1.0f };
             
-            // move entities
+            Move_spec move_spec = default_move_spec();
+            v2 ddp = {};
+            
+            // update entities
             switch (entity->type) {
                 case Entity_type_hero: {
                     
@@ -1029,24 +1041,23 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                         Controlled_hero* con_hero = game_state->controlled_hero_list + control_index;
                         
                         if (entity->storage_index == con_hero->entity_index) {
-                            entity->z_velocity_d = con_hero->d_z;
                             
-                            Move_spec move_spec = default_move_spec();
+                            if (con_hero->d_z != 0.0f) {
+                                entity->z_velocity_d = con_hero->d_z;
+                            }
+                            
                             move_spec.max_acceleration_vector = true;
                             move_spec.speed = 50.0f;
                             move_spec.drag = 8.0f;
-                            //move_spec.boost = boost;
-                            
-                            move_entity(sim_region, entity, input->time_delta, &move_spec, con_hero->dd_player);
+                            move_spec.boost = con_hero->boost;
+                            ddp = con_hero->dd_player;
                             
                             if (!is_zero_v2(con_hero->d_sword)) {
                                 Sim_entity* sword = entity->sword.pointer;
                                 
-                                if (sword) {
-                                    sword->position = entity->position;
-                                    
+                                if (sword && is_set(sword, Entity_flag_non_spatial)) {
                                     sword->sword_distance_remaining = 5.0f;
-                                    sword->velocity_d = 5.0f * con_hero->d_sword;
+                                    make_entity_spatial(sword, entity->position, 5.0f * con_hero->d_sword);
                                 }
                             }
                         }
@@ -1075,7 +1086,41 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 } break;
                 
                 case Entity_type_familiar: {
-                    update_familiar(sim_region, entity, time_delta);
+                    Sim_entity* closest_hero = 0;
+                    // distance we want it start to follow
+                    f32 closest_hero_delta_squared = square(10.0f);
+                    
+                    Sim_entity* test_entity = sim_region->entity_list;
+                    for (u32 test_entity_index = 0; test_entity_index < sim_region->entity_count; test_entity_index++, test_entity++) {
+                        if (test_entity->type != Entity_type_hero)
+                            continue;
+                        
+                        f32 test_delta_squared = length_squared_v2(test_entity->position - entity->position);
+                        
+                        // giving some priority for hero
+                        if (test_entity->type == Entity_type_hero) {
+                            test_delta_squared *= 0.75f;
+                        }
+                        
+                        if (closest_hero_delta_squared > test_delta_squared) {
+                            closest_hero = test_entity;
+                            closest_hero_delta_squared = test_delta_squared;
+                        }
+                    }
+                    
+                    f32 distance_to_stop = 2.5f;
+                    bool move_closer = closest_hero_delta_squared > square(distance_to_stop);
+                    if (closest_hero && move_closer) {
+                        f32 acceleration = 0.5f;
+                        f32 one_over_length = acceleration / square_root(closest_hero_delta_squared);
+                        ddp = one_over_length * (closest_hero->position - entity->position);
+                    }
+                    
+                    move_spec.max_acceleration_vector = true;
+                    move_spec.speed = 50.0f;
+                    move_spec.drag = 8.0f;
+                    move_spec.boost = 1.0f;
+                    
                     v2 align = {34, 72};
                     entity->t_bob += time_delta;
                     if (entity->t_bob > 2.0f * PI) {
@@ -1085,15 +1130,28 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 } break;
                 
                 case Entity_type_monster: {
-                    update_monster(sim_region, entity, time_delta);
                     v2 align = {25, 42};
                     push_bitmap(&piece_group, &game_state->monster, v2{0, 0}, 0, align);
                     draw_hitpoints(&piece_group, entity);
                 } break;
                 
                 case Entity_type_sword: {
-                    update_sword(sim_region, entity, time_delta);
+                    
+                    move_spec.max_acceleration_vector = false;
+                    move_spec.speed = 0.0f;
+                    move_spec.drag = 0.0f;
+                    move_spec.boost = 0.0f;
+                    
+                    v2 old_pos = entity->position;
+                    
+                    f32 distance_travelled = length_v2(entity->position - old_pos);
+                    entity->sword_distance_remaining -= distance_travelled;
+                    
+                    if (entity->sword_distance_remaining < 0.0f) {
+                        make_entity_non_spatial(entity);
+                    }
                     v2 align = {33, 29};
+                    
                     push_bitmap(&piece_group, &game_state->sword, v2{0, 0}, 0, align);
                 } break;
                 
@@ -1107,6 +1165,9 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                     macro_assert(!"INVALID");
                 } break;
             }
+            
+            if (!is_set(entity, Entity_flag_non_spatial))
+                move_entity(sim_region, entity, input->time_delta, &move_spec, ddp);
             
             v2 entity_ground_point = { 
                 screen_center_x + entity->position.x * meters_to_pixels,
@@ -1131,7 +1192,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 
                 v2 center = { 
                     entity_ground_point.x + piece->offset.x, 
-                    entity_ground_point.y + piece->offset.y + piece->offset_z 
+                    entity_ground_point.y + piece->offset.y + piece->offset_z
                 };
                 
                 if (piece->bitmap) {
@@ -1143,10 +1204,15 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                     draw_rect(bitmap_buffer, center - half_dim, center + half_dim, temp_color);
                 }
             }
+            
         }
     }
     
+    World_position world_origin = {};
+    World_diff diff = subtract_pos(sim_region->world, &world_origin, &sim_region->origin);
+    draw_rect(bitmap_buffer, diff.xy, v2 {10.0f, 10.0f}, v3{1.0f,1.0f,0.0f});
     end_sim(sim_region, game_state);
+    
 #if 0
     subpixel_test_udpdate(bitmap_buffer, game_state, input, gold_v3);
 #endif

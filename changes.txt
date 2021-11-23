@@ -1,5 +1,6 @@
 things unclear:
 wchar_t/L"string" purpose
+switch vs callbacks (virtuals)
 
 latests controls:
 F2 to start and end recording
@@ -7,6 +8,10 @@ F6 or alt+F4 quits the game
 Enter will spawn player
 WASD, arrows moves him
 Space - jumps
+
+day66:
+- added simualtion regions
+- added sword projectile
 
 day60:
 - added hitpoints
