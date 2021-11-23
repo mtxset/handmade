@@ -33,8 +33,16 @@ union Entity_ref {
     u32 index;
 };
 
+enum Sim_entity_flags {
+    Entity_flag_collides    = (1 << 1),
+    Entity_flag_non_spatial = (1 << 2),
+    
+    Entity_flag_simming     = (1 << 30),
+};
+
 struct Sim_entity {
     u32 storage_index;
+    bool updatable;
     
     v2 position;
     v2 velocity_d;
@@ -44,10 +52,10 @@ struct Sim_entity {
     f32 z_velocity_d;
     
     Entity_type type;
+    u32 flags;
     
     f32 width, height;
     
-    bool collides;
     i32 d_abs_tile_z;
     
     u32 hit_points_max;
@@ -68,7 +76,9 @@ struct Sim_entity_hash {
 struct Sim_region {
     World* world;
     World_position origin;
+    
     Rect2 bounds;
+    Rect2 updatable_bounds;
     
     u32 entity_count;
     u32 max_entity_count;

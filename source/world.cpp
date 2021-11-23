@@ -1,7 +1,7 @@
 #include "world.h"
 #include "main.h"
 
-global_var const i32 TILE_CHUNK_SAFE_MARGIN = INT32_MAX/64;
+global_var const i32 TILE_CHUNK_SAFE_MARGIN = (INT32_MAX / 64);
 global_var const i32 TILE_CHUNK_UNINITIALIZED = INT32_MAX;
 global_var const i32 TILES_PER_CHUNK = 16;
 
@@ -66,10 +66,10 @@ World_chunk* get_world_chunk(World* world, i32 x, i32 y, i32 z, Memory_arena* ar
 inline
 bool is_canonical(World* world, f32 tile_relative) {
     bool result;
-    f32 epsilon = 0.0000f;
+    f32 epsilon = 0.0001f;
     // 0.5 cuz we wanna start from tile's center
     result = 
-        tile_relative >= (-0.5f * world->chunk_side_meters + epsilon) &&
+        tile_relative >= -(0.5f * world->chunk_side_meters + epsilon) &&
         tile_relative <=  (0.5f * world->chunk_side_meters + epsilon);
     
     return result;
@@ -85,7 +85,8 @@ bool is_canonical(World* world, v2 offset) {
 }
 
 internal
-void recanonicalize_coord(World* world, i32* tile, f32* tile_relative) {
+void 
+recanonicalize_coord(World* world, i32* tile, f32* tile_relative) {
     i32 offset = round_f32_i32((*tile_relative) / world->chunk_side_meters);
     *tile += offset;
     *tile_relative -= offset * world->chunk_side_meters;
@@ -94,7 +95,8 @@ void recanonicalize_coord(World* world, i32* tile, f32* tile_relative) {
 }
 
 inline
-World_position map_into_chunk_space(World* world, World_position base_pos, v2 offset) {
+World_position 
+map_into_chunk_space(World* world, World_position base_pos, v2 offset) {
     
     World_position result = base_pos;
     result._offset += offset;
@@ -105,9 +107,9 @@ World_position map_into_chunk_space(World* world, World_position base_pos, v2 of
     return result;
 }
 
-
 internal
 bool are_in_same_chunk(World* world, World_position* pos_x, World_position* pos_y) {
+    
     macro_assert(is_canonical(world, pos_x->_offset));
     macro_assert(is_canonical(world, pos_y->_offset));
     
@@ -118,7 +120,9 @@ bool are_in_same_chunk(World* world, World_position* pos_x, World_position* pos_
 }
 
 internal
-World_position chunk_pos_from_tile_pos(World* world, i32 abs_tile_x, i32 abs_tile_y, i32 abs_tile_z) {
+World_position 
+chunk_pos_from_tile_pos(World* world, i32 abs_tile_x, i32 abs_tile_y, i32 abs_tile_z) {
+    
     World_position result = {};
     
     result.chunk_x = abs_tile_x / TILES_PER_CHUNK;
@@ -204,9 +208,12 @@ void change_entity_location_raw(Memory_arena* arena, World* world, u32 low_entit
                 
                 for (World_entity_block* block = first_block; block && not_found; block = block->next) {
                     for (u32 index = 0; index < block->entity_count && not_found; index++) {
+                        
                         if (block->low_entity_index[index] == low_entity_index) {
+                            
                             macro_assert(first_block->entity_count > 0);
                             block->low_entity_index[index] = first_block->low_entity_index[--first_block->entity_count];
+                            
                             if (first_block->entity_count == 0) {
                                 if (first_block->next) {
                                     World_entity_block* next_block = first_block->next;
@@ -252,14 +259,29 @@ void change_entity_location_raw(Memory_arena* arena, World* world, u32 low_entit
 }
 
 internal
-void change_entity_location(Memory_arena* arena, World* world, u32 low_entity_index, Low_entity* low_entity, World_position* old_pos, World_position* new_pos) {
+void 
+change_entity_location(Memory_arena* arena, World* world, u32 low_entity_index, Low_entity* low_entity, World_position new_pos_init) {
+    
+    World_position* old_pos = 0;
+    World_position* new_pos = 0;
+    
+    if (!is_set(&low_entity->sim, Entity_flag_non_spatial) && 
+        is_position_valid(low_entity->position)) {
+        old_pos = &low_entity->position;
+    }
+    
+    if (is_position_valid(new_pos_init)) {
+        new_pos = &new_pos_init;
+    }
     
     change_entity_location_raw(arena, world, low_entity_index, old_pos, new_pos);
     
     if (new_pos) {
         low_entity->position = *new_pos;
+        clear_flag(&low_entity->sim, Entity_flag_non_spatial);
     }
     else {
         low_entity->position = null_position();
+        add_flag(&low_entity->sim, Entity_flag_non_spatial);
     }
 }

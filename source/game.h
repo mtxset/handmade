@@ -190,6 +190,7 @@ struct Controlled_hero {
     v2 dd_player;
     v2 d_sword;
     f32 d_z;
+    f32 boost;
 };
 
 struct Game_state {

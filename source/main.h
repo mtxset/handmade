@@ -96,7 +96,7 @@ inline
 void mem_zero_size_(size_t size, void* pointer) {
     u8* byte = (u8*)pointer;
     while (size--)
-        *byte = 0;
+        *byte++ = 0;
 }
 
 #endif //MAIN_H
