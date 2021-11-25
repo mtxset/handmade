@@ -51,6 +51,8 @@ struct Sim_entity {
     f32 z;
     f32 z_velocity_d;
     
+    f32 distance_limit;
+    
     Entity_type type;
     u32 flags;
     
@@ -65,7 +67,6 @@ struct Sim_entity {
     f32 t_bob;
     
     Entity_ref sword;
-    f32 sword_distance_remaining;
 };
 
 struct Sim_entity_hash {

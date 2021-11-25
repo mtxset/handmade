@@ -254,7 +254,17 @@ bool test_wall(f32 wall_x, f32 rel_x, f32 rel_y, f32 player_delta_x, f32 player_
 }
 
 internal
-void move_entity(Sim_region* sim_region, Sim_entity* entity, f32 time_delta, Move_spec* move_spec, v2 player_acceleration_dd) {
+void
+handle_collision(Sim_entity* a_entity, Sim_entity* b_entity) {
+    if (a_entity->type == Entity_type_monster && b_entity->type == Entity_type_sword) {
+        a_entity->hit_points_max--;
+        make_entity_non_spatial(b_entity);
+    }
+}
+
+internal
+void
+move_entity(Sim_region* sim_region, Sim_entity* entity, f32 time_delta, Move_spec* move_spec, v2 player_acceleration_dd) {
     
     macro_assert(!is_set(entity, Entity_flag_non_spatial));
     
@@ -287,16 +297,34 @@ void move_entity(Sim_region* sim_region, Sim_entity* entity, f32 time_delta, Mov
     // p' = ... + p
     v2 new_player_pos = old_player_pos + player_delta;
     
+    f32 distance_remaining = entity->distance_limit;
+    if (distance_remaining == 0.0f) {
+        // set to no limit
+        distance_remaining = 9999.0f;
+    }
+    
     u32 correction_tries = 4;
     for (u32 i = 0; i < correction_tries; i++) {
+        
         f32 t_min = 1.0f;
+        
+        f32 player_delta_length = length_v2(player_delta);
+        
+        if (player_delta_length <= 0.0f)
+            break;
+        
+        if (player_delta_length > distance_remaining) {
+            t_min = distance_remaining / player_delta_length;
+        }
+        
         v2 wall_normal = { };
         Sim_entity* hit_entity = 0;
         
         v2 desired_postion = entity->position + player_delta;
         
-        if (is_set(entity, Entity_flag_collides) && 
-            !is_set(entity, Entity_flag_non_spatial)) {
+        bool stops_on_collision = is_set(entity, Entity_flag_collides);
+        
+        if (!is_set(entity, Entity_flag_non_spatial)) {
             
             for (u32 test_high_entity_index = 0; test_high_entity_index < sim_region->entity_count; test_high_entity_index++) {
                 
@@ -306,7 +334,7 @@ void move_entity(Sim_region* sim_region, Sim_entity* entity, f32 time_delta, Mov
                     continue;
                 
                 if (!is_set(test_entity, Entity_flag_collides) &&
-                    is_set(entity, Entity_flag_non_spatial))
+                    is_set(test_entity, Entity_flag_non_spatial))
                     continue;
                 
                 f32 diameter_width  = test_entity->width  + entity->width;
@@ -341,20 +369,38 @@ void move_entity(Sim_region* sim_region, Sim_entity* entity, f32 time_delta, Mov
         }
         
         entity->position += t_min * player_delta;
+        distance_remaining -= t_min * player_delta_length;
+        
         if (hit_entity) {
             //v' = v - 2*dot(v,r) * r
             v2 r = wall_normal;
             v2 v = entity->velocity_d;
             // game_state->player_velocity_d = v - 2 * inner(v, r) * r; // reflection
-            entity->velocity_d = v - 1 * inner(v, r) * r;
             player_delta = desired_postion - entity->position;
-            player_delta = player_delta - 1 * inner(player_delta, r) * r;
+            
+            if (stops_on_collision) {
+                entity->velocity_d = v - 1 * inner(v, r) * r;
+                player_delta = player_delta - 1 * inner(player_delta, r) * r;
+            }
+            
+            Sim_entity* a_entity = entity;
+            Sim_entity* b_entity = hit_entity;
+            
+            if (a_entity->type > b_entity->type) {
+                swap(a_entity, b_entity);
+            }
+            
+            handle_collision(a_entity, b_entity);
             
             // entity->abs_tile_z += hit_low->sim.d_abs_tile_z;
         }
         else {
             break;
         }
+    }
+    
+    if (entity->distance_limit != 0.0f) {
+        entity->distance_limit = distance_remaining;
     }
     
     if (entity->velocity_d.x == 0 && entity->velocity_d.y == 0) {

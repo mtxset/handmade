@@ -1056,7 +1056,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                                 Sim_entity* sword = entity->sword.pointer;
                                 
                                 if (sword && is_set(sword, Entity_flag_non_spatial)) {
-                                    sword->sword_distance_remaining = 5.0f;
+                                    sword->distance_limit = 5.0f;
                                     make_entity_spatial(sword, entity->position, 5.0f * con_hero->d_sword);
                                 }
                             }
@@ -1144,10 +1144,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                     
                     v2 old_pos = entity->position;
                     
-                    f32 distance_travelled = length_v2(entity->position - old_pos);
-                    entity->sword_distance_remaining -= distance_travelled;
-                    
-                    if (entity->sword_distance_remaining < 0.0f) {
+                    if (entity->distance_limit == 0.0f) {
                         make_entity_non_spatial(entity);
                     }
                     v2 align = {33, 29};
@@ -1166,8 +1163,9 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 } break;
             }
             
-            if (!is_set(entity, Entity_flag_non_spatial))
+            if (!is_set(entity, Entity_flag_non_spatial)) {
                 move_entity(sim_region, entity, input->time_delta, &move_spec, ddp);
+            }
             
             v2 entity_ground_point = { 
                 screen_center_x + entity->position.x * meters_to_pixels,
