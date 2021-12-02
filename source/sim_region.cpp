@@ -254,17 +254,122 @@ bool test_wall(f32 wall_x, f32 rel_x, f32 rel_y, f32 player_delta_x, f32 player_
 }
 
 internal
-void
+bool
 handle_collision(Sim_entity* a_entity, Sim_entity* b_entity) {
+    bool stops_on_collision = false;
+    
+    if (a_entity->type == Entity_type_sword) {
+        stops_on_collision = false;
+    }
+    else {
+        stops_on_collision = true;
+    }
+    
+    if (a_entity->type > b_entity->type) {
+        swap(a_entity, b_entity);
+    }
+    
     if (a_entity->type == Entity_type_monster && b_entity->type == Entity_type_sword) {
-        a_entity->hit_points_max--;
-        make_entity_non_spatial(b_entity);
+        if (a_entity->hit_points_max > 0)
+            a_entity->hit_points_max--;
+    }
+    
+    // entity->abs_tile_z += hit_low->sim.d_abs_tile_z;
+    
+    return stops_on_collision;
+}
+
+internal
+void
+clear_collision_rule(Game_state* game_state, u32 storage_index) {
+    for (u32 hash_bucket = 0; hash_bucket < macro_array_count(game_state->collision_rule_hash); hash_bucket++) {
+        for (Pairwise_collision_rule** rule = & game_state->collision_rule_hash[hash_bucket]; *rule;) {
+            
+            if ((*rule)->storage_index_a == storage_index || 
+                (*rule)->storage_index_b == storage_index) {
+                Pairwise_collision_rule* removed_rule = *rule;
+                *rule = (*rule)->next_in_hash;
+                
+                removed_rule->next_in_hash = game_state->first_free_collsion_rule;
+                game_state->first_free_collsion_rule = removed_rule;
+            }
+            else {
+                rule = &(*rule)->next_in_hash;
+            }
+            
+        }
     }
 }
 
 internal
 void
-move_entity(Sim_region* sim_region, Sim_entity* entity, f32 time_delta, Move_spec* move_spec, v2 player_acceleration_dd) {
+add_collision_rule(Game_state* game_state, u32 storage_index_a, u32 storage_index_b, bool should_collide) {
+    
+    if (storage_index_a > storage_index_b) {
+        swap(storage_index_a, storage_index_b);
+    }
+    
+    Pairwise_collision_rule* found = 0;
+    u32 hash_bucket = storage_index_a & (macro_array_count(game_state->collision_rule_hash) - 1);
+    for (Pairwise_collision_rule* rule = game_state->collision_rule_hash[hash_bucket]; rule; rule = rule->next_in_hash) {
+        if (rule->storage_index_a == storage_index_a &&
+            rule->storage_index_b == storage_index_b) {
+            found = rule;
+            break;
+        }
+    }
+    
+    if (!found) {
+        found = game_state->first_free_collsion_rule;
+        
+        if (found) {
+            game_state->first_free_collsion_rule = found->next_in_hash;
+        }
+        else {
+            found = mem_push_struct(&game_state->world_arena, Pairwise_collision_rule);
+        }
+        
+        found = mem_push_struct(&game_state->world_arena, Pairwise_collision_rule);
+        found->next_in_hash = game_state->collision_rule_hash[hash_bucket];
+        game_state->collision_rule_hash[hash_bucket] = found;
+    }
+    
+    if (found) {
+        found->storage_index_a = storage_index_a;
+        found->storage_index_b = storage_index_b;
+        found->should_collide = should_collide;
+    }
+}
+
+internal
+bool
+should_collide(Game_state* game_state, Sim_entity* a_entity, Sim_entity* b_entity) {
+    bool result = false;
+    
+    if (a_entity->storage_index > b_entity->storage_index) {
+        swap(a_entity, b_entity);
+    }
+    
+    if (!is_set(a_entity, Entity_flag_non_spatial) &&
+        !is_set(b_entity, Entity_flag_non_spatial)) {
+        result = true;
+    }
+    
+    u32 hash_bucket = a_entity->storage_index & (macro_array_count(game_state->collision_rule_hash) - 1);
+    for (Pairwise_collision_rule* rule = game_state->collision_rule_hash[hash_bucket]; rule; rule = rule->next_in_hash) {
+        if (rule->storage_index_a == a_entity->storage_index &&
+            rule->storage_index_b == b_entity->storage_index) {
+            result = rule->should_collide;
+            break;
+        }
+    }
+    
+    return result;
+}
+
+internal
+void
+move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, f32 time_delta, Move_spec* move_spec, v2 player_acceleration_dd) {
     
     macro_assert(!is_set(entity, Entity_flag_non_spatial));
     
@@ -322,19 +427,13 @@ move_entity(Sim_region* sim_region, Sim_entity* entity, f32 time_delta, Move_spe
         
         v2 desired_postion = entity->position + player_delta;
         
-        bool stops_on_collision = is_set(entity, Entity_flag_collides);
-        
         if (!is_set(entity, Entity_flag_non_spatial)) {
             
             for (u32 test_high_entity_index = 0; test_high_entity_index < sim_region->entity_count; test_high_entity_index++) {
                 
                 Sim_entity* test_entity =  sim_region->entity_list + test_high_entity_index;
                 // skip self collission
-                if (entity == test_entity)
-                    continue;
-                
-                if (!is_set(test_entity, Entity_flag_collides) &&
-                    is_set(test_entity, Entity_flag_non_spatial))
+                if (!should_collide(game_state, entity, test_entity))
                     continue;
                 
                 f32 diameter_width  = test_entity->width  + entity->width;
@@ -378,21 +477,15 @@ move_entity(Sim_region* sim_region, Sim_entity* entity, f32 time_delta, Move_spe
             // game_state->player_velocity_d = v - 2 * inner(v, r) * r; // reflection
             player_delta = desired_postion - entity->position;
             
+            bool stops_on_collision = handle_collision(entity, hit_entity);
+            
             if (stops_on_collision) {
                 entity->velocity_d = v - 1 * inner(v, r) * r;
                 player_delta = player_delta - 1 * inner(player_delta, r) * r;
             }
-            
-            Sim_entity* a_entity = entity;
-            Sim_entity* b_entity = hit_entity;
-            
-            if (a_entity->type > b_entity->type) {
-                swap(a_entity, b_entity);
+            else {
+                add_collision_rule(game_state, entity->storage_index, hit_entity->storage_index, false);
             }
-            
-            handle_collision(a_entity, b_entity);
-            
-            // entity->abs_tile_z += hit_low->sim.d_abs_tile_z;
         }
         else {
             break;

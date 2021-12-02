@@ -22,7 +22,8 @@
 #endif
 
 internal
-void clear_screen(Game_bitmap_buffer* bitmap_buffer, u32 color) {
+void 
+clear_screen(Game_bitmap_buffer* bitmap_buffer, u32 color) {
     // 8 bit pointer to the beginning of the memory
     // 8 bit so we have arithemtic by 1 byte
     auto row = (u8*)bitmap_buffer->memory;
@@ -36,7 +37,9 @@ void clear_screen(Game_bitmap_buffer* bitmap_buffer, u32 color) {
     }
 }
 
-void render_255_gradient(Game_bitmap_buffer* bitmap_buffer, i32 blue_offset, i32 green_offset) {
+internal
+void
+render_255_gradient(Game_bitmap_buffer* bitmap_buffer, i32 blue_offset, i32 green_offset) {
     local_persist i32 offset = 1;
     auto row = (u8*)bitmap_buffer->memory;
     
@@ -80,7 +83,8 @@ void render_255_gradient(Game_bitmap_buffer* bitmap_buffer, i32 blue_offset, i32
 }
 
 internal
-void game_output_sound(Game_sound_buffer* sound_buffer, i32 tone_hz, Game_state* state) {
+void 
+game_output_sound(Game_sound_buffer* sound_buffer, i32 tone_hz, Game_state* state) {
     i16 tone_volume = 3000;
     i32 wave_period = sound_buffer->samples_per_second / tone_hz;
     auto sample_out = sound_buffer->samples;
@@ -109,7 +113,8 @@ void game_output_sound(Game_sound_buffer* sound_buffer, i32 tone_hz, Game_state*
 }
 
 internal
-void draw_rect(Game_bitmap_buffer* buffer, v2 start, v2 end, v3 color) {
+void 
+draw_rect(Game_bitmap_buffer* buffer, v2 start, v2 end, v3 color) {
     u32 color_hex = 0;
     
     color_hex = (round_f32_u32(color.r * 255.0f) << 16 | 
@@ -134,7 +139,8 @@ void draw_rect(Game_bitmap_buffer* buffer, v2 start, v2 end, v3 color) {
 }
 
 internal
-void debug_read_and_write_random_file() {
+void 
+debug_read_and_write_random_file() {
     auto bitmap_read = debug_read_entire_file(__FILE__);
     if (bitmap_read.content) {
         debug_write_entire_file("temp.cpp", bitmap_read.bytes_read, bitmap_read.content);
@@ -143,7 +149,8 @@ void debug_read_and_write_random_file() {
 }
 
 internal
-void draw_pixel(Game_bitmap_buffer* bitmap_buffer, v2 pos, v3 color) {
+void 
+draw_pixel(Game_bitmap_buffer* bitmap_buffer, v2 pos, v3 color) {
     v2 end = { pos.x, pos.y };
     
     v2 screen_center = { 
@@ -163,7 +170,8 @@ void draw_pixel(Game_bitmap_buffer* bitmap_buffer, v2 pos, v3 color) {
 }
 
 internal
-void draw_circle(Game_bitmap_buffer* bitmap_buffer, v2 start, f32 radius, v3 color) {
+void 
+draw_circle(Game_bitmap_buffer* bitmap_buffer, v2 start, f32 radius, v3 color) {
     // y = sin (angle) * r
     // x = cos (angle) * r
     for (f32 angle = 0; angle < 360; angle++) {
@@ -176,7 +184,8 @@ void draw_circle(Game_bitmap_buffer* bitmap_buffer, v2 start, f32 radius, v3 col
 }
 
 internal
-void draw_line(Game_bitmap_buffer* bitmap_buffer, v2 start, v2 end, v3 color, u32 points = 100) {
+void 
+draw_line(Game_bitmap_buffer* bitmap_buffer, v2 start, v2 end, v3 color, u32 points = 100) {
     f32 m = (end.y - start.y) / (end.x - start.x);
     // m - slope
     // b - intercept
@@ -207,7 +216,8 @@ void draw_line(Game_bitmap_buffer* bitmap_buffer, v2 start, v2 end, v3 color, u3
 }
 
 internal
-void vectors_update(Game_bitmap_buffer* bitmap_buffer, Game_state* state, Game_input* input) {
+void 
+vectors_update(Game_bitmap_buffer* bitmap_buffer, Game_state* state, Game_input* input) {
     clear_screen(bitmap_buffer, color_black_byte);
     
     f32 x = 100;
@@ -236,7 +246,8 @@ void vectors_update(Game_bitmap_buffer* bitmap_buffer, Game_state* state, Game_i
 }
 
 internal
-void each_pixel(Game_bitmap_buffer* bitmap_buffer, Game_state* state, f32 time_delta) {
+void 
+each_pixel(Game_bitmap_buffer* bitmap_buffer, Game_state* state, f32 time_delta) {
     clear_screen(bitmap_buffer, color_black_byte);
     
     Each_monitor_pixel* pixel_state = &state->monitor_pixels;
@@ -259,7 +270,8 @@ void each_pixel(Game_bitmap_buffer* bitmap_buffer, Game_state* state, f32 time_d
 }
 
 internal
-void drops_update(Game_bitmap_buffer* bitmap_buffer, Game_state* state, Game_input* input) {
+void 
+drops_update(Game_bitmap_buffer* bitmap_buffer, Game_state* state, Game_input* input) {
     
     // draw mouse pointer
     f32 mouse_draw_offset = 10.0f; // offset from windows layer
@@ -329,7 +341,8 @@ void drops_update(Game_bitmap_buffer* bitmap_buffer, Game_state* state, Game_inp
 #endif
 
 internal
-Loaded_bmp debug_load_bmp(char* file_name) {
+Loaded_bmp 
+debug_load_bmp(char* file_name) {
     Loaded_bmp result = {};
     
     Debug_file_read_result file_result = debug_read_entire_file(file_name);
@@ -1058,6 +1071,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                                 if (sword && is_set(sword, Entity_flag_non_spatial)) {
                                     sword->distance_limit = 5.0f;
                                     make_entity_spatial(sword, entity->position, 5.0f * con_hero->d_sword);
+                                    add_collision_rule(game_state, sword->storage_index, entity->storage_index, false);
                                 }
                             }
                         }
@@ -1145,6 +1159,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                     v2 old_pos = entity->position;
                     
                     if (entity->distance_limit == 0.0f) {
+                        clear_collision_rule(game_state, entity->storage_index);
                         make_entity_non_spatial(entity);
                     }
                     v2 align = {33, 29};
@@ -1164,7 +1179,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
             }
             
             if (!is_set(entity, Entity_flag_non_spatial)) {
-                move_entity(sim_region, entity, input->time_delta, &move_spec, ddp);
+                move_entity(game_state, sim_region, entity, input->time_delta, &move_spec, ddp);
             }
             
             v2 entity_ground_point = { 
