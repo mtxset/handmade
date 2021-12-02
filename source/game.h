@@ -193,6 +193,15 @@ struct Controlled_hero {
     f32 boost;
 };
 
+struct Pairwise_collision_rule {
+    bool should_collide;
+    u32 storage_index_a;
+    u32 storage_index_b;
+    
+    Pairwise_collision_rule* next_in_hash;
+    
+};
+
 struct Game_state {
     Memory_arena world_arena;
     World* world;
@@ -213,6 +222,9 @@ struct Game_state {
     Loaded_bmp sword;
     u32 following_entity_index;
     
+    Pairwise_collision_rule* collision_rule_hash[256];
+    Pairwise_collision_rule* first_free_collsion_rule;
+    
     Hero_bitmaps hero_bitmaps[4];
 #if 0
     Pacman_state pacman_state;
@@ -226,24 +238,19 @@ struct Game_state {
     drop drops[32];
 };
 
-
 struct Entity_visible_piece_group {
     Game_state* game_state;
     u32 count;
     Entity_visible_piece piece_list[32];
 };
 
-Game_controller_input* get_gamepad(Game_input* input, i32 input_index) {
+Game_controller_input* 
+get_gamepad(Game_input* input, i32 input_index) {
     macro_assert(input_index >= 0);
     macro_assert(input_index < macro_array_count(input->gamepad));
     
     return &input->gamepad[input_index];
 }
-
-void render_255_gradient(Game_bitmap_buffer* bitmap_buffer, i32 blue_offset, i32 green_offset);
-
-internal
-void game_output_sound(Game_sound_buffer* sound_buffer, i32 tone_hz, Game_state* state);
 
 typedef 
 void (game_update_render_signature) (thread_context* thread, Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer);
