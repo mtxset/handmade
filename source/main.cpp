@@ -1,10 +1,9 @@
-// https://youtu.be/YrqQLA9SOEc?t=1226
+// https://youtu.be/afWxzIHB5Ss?t=3618
 #include <stdio.h>
 #include <stdint.h>
 #include <windows.h>
 #include <xinput.h>
 #include <dsound.h>
-#include <malloc.h>
 
 #include "main.h"
 #include "utils.h"
@@ -317,7 +316,8 @@ Win32_window_dimensions get_window_dimensions(HWND window) {
 
 // DIB - device independant section
 internal
-void win32_resize_dib_section(Win32_bitmap_buffer* bitmap_buffer, i32 width, i32 height) {
+void 
+win32_resize_dib_section(Win32_bitmap_buffer* bitmap_buffer, i32 width, i32 height) {
     
     if (bitmap_buffer->memory) {
         VirtualFree(bitmap_buffer->memory, 0, MEM_RELEASE);
@@ -373,7 +373,10 @@ void win32_display_buffer_to_window(Win32_bitmap_buffer* bitmap_buffer, HDC devi
         }
     }
     
-    StretchDIBits(device_context, offset_x, offset_y, window_width, window_height, 0, 0, bitmap_buffer->width, bitmap_buffer->height, bitmap_buffer->memory, &bitmap_buffer->info, DIB_RGB_COLORS, SRCCOPY);
+    StretchDIBits(device_context, 
+                  offset_x, offset_y, window_width, window_height, 
+                  0, 0, bitmap_buffer->width, bitmap_buffer->height, 
+                  bitmap_buffer->memory, &bitmap_buffer->info, DIB_RGB_COLORS, SRCCOPY);
 }
 
 internal
@@ -1105,8 +1108,7 @@ i32 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLi
             
             // draw
             auto dimensions = get_window_dimensions(window_handle);
-            HDC device_context;
-            device_context = GetDC(window_handle);
+            HDC device_context = GetDC(window_handle);
             win32_display_buffer_to_window(&Global_backbuffer, device_context, dimensions.width, dimensions.height);
             ReleaseDC(window_handle, device_context);
             

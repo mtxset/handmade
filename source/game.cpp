@@ -559,7 +559,8 @@ add_low_entity(Game_state* game_state, Entity_type type, World_position pos) {
 }
 
 internal
-void init_hit_points(Low_entity* entity_low, u32 hit_point_count) {
+void 
+init_hit_points(Low_entity* entity_low, u32 hit_point_count) {
     macro_assert(hit_point_count <= macro_array_count(entity_low->sim.hit_point));
     entity_low->sim.hit_points_max = hit_point_count;
     
@@ -571,7 +572,8 @@ void init_hit_points(Low_entity* entity_low, u32 hit_point_count) {
 }
 
 internal
-Add_low_entity_result add_sword(Game_state* game_state) {
+Add_low_entity_result 
+add_sword(Game_state* game_state) {
     Add_low_entity_result entity = add_low_entity(game_state, Entity_type_sword, null_position());
     
     entity.low->sim.height = 0.5f;
@@ -581,7 +583,8 @@ Add_low_entity_result add_sword(Game_state* game_state) {
 }
 
 internal
-Add_low_entity_result add_player(Game_state* game_state) {
+Add_low_entity_result 
+add_player(Game_state* game_state) {
     World_position pos = game_state->camera_pos;
     Add_low_entity_result entity = add_low_entity(game_state, Entity_type_hero, pos);
     
@@ -601,7 +604,8 @@ Add_low_entity_result add_player(Game_state* game_state) {
 }
 
 internal
-Add_low_entity_result add_monster(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
+Add_low_entity_result 
+add_monster(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
     World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
     Add_low_entity_result entity = add_low_entity(game_state, Entity_type_monster, pos);
     
@@ -614,7 +618,8 @@ Add_low_entity_result add_monster(Game_state* game_state, u32 abs_tile_x, u32 ab
 }
 
 internal
-Add_low_entity_result add_familiar(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
+Add_low_entity_result 
+add_familiar(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
     World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
     Add_low_entity_result entity = add_low_entity(game_state, Entity_type_familiar, pos);
     

@@ -272,7 +272,7 @@ add_radius_to(Rect2 rect, f32 radius_w, f32 radius_h) {
     Rect2 result;
     
     result.min = rect.min - v2 {radius_w, radius_h};
-    result.max = rect.max + v2 {radius_h, radius_w};
+    result.max = rect.max + v2 {radius_w, radius_h};
     
     return result;
 }

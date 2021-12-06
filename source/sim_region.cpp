@@ -346,6 +346,9 @@ bool
 should_collide(Game_state* game_state, Sim_entity* a_entity, Sim_entity* b_entity) {
     bool result = false;
     
+    if (a_entity == b_entity)
+        return result;
+    
     if (a_entity->storage_index > b_entity->storage_index) {
         swap(a_entity, b_entity);
     }
