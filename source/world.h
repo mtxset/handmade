@@ -5,17 +5,12 @@
 
 #include "vectors.h"
 
-struct World_diff {
-    v2 xy;
-    f32 z;
-};
-
 struct World_position {
     i32 chunk_x;
     i32 chunk_y;
     i32 chunk_z;
     
-    v2 _offset; 
+    v3 _offset; 
 };
 
 struct World_entity_block {
@@ -35,7 +30,8 @@ struct World_chunk {
 
 struct World {
     f32 tile_side_meters;
-    f32 chunk_side_meters;
+    f32 tile_depth_meters;
+    v3 chunk_dim_meters;
     
     World_entity_block* first_free;
     

@@ -64,45 +64,49 @@ World_chunk* get_world_chunk(World* world, i32 x, i32 y, i32 z, Memory_arena* ar
 }
 
 inline
-bool is_canonical(World* world, f32 tile_relative) {
+bool is_canonical(f32 chunk_dim, f32 tile_relative) {
     bool result;
     f32 epsilon = 0.0001f;
     // 0.5 cuz we wanna start from tile's center
     result = 
-        tile_relative >= -(0.5f * world->chunk_side_meters + epsilon) &&
-        tile_relative <=  (0.5f * world->chunk_side_meters + epsilon);
+        tile_relative >= -(0.5f * chunk_dim + epsilon) &&
+        tile_relative <=  (0.5f * chunk_dim + epsilon);
     
     return result;
 }
 
 inline
-bool is_canonical(World* world, v2 offset) {
+bool is_canonical(World* world, v3 offset) {
     bool result;
     // 0.5 cuz we wanna start from tile's center
-    result = is_canonical(world, offset.x) && is_canonical(world, offset.y);
+    result = 
+        is_canonical(world->chunk_dim_meters.x, offset.x) && 
+        is_canonical(world->chunk_dim_meters.y, offset.y) &&
+        is_canonical(world->chunk_dim_meters.z, offset.z);
     
     return result;
 }
 
 internal
 void 
-recanonicalize_coord(World* world, i32* tile, f32* tile_relative) {
-    i32 offset = round_f32_i32((*tile_relative) / world->chunk_side_meters);
+recanonicalize_coord(f32 chunk_dim, i32* tile, f32* tile_relative) {
+    i32 offset = round_f32_i32((*tile_relative) / chunk_dim);
     *tile += offset;
-    *tile_relative -= offset * world->chunk_side_meters;
+    *tile_relative -= offset * chunk_dim;
     
-    macro_assert(is_canonical(world, *tile_relative));
+    macro_assert(is_canonical(chunk_dim, *tile_relative));
 }
 
 inline
 World_position 
-map_into_chunk_space(World* world, World_position base_pos, v2 offset) {
+map_into_chunk_space(World* world, World_position base_pos, v3 offset) {
     
     World_position result = base_pos;
     result._offset += offset;
     
-    recanonicalize_coord(world, &result.chunk_x, &result._offset.x);
-    recanonicalize_coord(world, &result.chunk_y, &result._offset.y);
+    recanonicalize_coord(world->chunk_dim_meters.x, &result.chunk_x, &result._offset.x);
+    recanonicalize_coord(world->chunk_dim_meters.y, &result.chunk_y, &result._offset.y);
+    recanonicalize_coord(world->chunk_dim_meters.z, &result.chunk_z, &result._offset.z);
     
     return result;
 }
@@ -124,42 +128,28 @@ World_position
 chunk_pos_from_tile_pos(World* world, i32 abs_tile_x, i32 abs_tile_y, i32 abs_tile_z) {
     
     World_position result = {};
+    World_position base_pos = {};
     
-    result.chunk_x = abs_tile_x / TILES_PER_CHUNK;
-    result.chunk_y = abs_tile_y / TILES_PER_CHUNK;
-    result.chunk_z = abs_tile_z / TILES_PER_CHUNK;
+    v3 offset = hadamard(world->chunk_dim_meters, v3 {(f32)abs_tile_x, (f32)abs_tile_y, (f32)abs_tile_z});
     
-    if (abs_tile_x < 0)
-        result.chunk_x--;
-    
-    if (abs_tile_y < 0)
-        result.chunk_y--;
-    
-    if (abs_tile_z < 0)
-        result.chunk_z--;
-    
-    result._offset.x = (f32)((abs_tile_x - TILES_PER_CHUNK / 2) - (result.chunk_x * TILES_PER_CHUNK)) * world->tile_side_meters;
-    result._offset.y = (f32)((abs_tile_y - TILES_PER_CHUNK / 2) - (result.chunk_y * TILES_PER_CHUNK)) * world->tile_side_meters;
-    
+    result = map_into_chunk_space(world, base_pos, offset);
     macro_assert(is_canonical(world, result._offset));
     
     return result;
 }
 
 internal
-World_diff subtract_pos(World* world, World_position* pos_a, World_position* pos_b) {
-    World_diff result = {};
+v3
+subtract_pos(World* world, World_position* pos_a, World_position* pos_b) {
+    v3 result = {};
     
-    v2 delta_tile_xy = { 
+    v3 delta_tile = { 
         (f32)pos_a->chunk_x - (f32)pos_b->chunk_x,
-        (f32)pos_a->chunk_y - (f32)pos_b->chunk_y 
+        (f32)pos_a->chunk_y - (f32)pos_b->chunk_y,
+        (f32)pos_a->chunk_z - (f32)pos_b->chunk_z
     };
     
-    f32 delta_tile_z = (f32)pos_a->chunk_z - (f32)pos_b->chunk_z;
-    
-    result.xy = world->chunk_side_meters * delta_tile_xy + (pos_a->_offset - pos_b->_offset);
-    
-    result.z = world->chunk_side_meters * delta_tile_z;
+    result = hadamard(world->chunk_dim_meters, delta_tile) + (pos_a->_offset - pos_b->_offset);
     
     return result;
 }
@@ -179,7 +169,12 @@ World_position centered_chunk_point(u32 chunk_x, u32 chunk_y, u32 chunk_z) {
 internal
 void init_world(World* world, f32 tile_side_meters) {
     world->tile_side_meters = tile_side_meters;
-    world->chunk_side_meters = (f32)TILES_PER_CHUNK * tile_side_meters;
+    world->chunk_dim_meters = { 
+        (f32)TILES_PER_CHUNK * tile_side_meters,
+        (f32)TILES_PER_CHUNK * tile_side_meters,
+        tile_side_meters
+    };
+    world->tile_depth_meters = (f32)tile_side_meters;
     world->first_free = 0;
     
     for (u32 tile_chunk_index = 0; tile_chunk_index < macro_array_count(world->chunk_hash); tile_chunk_index++) {

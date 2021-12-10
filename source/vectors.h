@@ -11,6 +11,26 @@ union v2 {
     f32 e[2];
 };
 
+
+union v3 {
+    struct {
+        f32 x, y, z;
+    };
+    struct {
+        f32 r, g, b;
+    };
+    struct {
+        v2 xy;
+        f32 _discard;
+    };
+    struct {
+        f32 _discard;
+        v2 yz;
+    };
+    f32 e[3];
+};
+
+
 union v4 {
     struct {
         f32 x, y, z, w;
@@ -47,7 +67,6 @@ v2 operator += (v2 &a, v2 b) {
     a = a + b;
     return a;
 }
-
 
 inline
 v2 operator -= (v2 &a, v2 b) {
@@ -91,7 +110,7 @@ v2 operator *= (v2 &a, f32 b) {
 }
 
 inline 
-bool is_zero_v2(v2 a)
+bool is_zero(v2 a)
 {
     bool result = a.x == 0 && a.y == 0;
     return result;
@@ -107,7 +126,17 @@ f32 inner(v2 a, v2 b) {
 }
 
 inline
-f32 length_squared_v2(v2 a) {
+v2
+hadamard(v2 a, v2 b) {
+    v2 result;
+    
+    result = { a.x * b.x, a.y * b.y };
+    
+    return result;
+}
+
+inline
+f32 length_squared(v2 a) {
     f32 result;
     
     result = inner(a, a);
@@ -165,15 +194,15 @@ u32 quadrant_v2(v2 a) {
     return result;
 }
 
-union v3 {
-    struct {
-        f32 x, y, z;
-    };
-    struct {
-        f32 r, g, b;
-    };
-    f32 e[3];
-};
+inline
+v3
+v2_to_v3(v2 a, f32 z) {
+    v3 result;
+    
+    result = v3{a.x, a.y, z};
+    
+    return result;
+}
 
 inline
 v3 operator + (v3 a, v3 b) {
@@ -255,7 +284,6 @@ v3 operator / (f32 a, v3 b) {
     return result;
 }
 
-
 inline
 v3 operator / (v3 a, f32 b) {
     v3 result;
@@ -266,14 +294,14 @@ v3 operator / (v3 a, f32 b) {
 }
 
 inline 
-bool is_zero_v3(v3 a)
+bool is_zero(v3 a)
 {
     bool result = a.x == 0 && a.y == 0 && a.z == 0;
     return result;
 }
 
 inline
-f32 inner_v3(v3 a, v3 b) {
+f32 inner(v3 a, v3 b) {
     f32 result;
     
     result = a.x * b.x + a.y * b.y + a.z * b.z; 
@@ -282,8 +310,18 @@ f32 inner_v3(v3 a, v3 b) {
 }
 
 inline
-f32 dot_v3(v3 a, v3 b) {
-    return inner_v3(a, b);
+v3
+hadamard(v3 a, v3 b) {
+    v3 result;
+    
+    result = { a.x * b.x, a.y * b.y, a.z * b.z};
+    
+    return result;
+}
+
+inline
+f32 dot(v3 a, v3 b) {
+    return inner(a, b);
 }
 
 v3 cross(v3 a, v3 b) {
@@ -297,29 +335,29 @@ v3 cross(v3 a, v3 b) {
 }
 
 inline
-f32 length_squared_v3(v3 a) {
+f32 length_squared(v3 a) {
     f32 result;
     
-    result = inner_v3(a, a);
+    result = inner(a, a);
     
     return result;
 }
 
 inline
-f32 length_v3(v3 a) {
+f32 length(v3 a) {
     f32 result;
     
-    f32 dot = inner_v3(a, a);
+    f32 dot = inner(a, a);
     result = sqrtf(dot);
     
     return result;
 }
 
 inline
-v3 unit_vector_v3(v3 a) {
+v3 unit_vector(v3 a) {
     v3 result;
     
-    result = a / length_v3(a);
+    result = a / length(a);
     
     return result;
 }
