@@ -526,17 +526,6 @@ void subpixel_test_udpdate(Game_bitmap_buffer* buffer, Game_state* game_state, G
     *pixel_two = color_hex;
 }
 
-
-inline
-v2 get_camera_space_pos(Game_state* game_state, Low_entity* entity_low) {
-    v2 result = {};
-    
-    World_diff diff = subtract_pos(game_state->world, &entity_low->position, &game_state->camera_pos);
-    result = diff.xy;
-    
-    return result;
-}
-
 internal
 Add_low_entity_result 
 add_low_entity(Game_state* game_state, Entity_type type, World_position pos) {
@@ -1010,12 +999,14 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     {
         u32 tile_span_x = 17 * 3;
         u32 tile_span_y = 9  * 3;
-        v2 tile_spans = {
+        u32 tile_span_z = 1;
+        v3 tile_spans = {
             (f32)tile_span_x,
-            (f32)tile_span_y
+            (f32)tile_span_y,
+            (f32)tile_span_z
         };
         
-        Rect2 camera_bounds = rect_center_dim(v2 {0, 0}, world->tile_side_meters * tile_spans);
+        Rect3 camera_bounds = rect_center_dim(v3 {0, 0, 0}, world->tile_side_meters * tile_spans);
         Memory_arena sim_arena;
         initialize_arena(&sim_arena, memory->transient_storage_size, memory->transient_storage);
         
@@ -1048,7 +1039,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
             v3 color_player = { .1f, .0f, 1.0f };
             
             Move_spec move_spec = default_move_spec();
-            v2 ddp = {};
+            v3 ddp = {};
             
             // update entities
             switch (entity->type) {
@@ -1061,21 +1052,21 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                         if (entity->storage_index == con_hero->entity_index) {
                             
                             if (con_hero->d_z != 0.0f) {
-                                entity->z_velocity_d = con_hero->d_z;
+                                entity->velocity_d.z = con_hero->d_z;
                             }
                             
                             move_spec.max_acceleration_vector = true;
                             move_spec.speed = 50.0f;
                             move_spec.drag = 8.0f;
                             move_spec.boost = con_hero->boost;
-                            ddp = con_hero->dd_player;
+                            ddp = v2_to_v3(con_hero->dd_player, 0);
                             
-                            if (!is_zero_v2(con_hero->d_sword)) {
+                            if (!is_zero(con_hero->d_sword)) {
                                 Sim_entity* sword = entity->sword.pointer;
                                 
                                 if (sword && is_set(sword, Entity_flag_non_spatial)) {
                                     sword->distance_limit = 5.0f;
-                                    make_entity_spatial(sword, entity->position, 5.0f * con_hero->d_sword);
+                                    make_entity_spatial(sword, entity->position, v2_to_v3(5.0f * con_hero->d_sword, 0));
                                     add_collision_rule(game_state, sword->storage_index, entity->storage_index, false);
                                 }
                             }
@@ -1084,22 +1075,19 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                     
                     Hero_bitmaps* hero_bitmap = &game_state->hero_bitmaps[entity->facing_direction];
                     
+                    /*
                     // jump
                     f32 jump_z;
                     {
-                        f32 ddz = -9.8f;
-                        f32 delta_z = .5f * ddz * square(time_delta) + entity->z_velocity_d * time_delta;
-                        entity->z += delta_z;
+                        
                         entity->z_velocity_d = ddz * time_delta + entity->z_velocity_d;
                         
-                        if (entity->z < 0) {
-                            entity->z = 0;
-                        }
+                        
                         
                         jump_z = -entity->z;
                     }
-                    
-                    push_bitmap(&piece_group, &hero_bitmap->hero_body, v2{0, 0}, jump_z, hero_bitmap->align);
+                    */
+                    push_bitmap(&piece_group, &hero_bitmap->hero_body, v2{0, 0}, 0, hero_bitmap->align);
                     
                     draw_hitpoints(&piece_group, entity);
                 } break;
@@ -1114,12 +1102,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                         if (test_entity->type != Entity_type_hero)
                             continue;
                         
-                        f32 test_delta_squared = length_squared_v2(test_entity->position - entity->position);
-                        
-                        // giving some priority for hero
-                        if (test_entity->type == Entity_type_hero) {
-                            test_delta_squared *= 0.75f;
-                        }
+                        f32 test_delta_squared = length_squared(test_entity->position - entity->position);
                         
                         if (closest_hero_delta_squared > test_delta_squared) {
                             closest_hero = test_entity;
@@ -1160,8 +1143,6 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                     move_spec.speed = 0.0f;
                     move_spec.drag = 0.0f;
                     move_spec.boost = 0.0f;
-                    
-                    v2 old_pos = entity->position;
                     
                     if (entity->distance_limit == 0.0f) {
                         clear_collision_rule(game_state, entity->storage_index);
@@ -1227,7 +1208,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     }
     
     World_position world_origin = {};
-    World_diff diff = subtract_pos(sim_region->world, &world_origin, &sim_region->origin);
+    v3 diff = subtract_pos(sim_region->world, &world_origin, &sim_region->origin);
     draw_rect(bitmap_buffer, diff.xy, v2 {10.0f, 10.0f}, v3{1.0f,1.0f,0.0f});
     end_sim(sim_region, game_state);
     

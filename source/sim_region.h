@@ -44,12 +44,8 @@ struct Sim_entity {
     u32 storage_index;
     bool updatable;
     
-    v2 position;
-    v2 velocity_d;
-    u32 chunk_z;
-    
-    f32 z;
-    f32 z_velocity_d;
+    v3 position;
+    v3 velocity_d;
     
     f32 distance_limit;
     
@@ -78,8 +74,8 @@ struct Sim_region {
     World* world;
     World_position origin;
     
-    Rect2 bounds;
-    Rect2 updatable_bounds;
+    Rect3 bounds;
+    Rect3 updatable_bounds;
     
     u32 entity_count;
     u32 max_entity_count;

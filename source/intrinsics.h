@@ -7,11 +7,6 @@
 #include "platform.h"
 #include "vectors.h"
 
-struct Rect2 {
-    v2 min;
-    v2 max;
-};
-
 struct Bit_scan_result {
     bool found;
     u32 index;
@@ -187,6 +182,13 @@ f32 rad_to_degrees(f32 value) {
     return result;
 }
 
+// Rect2 START
+
+struct Rect2 {
+    v2 min;
+    v2 max;
+};
+
 inline
 v2 get_min_corner(Rect2 rect) {
     v2 result;
@@ -268,13 +270,114 @@ bool is_in_rect(Rect2 rect, v2 point) {
 
 inline
 Rect2
-add_radius_to(Rect2 rect, f32 radius_w, f32 radius_h) {
+add_radius_to(Rect2 rect, v2 radius) {
     Rect2 result;
     
-    result.min = rect.min - v2 {radius_w, radius_h};
-    result.max = rect.max + v2 {radius_w, radius_h};
+    result.min = rect.min - radius;
+    result.max = rect.max + radius;
     
     return result;
 }
+
+// Rect2 END
+
+// Rect3 START
+
+struct Rect3 {
+    v3 min;
+    v3 max;
+};
+
+inline
+v3 get_min_corner(Rect3 rect) {
+    v3 result;
+    
+    result = rect.min;
+    
+    return result;
+}
+
+inline
+v3 get_max_corner(Rect3 rect) {
+    v3 result;
+    
+    result = rect.max;
+    
+    return result;
+}
+
+inline
+v3 get_center(Rect3 rect) {
+    v3 result;
+    
+    result = 0.5f * (rect.min + rect.max);
+    
+    return result;
+}
+
+inline
+Rect3 rect_min_max(v3 min, v3 max) {
+    Rect3 result;
+    
+    result.min = min;
+    result.max = max;
+    
+    return result;
+}
+
+inline
+Rect3 rect_min_dim(v3 min, v3 dim) {
+    Rect3 result;
+    
+    result.min = min;
+    result.max = min + dim;
+    
+    return result;
+}
+
+inline
+Rect3 rect_center_half_dim(v3 center, v3 half_dim) {
+    Rect3 result;
+    
+    result.min = center - half_dim;
+    result.max = center + half_dim;
+    
+    return result;
+}
+
+inline
+Rect3 rect_center_dim(v3 center, v3 dim) {
+    Rect3 result;
+    
+    result = rect_center_half_dim(center, 0.5f * dim);
+    
+    return result;
+}
+
+inline
+bool is_in_rect(Rect3 rect, v3 point) {
+    bool result;
+    
+    result = 
+        point.x >= rect.min.x && 
+        point.x <  rect.max.x &&
+        point.y >= rect.min.y &&
+        point.y <  rect.max.y;
+    
+    return result;
+}
+
+inline
+Rect3
+add_radius_to(Rect3 rect, v3 radius) {
+    Rect3 result;
+    
+    result.min = rect.min - radius;
+    result.max = rect.max + radius;
+    
+    return result;
+}
+
+// RECT3 END
 
 #endif //INTRINSICS_H

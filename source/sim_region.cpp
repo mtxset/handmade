@@ -50,12 +50,12 @@ Sim_entity* get_entity_by_storage_index(Sim_region* sim_region, u32 storage_inde
 }
 
 inline
-v2 get_sim_space_pos(Sim_region* sim_region, Low_entity* entity) {
-    v2 result = { 100000.0f, 100000.0f };
+v3
+get_sim_space_pos(Sim_region* sim_region, Low_entity* entity) {
+    v3 result = Global_invalid_pos;
     
     if (!is_set(&entity->sim, Entity_flag_non_spatial)) {
-        World_diff diff = subtract_pos(sim_region->world, &entity->position, &sim_region->origin);
-        result = diff.xy;
+        result = subtract_pos(sim_region->world, &entity->position, &sim_region->origin);
     }
     
     return result;
@@ -63,7 +63,7 @@ v2 get_sim_space_pos(Sim_region* sim_region, Low_entity* entity) {
 
 internal
 Sim_entity* 
-add_entity(Game_state* game_state, Sim_region* sim_region, u32 storage_index, Low_entity* source, v2* simulation_pos);
+add_entity(Game_state* game_state, Sim_region* sim_region, u32 storage_index, Low_entity* source, v3* simulation_pos);
 
 inline
 void 
@@ -77,7 +77,7 @@ load_entity_ref(Game_state* game_state, Sim_region* sim_region, Entity_ref* ref)
     if (entry->pointer == 0) {
         entry->index = ref->index;
         Low_entity* low_entity = get_low_entity(game_state, ref->index);
-        v2 pos = get_sim_space_pos(sim_region, low_entity);
+        v3 pos = get_sim_space_pos(sim_region, low_entity);
         entry->pointer = add_entity(game_state, sim_region, ref->index, low_entity, &pos);
     }
     
@@ -122,7 +122,7 @@ add_entity_raw(Game_state* game_state, Sim_region* sim_region, u32 storage_index
 
 internal
 Sim_entity* 
-add_entity(Game_state* game_state, Sim_region* sim_region, u32 storage_index, Low_entity* source, v2* simulation_pos) {
+add_entity(Game_state* game_state, Sim_region* sim_region, u32 storage_index, Low_entity* source, v3* simulation_pos) {
     
     Sim_entity* dest = add_entity_raw(game_state, sim_region, storage_index, source);
     
@@ -140,17 +140,17 @@ add_entity(Game_state* game_state, Sim_region* sim_region, u32 storage_index, Lo
 
 internal
 Sim_region*
-begin_sim(Memory_arena* sim_arena, Game_state* game_state, World* world, World_position origin, Rect2 bounds) {
+begin_sim(Memory_arena* sim_arena, Game_state* game_state, World* world, World_position origin, Rect3 bounds) {
     
     Sim_region* sim_region = mem_push_struct(sim_arena, Sim_region);
     mem_zero_struct(sim_region->hash);
     
-    f32 update_safety_margin = 1.0f;
+    v3 update_safety_margin = { 1.0f, 1.0f, 1.0f };
     
     sim_region->world  = world;
     sim_region->origin = origin;
     sim_region->updatable_bounds = bounds;
-    sim_region->bounds = add_radius_to(sim_region->updatable_bounds, update_safety_margin, update_safety_margin);
+    sim_region->bounds = add_radius_to(sim_region->updatable_bounds, update_safety_margin);
     
     sim_region->max_entity_count = 4096;
     sim_region->entity_count = 0;
@@ -175,7 +175,7 @@ begin_sim(Memory_arena* sim_arena, Game_state* game_state, World* world, World_p
                     if (is_set(&low_entity->sim, Entity_flag_non_spatial))
                         continue;
                     
-                    v2 sim_space_pos = get_sim_space_pos(sim_region, low_entity);
+                    v3 sim_space_pos = get_sim_space_pos(sim_region, low_entity);
                     if (is_in_rect(sim_region->bounds, sim_space_pos))
                         add_entity(game_state, sim_region, low_entity_index, low_entity, &sim_space_pos);
                 }
@@ -372,14 +372,14 @@ should_collide(Game_state* game_state, Sim_entity* a_entity, Sim_entity* b_entit
 
 internal
 void
-move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, f32 time_delta, Move_spec* move_spec, v2 player_acceleration_dd) {
+move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, f32 time_delta, Move_spec* move_spec, v3 player_acceleration_dd) {
     
     macro_assert(!is_set(entity, Entity_flag_non_spatial));
     
     World* world = sim_region->world;
     
     if (move_spec->max_acceleration_vector) {
-        f32 accelecation_dd_length = length_squared_v2(player_acceleration_dd);
+        f32 accelecation_dd_length = length_squared(player_acceleration_dd);
         
         if (accelecation_dd_length > 1.0f) {
             player_acceleration_dd *= 1.0f / square_root(accelecation_dd_length);
@@ -393,17 +393,18 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
     
     player_acceleration_dd *= move_speed;
     player_acceleration_dd += -move_spec->drag * entity->velocity_d;
+    player_acceleration_dd += v3 {0, 0, -9.8f};
     
-    v2 old_player_pos = entity->position;
+    v3 old_player_pos = entity->position;
     
     // p' = (1/2) * at^2 + vt + ..
-    v2 player_delta = 0.5f * player_acceleration_dd * square(time_delta) + entity->velocity_d * time_delta;
+    v3 player_delta = 0.5f * player_acceleration_dd * square(time_delta) + entity->velocity_d * time_delta;
     
     // v' = at + v
     entity->velocity_d = player_acceleration_dd * time_delta + entity->velocity_d;
     
     // p' = ... + p
-    v2 new_player_pos = old_player_pos + player_delta;
+    v3 new_player_pos = old_player_pos + player_delta;
     
     f32 distance_remaining = entity->distance_limit;
     if (distance_remaining == 0.0f) {
@@ -416,7 +417,7 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
         
         f32 t_min = 1.0f;
         
-        f32 player_delta_length = length_v2(player_delta);
+        f32 player_delta_length = length(player_delta);
         
         if (player_delta_length <= 0.0f)
             break;
@@ -425,10 +426,10 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
             t_min = distance_remaining / player_delta_length;
         }
         
-        v2 wall_normal = { };
+        v3 wall_normal = { };
         Sim_entity* hit_entity = 0;
         
-        v2 desired_postion = entity->position + player_delta;
+        v3 desired_postion = entity->position + player_delta;
         
         if (!is_set(entity, Entity_flag_non_spatial)) {
             
@@ -439,14 +440,18 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
                 if (!should_collide(game_state, entity, test_entity))
                     continue;
                 
-                f32 diameter_width  = test_entity->width  + entity->width;
-                f32 diameter_height = test_entity->height + entity->height;
+                v3 minkowski_diameter = {
+                    test_entity->width  + entity->width,
+                    test_entity->height + entity->height,
+                    world->tile_depth_meters * 2
+                };
+                
                 // assumption: compiler knows these values (min/max_coner) are not using anything from loop so it can pull it out
-                v2 min_corner = -0.5f * v2 { diameter_width, diameter_height };
-                v2 max_corner =  0.5f * v2 { diameter_width, diameter_height };
+                v3 min_corner = -0.5f * minkowski_diameter;
+                v3 max_corner =  0.5f * minkowski_diameter;
                 
                 // relative position delta
-                v2 rel = entity->position - test_entity->position;
+                v3 rel = entity->position - test_entity->position;
                 
                 if (test_wall(min_corner.x, rel.x, rel.y, player_delta.x, player_delta.y, &t_min, min_corner.y, max_corner.y)) {
                     wall_normal = {-1, 0 };
@@ -475,8 +480,8 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
         
         if (hit_entity) {
             //v' = v - 2*dot(v,r) * r
-            v2 r = wall_normal;
-            v2 v = entity->velocity_d;
+            v3 r = wall_normal;
+            v3 v = entity->velocity_d;
             // game_state->player_velocity_d = v - 2 * inner(v, r) * r; // reflection
             player_delta = desired_postion - entity->position;
             
@@ -493,6 +498,10 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
         else {
             break;
         }
+    }
+    
+    if (entity->position.z < 0) {
+        entity->position.z = 0;
     }
     
     if (entity->distance_limit != 0.0f) {
