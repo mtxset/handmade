@@ -42,7 +42,8 @@ map_storage_index_to_entity(Sim_region* sim_region, u32 storage_index, Sim_entit
 }
 
 inline
-Sim_entity* get_entity_by_storage_index(Sim_region* sim_region, u32 storage_index) {
+Sim_entity* 
+get_entity_by_storage_index(Sim_region* sim_region, u32 storage_index) {
     Sim_entity_hash* entry = get_hash_from_storage_index(sim_region, storage_index);
     Sim_entity* result = entry->pointer;
     
@@ -57,6 +58,16 @@ get_sim_space_pos(Sim_region* sim_region, Low_entity* entity) {
     if (!is_set(&entity->sim, Entity_flag_non_spatial)) {
         result = subtract_pos(sim_region->world, &entity->position, &sim_region->origin);
     }
+    
+    return result;
+}
+
+inline
+bool
+entity_overlaps_rect(v3 pos, v3 dim, Rect3 rect) {
+    Rect3 grown = add_radius_to(rect, 0.5 * dim);
+    
+    bool result = is_in_rect(grown, pos);
     
     return result;
 }
@@ -129,7 +140,7 @@ add_entity(Game_state* game_state, Sim_region* sim_region, u32 storage_index, Lo
     if (dest) {
         if (simulation_pos) {
             dest->position = *simulation_pos;
-            dest->updatable = is_in_rect(sim_region->updatable_bounds, dest->position);
+            dest->updatable = entity_overlaps_rect(dest->position, dest->dim, sim_region->updatable_bounds);
         }
         else
             dest->position = get_sim_space_pos(sim_region, source);
@@ -140,16 +151,19 @@ add_entity(Game_state* game_state, Sim_region* sim_region, u32 storage_index, Lo
 
 internal
 Sim_region*
-begin_sim(Memory_arena* sim_arena, Game_state* game_state, World* world, World_position origin, Rect3 bounds) {
+begin_sim(Memory_arena* sim_arena, Game_state* game_state, World* world, World_position origin, Rect3 bounds, f32 dt) {
     
     Sim_region* sim_region = mem_push_struct(sim_arena, Sim_region);
     mem_zero_struct(sim_region->hash);
     
-    v3 update_safety_margin = { 1.0f, 1.0f, 1.0f };
+    sim_region->max_entity_radius = 5.0f;
+    sim_region->max_entity_velocity = 30.0f;
+    f32 temp_safety_margin = sim_region->max_entity_radius + dt * sim_region->max_entity_velocity;
+    v3 update_safety_margin = { temp_safety_margin, temp_safety_margin, 1.0f };
     
     sim_region->world  = world;
     sim_region->origin = origin;
-    sim_region->updatable_bounds = bounds;
+    sim_region->updatable_bounds = add_radius_to(bounds, v3{sim_region->max_entity_radius, sim_region->max_entity_radius, sim_region->max_entity_radius});
     sim_region->bounds = add_radius_to(sim_region->updatable_bounds, update_safety_margin);
     
     sim_region->max_entity_count = 4096;
@@ -176,7 +190,7 @@ begin_sim(Memory_arena* sim_arena, Game_state* game_state, World* world, World_p
                         continue;
                     
                     v3 sim_space_pos = get_sim_space_pos(sim_region, low_entity);
-                    if (is_in_rect(sim_region->bounds, sim_space_pos))
+                    if (entity_overlaps_rect(sim_space_pos, low_entity->sim.dim, sim_region->bounds))
                         add_entity(game_state, sim_region, low_entity_index, low_entity, &sim_space_pos);
                 }
             }
@@ -186,7 +200,7 @@ begin_sim(Memory_arena* sim_arena, Game_state* game_state, World* world, World_p
 }
 
 internal
-void 
+void
 end_sim(Sim_region* region, Game_state* game_state) {
     
     Sim_entity* entity = region->entity_list;
@@ -223,7 +237,9 @@ end_sim(Sim_region* region, Game_state* game_state) {
                 new_camera_pos.absolute_tile_y -= 9;
 #else
             // smooth follow
+            f32 cam_z_offset = new_camera_pos._offset.z;
             new_camera_pos = stored->position;
+            new_camera_pos._offset.z = cam_z_offset;
 #endif
             
             game_state->camera_pos = new_camera_pos;
@@ -232,7 +248,8 @@ end_sim(Sim_region* region, Game_state* game_state) {
 }
 
 internal
-bool test_wall(f32 wall_x, f32 rel_x, f32 rel_y, f32 player_delta_x, f32 player_delta_y, f32* t_min, f32 min_y, f32 max_y) {
+bool 
+test_wall(f32 wall_x, f32 rel_x, f32 rel_y, f32 player_delta_x, f32 player_delta_y, f32* t_min, f32 min_y, f32 max_y) {
     
     bool hit = false;
     
@@ -403,6 +420,8 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
     // v' = at + v
     entity->velocity_d = player_acceleration_dd * time_delta + entity->velocity_d;
     
+    macro_assert(length_squared(entity->velocity_d) <= square(sim_region->max_entity_velocity));
+    
     // p' = ... + p
     v3 new_player_pos = old_player_pos + player_delta;
     
@@ -441,9 +460,9 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
                     continue;
                 
                 v3 minkowski_diameter = {
-                    test_entity->width  + entity->width,
-                    test_entity->height + entity->height,
-                    world->tile_depth_meters * 2
+                    test_entity->dim.x  + entity->dim.x,
+                    test_entity->dim.y  + entity->dim.y,
+                    test_entity->dim.z  + entity->dim.z,
                 };
                 
                 // assumption: compiler knows these values (min/max_coner) are not using anything from loop so it can pull it out
@@ -502,6 +521,7 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
     
     if (entity->position.z < 0) {
         entity->position.z = 0;
+        entity->velocity_d.z = 0;
     }
     
     if (entity->distance_limit != 0.0f) {

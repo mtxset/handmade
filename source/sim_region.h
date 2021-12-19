@@ -52,7 +52,7 @@ struct Sim_entity {
     Entity_type type;
     u32 flags;
     
-    f32 width, height;
+    v3 dim;
     
     i32 d_abs_tile_z;
     
@@ -72,6 +72,10 @@ struct Sim_entity_hash {
 
 struct Sim_region {
     World* world;
+    
+    f32 max_entity_radius;
+    f32 max_entity_velocity;
+    
     World_position origin;
     
     Rect3 bounds;

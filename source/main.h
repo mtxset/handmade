@@ -83,7 +83,8 @@ void initialize_arena(Memory_arena* arena, size_t size, void* base) {
 #define mem_zero_struct(instance)                  mem_zero_size_(sizeof(instance), &(instance))
 
 inline
-void* mem_push_size_(Memory_arena* arena, size_t size) {
+void* 
+mem_push_size_(Memory_arena* arena, size_t size) {
     macro_assert(arena->used + size <= arena->size);
     
     void* result = arena->base + arena->used;
@@ -93,7 +94,8 @@ void* mem_push_size_(Memory_arena* arena, size_t size) {
 }
 
 inline
-void mem_zero_size_(size_t size, void* pointer) {
+void 
+mem_zero_size_(size_t size, void* pointer) {
     u8* byte = (u8*)pointer;
     while (size--)
         *byte++ = 0;

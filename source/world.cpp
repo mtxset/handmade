@@ -66,7 +66,7 @@ World_chunk* get_world_chunk(World* world, i32 x, i32 y, i32 z, Memory_arena* ar
 inline
 bool is_canonical(f32 chunk_dim, f32 tile_relative) {
     bool result;
-    f32 epsilon = 0.0001f;
+    f32 epsilon = 0.01f;
     // 0.5 cuz we wanna start from tile's center
     result = 
         tile_relative >= -(0.5f * chunk_dim + epsilon) &&
@@ -130,7 +130,7 @@ chunk_pos_from_tile_pos(World* world, i32 abs_tile_x, i32 abs_tile_y, i32 abs_ti
     World_position result = {};
     World_position base_pos = {};
     
-    v3 offset = hadamard(world->chunk_dim_meters, v3 {(f32)abs_tile_x, (f32)abs_tile_y, (f32)abs_tile_z});
+    v3 offset = world->tile_side_meters * v3 {(f32)abs_tile_x, (f32)abs_tile_y, (f32)abs_tile_z};
     
     result = map_into_chunk_space(world, base_pos, offset);
     macro_assert(is_canonical(world, result._offset));
