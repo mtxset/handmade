@@ -565,8 +565,8 @@ Add_low_entity_result
 add_sword(Game_state* game_state) {
     Add_low_entity_result entity = add_low_entity(game_state, Entity_type_sword, null_position());
     
-    entity.low->sim.height = 0.5f;
-    entity.low->sim.width  = 1.0f;
+    entity.low->sim.dim.y = 0.5f;
+    entity.low->sim.dim.x  = 1.0f;
     
     return entity;
 }
@@ -578,8 +578,8 @@ add_player(Game_state* game_state) {
     Add_low_entity_result entity = add_low_entity(game_state, Entity_type_hero, pos);
     
     init_hit_points(entity.low, 3);
-    entity.low->sim.height = 0.5f;
-    entity.low->sim.width  = 1.0f;
+    entity.low->sim.dim.y = 0.5f;
+    entity.low->sim.dim.x  = 1.0f;
     add_flag(&entity.low->sim, Entity_flag_collides);
     
     Add_low_entity_result sword = add_sword(game_state);
@@ -599,8 +599,8 @@ add_monster(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile
     Add_low_entity_result entity = add_low_entity(game_state, Entity_type_monster, pos);
     
     init_hit_points(entity.low, 2);
-    entity.low->sim.height = 0.5f;
-    entity.low->sim.width  = 1.0f;
+    entity.low->sim.dim.y = 0.5f;
+    entity.low->sim.dim.x  = 1.0f;
     add_flag(&entity.low->sim, Entity_flag_collides);
     
     return entity;
@@ -612,8 +612,8 @@ add_familiar(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_til
     World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
     Add_low_entity_result entity = add_low_entity(game_state, Entity_type_familiar, pos);
     
-    entity.low->sim.height = 0.5f;
-    entity.low->sim.width  = 1.0f;
+    entity.low->sim.dim.y = 0.5f;
+    entity.low->sim.dim.x  = 1.0f;
     add_flag(&entity.low->sim, Entity_flag_collides);
     
     return entity;
@@ -625,8 +625,8 @@ add_wall(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z)
     World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
     Add_low_entity_result entity = add_low_entity(game_state, Entity_type_wall, pos);
     
-    entity.low->sim.height = game_state->world->tile_side_meters;
-    entity.low->sim.width  = entity.low->sim.height;
+    entity.low->sim.dim.y = game_state->world->tile_side_meters;
+    entity.low->sim.dim.x  = entity.low->sim.dim.y;
     add_flag(&entity.low->sim, Entity_flag_collides);
     
     return entity;
@@ -646,25 +646,30 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
 #else
 
 inline
-void push_piece(Entity_visible_piece_group* group, Loaded_bmp* bitmap, v2 offset, f32 offset_z, v2 align, v2 dim, v4 color) {
+void push_piece(Entity_visible_piece_group* group, Loaded_bmp* bitmap, 
+                v2 offset, f32 offset_z, v2 align, v2 dim, v4 color, f32 entity_zc) {
     macro_assert(group->count < macro_array_count(group->piece_list));
     Entity_visible_piece* piece = group->piece_list + group->count++;
     
     piece->bitmap = bitmap;
     piece->offset = group->game_state->meters_to_pixels * v2 { offset.x, -offset.y } - align;
     piece->offset_z = group->game_state->meters_to_pixels * offset_z;
+    piece->entity_zc = entity_zc;
     piece->color = color;
     piece->dim = dim;
 }
 
 inline
-void push_bitmap(Entity_visible_piece_group* group, Loaded_bmp* bitmap, v2 offset, f32 offset_z, v2 align, f32 alpha = 1.0f) {
-    push_piece(group, bitmap, offset, offset_z, align, v2 {0, 0}, v4 {1.0f, 1.0f, 1.0f, alpha });
+void 
+push_bitmap(Entity_visible_piece_group* group, Loaded_bmp* bitmap, 
+            v2 offset, f32 offset_z, v2 align, f32 alpha = 1.0f, f32 entity_zc = 1.0f) {
+    push_piece(group, bitmap, offset, offset_z, align, v2 {0, 0}, v4 {1.0f, 1.0f, 1.0f, alpha }, entity_zc);
 }
 
 inline
-void push_rect(Entity_visible_piece_group* group, v2 offset, f32 offset_z, v2 dim, v4 color) {
-    push_piece(group, 0, offset, offset_z, v2{0, 0}, dim, color);
+void 
+push_rect(Entity_visible_piece_group* group, v2 offset, f32 offset_z, v2 dim, v4 color, f32 entity_zc = 1.0f) {
+    push_piece(group, 0, offset, offset_z, v2{0, 0}, dim, color, entity_zc);
 }
 
 inline
@@ -1010,7 +1015,9 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         Memory_arena sim_arena;
         initialize_arena(&sim_arena, memory->transient_storage_size, memory->transient_storage);
         
-        sim_region = begin_sim(&sim_arena, game_state, game_state->world, game_state->camera_pos, camera_bounds);
+        sim_region = begin_sim(&sim_arena, 
+                               game_state, game_state->world, 
+                               game_state->camera_pos, camera_bounds, input->time_delta);
     }
     
     clear_screen(bitmap_buffer, color_gray_byte);
@@ -1172,16 +1179,17 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 screen_center_x + entity->position.x * meters_to_pixels,
                 screen_center_y - entity->position.y * meters_to_pixels
             };
+            f32 entity_z = -meters_to_pixels * entity->position.z;
             
 #if 0
             v2 player_start = { 
-                entity_ground_point.x - .5f * low->sim.width  * meters_to_pixels,
-                entity_ground_point.y - .5f * low->sim.height * meters_to_pixels
+                entity_ground_point.x - .5f * low->sim.dim.x  * meters_to_pixels,
+                entity_ground_point.y - .5f * low->sim.dim.y * meters_to_pixels
             };
             
             v2 player_end = {
-                player_start.x + low->sim.width * meters_to_pixels, 
-                player_start.y + low->sim.height * meters_to_pixels, 
+                player_start.x + low->sim.dim.x * meters_to_pixels, 
+                player_start.y + low->sim.dim.y * meters_to_pixels, 
             };
 #endif
             
@@ -1191,7 +1199,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 
                 v2 center = { 
                     entity_ground_point.x + piece->offset.x, 
-                    entity_ground_point.y + piece->offset.y + piece->offset_z
+                    entity_ground_point.y + piece->offset.y + piece->offset_z + piece->entity_zc * entity_z
                 };
                 
                 if (piece->bitmap) {

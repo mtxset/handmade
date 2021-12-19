@@ -346,7 +346,8 @@ Rect3 rect_center_half_dim(v3 center, v3 half_dim) {
 }
 
 inline
-Rect3 rect_center_dim(v3 center, v3 dim) {
+Rect3 
+rect_center_dim(v3 center, v3 dim) {
     Rect3 result;
     
     result = rect_center_half_dim(center, 0.5f * dim);
@@ -355,14 +356,18 @@ Rect3 rect_center_dim(v3 center, v3 dim) {
 }
 
 inline
-bool is_in_rect(Rect3 rect, v3 point) {
+bool 
+is_in_rect(Rect3 rect, v3 point) {
     bool result;
     
     result = 
         point.x >= rect.min.x && 
-        point.x <  rect.max.x &&
         point.y >= rect.min.y &&
-        point.y <  rect.max.y;
+        point.z >= rect.min.z && 
+        
+        point.x <  rect.max.x &&
+        point.y <  rect.max.y &&
+        point.z <  rect.max.z ;
     
     return result;
 }

@@ -181,6 +181,7 @@ struct Entity_visible_piece {
     Loaded_bmp* bitmap;
     v2 offset;
     f32 offset_z;
+    f32 entity_zc;
     v4 color;
     v2 dim;
 };
@@ -199,7 +200,6 @@ struct Pairwise_collision_rule {
     u32 storage_index_b;
     
     Pairwise_collision_rule* next_in_hash;
-    
 };
 
 struct Game_state {
