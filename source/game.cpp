@@ -632,6 +632,20 @@ add_wall(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z)
     return entity;
 }
 
+internal
+Add_low_entity_result 
+add_stairs(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
+    World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
+    Add_low_entity_result entity = add_low_entity(game_state, Entity_type_stairs, pos);
+    
+    entity.low->sim.dim.y = game_state->world->tile_side_meters;
+    entity.low->sim.dim.x = entity.low->sim.dim.y;
+    entity.low->sim.dim.z = game_state->world->tile_depth_meters;
+    
+    return entity;
+}
+
+
 #ifdef RUN_RAY
 #include "ray.h"
 extern "C"
@@ -735,10 +749,11 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         // load sprites
         {
             game_state->background = debug_load_bmp("../data/bg_nebula.bmp");
-            game_state->tree = debug_load_bmp("../data/tree.bmp");
-            game_state->monster = debug_load_bmp("../data/george-front-0.bmp");
-            game_state->familiar = debug_load_bmp("../data/ship.bmp");
-            game_state->sword = debug_load_bmp("../data/sword.bmp");
+            game_state->tree       = debug_load_bmp("../data/tree.bmp");
+            game_state->monster    = debug_load_bmp("../data/george-front-0.bmp");
+            game_state->familiar   = debug_load_bmp("../data/ship.bmp");
+            game_state->sword      = debug_load_bmp("../data/sword.bmp");
+            game_state->stairwell  = debug_load_bmp("../data/george-back-0.bmp");
 #if 0
             // load george
             {
@@ -813,15 +828,12 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
             for (u32 screen_index = 0; screen_index < max_screens; screen_index++) {
                 macro_assert(random_number_index < macro_array_count(random_number_table));
                 u32 random_choise;
-#if 1
-                random_choise = random_number_table[random_number_index++] % 2;
-#else
+                
                 if (door_up || door_down) {
                     random_choise = random_number_table[random_number_index++] % 2;
                 } else {
                     random_choise = random_number_table[random_number_index++] % 3;
                 }
-#endif
                 
                 bool created_z_door = false;
                 if (random_choise == room_has_stairs) {
@@ -843,35 +855,35 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                         u32 absolute_tile_x = screen_x * tiles_per_width + tile_x;
                         u32 absolute_tile_y = screen_y * tiles_per_height + tile_y;
                         
-                        u32 tile = 1;
+                        bool should_be_door = false;
                         
                         if (tile_x == 0 && (!door_west || tile_y != tiles_per_height / 2)) {
-                            tile = 2;
+                            should_be_door = true;
                         }
                         
                         if (tile_x == tiles_per_width - 1 && (!door_east || tile_y != tiles_per_height / 2)) {
-                            tile = 2;
+                            should_be_door = true;
                         }
                         
                         if (tile_y == 0 && (!door_south || tile_x != tiles_per_width / 2)) {
-                            tile = 2;
+                            should_be_door = true;
                         }
                         
                         if (tile_y == tiles_per_height - 1 && (!door_north || tile_x != tiles_per_width / 2)) {
-                            tile = 2;
+                            should_be_door = true;
                         }
                         
-                        if (tile_y == 6 && tile_x == 6) {
-                            if (door_up)
-                                tile = 3;
-                            
-                            if (door_down)
-                                tile = 4;
-                        }
-                        
-                        u32 wall_tile = 2;
-                        if (tile == wall_tile)
+                        if (should_be_door) {
                             add_wall(game_state, absolute_tile_x, absolute_tile_y, absolute_tile_z);
+                        }
+                        else if (created_z_door) {
+                            if (tile_y == 6 && tile_x == 6) {
+                                
+                                u32 door_z = door_down ? absolute_tile_z - 1 : absolute_tile_z;
+                                add_stairs(game_state, absolute_tile_x, absolute_tile_y, door_z);
+                            }
+                        }
+                        
                     }
                 }
                 
@@ -915,7 +927,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         
         add_monster(game_state, camera_tile_x + 1, camera_tile_y + 1, camera_tile_z);
         
-        for (u32 familiar_index = 0; familiar_index < 3; familiar_index++) {
+        for (u32 familiar_index = 0; familiar_index < 2; familiar_index++) {
             i32 familiar_offset_x = (random_number_table[random_number_index++] % 10) - 7;
             i32 familiar_offset_y = (random_number_table[random_number_index++] % 10) - 3;
             
@@ -1164,6 +1176,11 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                     //draw_rect(bitmap_buffer, player_start, player_end, color_player);
                     v2 align = {50, 115};
                     push_bitmap(&piece_group, &game_state->tree, v2{0, 0}, 0, align);
+                } break;
+                
+                case Entity_type_stairs: {
+                    v2 align = {24, 41};
+                    push_bitmap(&piece_group, &game_state->stairwell, v2{0, 0}, 0, align);
                 } break;
                 
                 default: {
