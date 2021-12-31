@@ -237,7 +237,8 @@ Rect2 rect_min_dim(v2 min, v2 dim) {
 }
 
 inline
-Rect2 rect_center_half_dim(v2 center, v2 half_dim) {
+Rect2 
+rect_center_half_dim(v2 center, v2 half_dim) {
     Rect2 result;
     
     result.min = center - half_dim;
@@ -247,7 +248,8 @@ Rect2 rect_center_half_dim(v2 center, v2 half_dim) {
 }
 
 inline
-Rect2 rect_center_dim(v2 center, v2 dim) {
+Rect2 
+rect_center_dim(v2 center, v2 dim) {
     Rect2 result;
     
     result = rect_center_half_dim(center, 0.5f * dim);
@@ -256,7 +258,8 @@ Rect2 rect_center_dim(v2 center, v2 dim) {
 }
 
 inline
-bool is_in_rect(Rect2 rect, v2 point) {
+bool 
+is_in_rect(Rect2 rect, v2 point) {
     bool result;
     
     result = 
@@ -336,7 +339,8 @@ Rect3 rect_min_dim(v3 min, v3 dim) {
 }
 
 inline
-Rect3 rect_center_half_dim(v3 center, v3 half_dim) {
+Rect3 
+rect_center_half_dim(v3 center, v3 half_dim) {
     Rect3 result;
     
     result.min = center - half_dim;
@@ -379,6 +383,19 @@ add_radius_to(Rect3 rect, v3 radius) {
     
     result.min = rect.min - radius;
     result.max = rect.max + radius;
+    
+    return result;
+}
+
+
+inline
+bool
+rects_intersects(Rect3 a, Rect3 b) {
+    bool result = false;
+    
+    result = !(b.max.x < a.min.x || b.min.x > a.max.x ||
+               b.max.y < a.min.y || b.min.y > a.max.y ||
+               b.max.z < a.min.z || b.min.z > a.max.z);
     
     return result;
 }

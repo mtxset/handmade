@@ -18,7 +18,8 @@ enum Entity_type {
     Entity_type_wall,
     Entity_type_familiar,
     Entity_type_monster,
-    Entity_type_sword
+    Entity_type_sword,
+    Entity_type_stairs,
 };
 
 #define HIT_POINT_SUB_COUNT 4

@@ -194,6 +194,11 @@ struct Controlled_hero {
     f32 boost;
 };
 
+enum Pairwise_collision_rule_flag {
+    Pairwise_collision_flag_should_collid = 0x1,
+    Pairwise_collision_flag_temporary = 0x2,
+};
+
 struct Pairwise_collision_rule {
     bool should_collide;
     u32 storage_index_a;
@@ -220,6 +225,7 @@ struct Game_state {
     Loaded_bmp monster;
     Loaded_bmp familiar;
     Loaded_bmp sword;
+    Loaded_bmp stairwell;
     u32 following_entity_index;
     
     Pairwise_collision_rule* collision_rule_hash[256];

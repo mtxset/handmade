@@ -1,4 +1,4 @@
-// https://youtu.be/tcirDivLd8A?t=1407
+// https://youtu.be/e0yjNipizK0?t=1728
 #include <stdio.h>
 #include <stdint.h>
 #include <windows.h>
@@ -55,7 +55,8 @@ global_var direct_sound_create* DirectSoundCreate_;                             
 #define DirectSoundCreate DirectSoundCreate_                                                                // change name by which we reference upper-line mentioned variable
 
 internal
-void win32_get_exe_filename(Win32_state* win_state) {
+void 
+win32_get_exe_filename(Win32_state* win_state) {
     auto current_file_name_size = GetModuleFileNameA(0, win_state->exe_file_name, sizeof(win_state->exe_file_name));
     win_state->last_slash = win_state->exe_file_name;
     for (char* scan = win_state->exe_file_name; *scan; scan++) {
@@ -64,14 +65,16 @@ void win32_get_exe_filename(Win32_state* win_state) {
     }
 }
 
-internal 
-void win32_build_exe_filename(Win32_state* win_state, char* filename, i32 dest_count, char* dest) {
+internal
+void 
+win32_build_exe_filename(Win32_state* win_state, char* filename, i32 dest_count, char* dest) {
     string_concat(win_state->last_slash - win_state->exe_file_name, win_state->exe_file_name, 
                   string_len(filename), filename, dest_count, dest);
 }
 
 internal 
-void win32_get_input_file_location(Win32_state* win_state, i32 index, i32 dest_count, char* dest) {
+void 
+win32_get_input_file_location(Win32_state* win_state, i32 index, i32 dest_count, char* dest) {
     char* file_name = "game.input";
     win32_build_exe_filename(win_state, file_name, dest_count, dest); 
 }
@@ -80,7 +83,8 @@ void win32_get_input_file_location(Win32_state* win_state, i32 index, i32 dest_c
 #include "record_memory.cpp"
 
 internal 
-void win32_init_direct_sound(HWND window, i32 samples_per_second, i32 buffer_size) {
+void 
+win32_init_direct_sound(HWND window, i32 samples_per_second, i32 buffer_size) {
     // NOTE: Load the library
     HMODULE DSoundLibrary = LoadLibrary("dsound.dll");
     
@@ -144,7 +148,8 @@ void win32_init_direct_sound(HWND window, i32 samples_per_second, i32 buffer_siz
 }
 
 internal
-void win32_clear_sound_buffer(Win32_sound_output* sound_output) {
+void 
+win32_clear_sound_buffer(Win32_sound_output* sound_output) {
     void* region_one;
     DWORD region_one_size;
     void* region_two;
@@ -171,7 +176,8 @@ void win32_clear_sound_buffer(Win32_sound_output* sound_output) {
 }
 
 internal
-void win32_fill_sound_buffer(Win32_sound_output* sound_output, DWORD bytes_to_lock, DWORD bytes_to_write, Game_sound_buffer* source_buffer) {
+void 
+win32_fill_sound_buffer(Win32_sound_output* sound_output, DWORD bytes_to_lock, DWORD bytes_to_write, Game_sound_buffer* source_buffer) {
     void* region_one;
     DWORD region_one_size;
     void* region_two;
@@ -209,7 +215,8 @@ void win32_fill_sound_buffer(Win32_sound_output* sound_output, DWORD bytes_to_lo
 }
 
 internal 
-f32 win32_xinput_cutoff_deadzone(SHORT thumb_value) {
+f32 
+win32_xinput_cutoff_deadzone(SHORT thumb_value) {
     f32 result = 0;
     auto dead_zone_threshold = XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE;
     if        (thumb_value > dead_zone_threshold) {
@@ -233,7 +240,8 @@ FILETIME win32_get_last_write_time(char* filename) {
 }
 
 internal 
-Win32_game_code win32_load_game_code(char* source_dll_filepath, char* source_temp_filepath, char* lock_filepath) {
+Win32_game_code 
+win32_load_game_code(char* source_dll_filepath, char* source_temp_filepath, char* lock_filepath) {
     Win32_game_code result = {};
     
     WIN32_FILE_ATTRIBUTE_DATA _;
@@ -264,7 +272,8 @@ Win32_game_code win32_load_game_code(char* source_dll_filepath, char* source_tem
 }
 
 internal 
-void win32_unload_game_code(Win32_game_code* game_code) {
+void 
+win32_unload_game_code(Win32_game_code* game_code) {
     if (game_code->game_code_dll) {
         FreeLibrary(game_code->game_code_dll);
         game_code->game_code_dll = 0;
@@ -276,7 +285,8 @@ void win32_unload_game_code(Win32_game_code* game_code) {
 }
 
 internal 
-bool win32_load_xinput() {
+bool 
+win32_load_xinput() {
     // looks locally, looks in windows
     // support only for some windows
     auto xinput_lib = LoadLibraryA("xinput1_4.dll");
@@ -301,7 +311,8 @@ bool win32_load_xinput() {
 }
 
 internal
-Win32_window_dimensions get_window_dimensions(HWND window) {
+Win32_window_dimensions 
+get_window_dimensions(HWND window) {
     
     Win32_window_dimensions result;
     

@@ -271,54 +271,6 @@ test_wall(f32 wall_x, f32 rel_x, f32 rel_y, f32 player_delta_x, f32 player_delta
 }
 
 internal
-bool
-handle_collision(Sim_entity* a_entity, Sim_entity* b_entity) {
-    bool stops_on_collision = false;
-    
-    if (a_entity->type == Entity_type_sword) {
-        stops_on_collision = false;
-    }
-    else {
-        stops_on_collision = true;
-    }
-    
-    if (a_entity->type > b_entity->type) {
-        swap(a_entity, b_entity);
-    }
-    
-    if (a_entity->type == Entity_type_monster && b_entity->type == Entity_type_sword) {
-        if (a_entity->hit_points_max > 0)
-            a_entity->hit_points_max--;
-    }
-    
-    // entity->abs_tile_z += hit_low->sim.d_abs_tile_z;
-    
-    return stops_on_collision;
-}
-
-internal
-void
-clear_collision_rule(Game_state* game_state, u32 storage_index) {
-    for (u32 hash_bucket = 0; hash_bucket < macro_array_count(game_state->collision_rule_hash); hash_bucket++) {
-        for (Pairwise_collision_rule** rule = & game_state->collision_rule_hash[hash_bucket]; *rule;) {
-            
-            if ((*rule)->storage_index_a == storage_index || 
-                (*rule)->storage_index_b == storage_index) {
-                Pairwise_collision_rule* removed_rule = *rule;
-                *rule = (*rule)->next_in_hash;
-                
-                removed_rule->next_in_hash = game_state->first_free_collsion_rule;
-                game_state->first_free_collsion_rule = removed_rule;
-            }
-            else {
-                rule = &(*rule)->next_in_hash;
-            }
-            
-        }
-    }
-}
-
-internal
 void
 add_collision_rule(Game_state* game_state, u32 storage_index_a, u32 storage_index_b, bool should_collide) {
     
@@ -355,6 +307,59 @@ add_collision_rule(Game_state* game_state, u32 storage_index_a, u32 storage_inde
         found->storage_index_a = storage_index_a;
         found->storage_index_b = storage_index_b;
         found->should_collide = should_collide;
+    }
+}
+
+internal
+bool
+handle_collision(Game_state* game_state, Sim_entity* a_entity, Sim_entity* b_entity, bool was_overlapping) {
+    bool stops_on_collision = false;
+    
+    if (a_entity->type == Entity_type_sword) {
+        add_collision_rule(game_state, a_entity->storage_index, b_entity->storage_index, false);
+        stops_on_collision = false;
+    }
+    else {
+        stops_on_collision = true;
+    }
+    
+    if (a_entity->type > b_entity->type) {
+        swap(a_entity, b_entity);
+    }
+    
+    if (a_entity->type == Entity_type_monster && b_entity->type == Entity_type_sword) {
+        if (a_entity->hit_points_max > 0)
+            a_entity->hit_points_max--;
+    }
+    
+    if (a_entity->type == Entity_type_hero && b_entity->type == Entity_type_stairs) {
+        stops_on_collision = false;
+    }
+    
+    // entity->abs_tile_z += hit_low->sim.d_abs_tile_z;
+    
+    return stops_on_collision;
+}
+
+internal
+void
+clear_collision_rule(Game_state* game_state, u32 storage_index) {
+    for (u32 hash_bucket = 0; hash_bucket < macro_array_count(game_state->collision_rule_hash); hash_bucket++) {
+        for (Pairwise_collision_rule** rule = & game_state->collision_rule_hash[hash_bucket]; *rule;) {
+            
+            if ((*rule)->storage_index_a == storage_index || 
+                (*rule)->storage_index_b == storage_index) {
+                Pairwise_collision_rule* removed_rule = *rule;
+                *rule = (*rule)->next_in_hash;
+                
+                removed_rule->next_in_hash = game_state->first_free_collsion_rule;
+                game_state->first_free_collsion_rule = removed_rule;
+            }
+            else {
+                rule = &(*rule)->next_in_hash;
+            }
+            
+        }
     }
 }
 
@@ -420,7 +425,9 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
     // v' = at + v
     entity->velocity_d = player_acceleration_dd * time_delta + entity->velocity_d;
     
-    macro_assert(length_squared(entity->velocity_d) <= square(sim_region->max_entity_velocity));
+#if 0 // to allow for fast movement, but collision may be off
+    // macro_assert(length_squared(entity->velocity_d) <= square(sim_region->max_entity_velocity));
+#endif
     
     // p' = ... + p
     v3 new_player_pos = old_player_pos + player_delta;
@@ -429,6 +436,30 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
     if (distance_remaining == 0.0f) {
         // set to no limit
         distance_remaining = 9999.0f;
+    }
+    
+    const u32 max_overlapping_count = 256;
+    u32 overlapping_count = 0;
+    Sim_entity* overlapping_entities[max_overlapping_count];
+    {
+        Rect3 entity_rect = rect_center_dim(entity->position, entity->dim);
+        for (u32 test_high_entity_index = 0; test_high_entity_index < sim_region->entity_count; test_high_entity_index++) {
+            Sim_entity* test_entity = sim_region->entity_list + test_high_entity_index;
+            if (!should_collide(game_state, entity, test_entity))
+                continue;
+            
+            Rect3 test_rect = rect_center_dim(entity->position, entity->dim);
+            if (rects_intersects(entity_rect, test_rect)) {
+                if (overlapping_count < max_overlapping_count) {
+                    //if (add_collision_rule(game_state, entity->storage_index, test_entity->storage_index, false)) {
+                    overlapping_entities[overlapping_count++] = test_entity;
+                    //}
+                }
+                else {
+                    macro_assert(!"INVALID");
+                }
+            }
+        }
     }
     
     u32 correction_tries = 4;
@@ -454,7 +485,7 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
             
             for (u32 test_high_entity_index = 0; test_high_entity_index < sim_region->entity_count; test_high_entity_index++) {
                 
-                Sim_entity* test_entity =  sim_region->entity_list + test_high_entity_index;
+                Sim_entity* test_entity = sim_region->entity_list + test_high_entity_index;
                 // skip self collission
                 if (!should_collide(game_state, entity, test_entity))
                     continue;
@@ -504,14 +535,32 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
             // game_state->player_velocity_d = v - 2 * inner(v, r) * r; // reflection
             player_delta = desired_postion - entity->position;
             
-            bool stops_on_collision = handle_collision(entity, hit_entity);
+            u32 overlap_index = overlapping_count;
+            for (u32 test_overlap_index = 0; test_overlap_index < overlapping_count; test_overlap_index++) {
+                if (hit_entity == overlapping_entities[overlap_index]) {
+                    overlap_index = test_overlap_index;
+                    break;
+                }
+            }
+            
+            bool was_overlapping = overlap_index != overlapping_count;
+            bool stops_on_collision = handle_collision(game_state, entity, hit_entity, was_overlapping);
             
             if (stops_on_collision) {
                 entity->velocity_d = v - 1 * inner(v, r) * r;
                 player_delta = player_delta - 1 * inner(player_delta, r) * r;
             }
             else {
-                add_collision_rule(game_state, entity->storage_index, hit_entity->storage_index, false);
+                
+                if (was_overlapping) {
+                    overlapping_entities[overlap_index] = overlapping_entities[--overlapping_count];
+                }
+                else if (overlapping_count < macro_array_count(overlapping_entities)) {
+                    overlapping_entities[overlapping_count++] = hit_entity;
+                }
+                else {
+                    macro_assert(!"INVALID");
+                }
             }
         }
         else {
