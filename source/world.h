@@ -3,7 +3,7 @@
 #ifndef TILE_H
 #define TILE_H
 
-#include "vectors.h"
+#include "intrinsics.h"
 
 struct World_position {
     i32 chunk_x;
