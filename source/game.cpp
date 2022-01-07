@@ -12,7 +12,6 @@
 #include "world.cpp"
 #include "random.h"
 #include "color.h"
-#include "vectors.h"
 #include "test.cpp"
 #include "sim_region.cpp"
 #include "entity.cpp"
@@ -565,6 +564,8 @@ Add_low_entity_result
 add_sword(Game_state* game_state) {
     Add_low_entity_result entity = add_low_entity(game_state, Entity_type_sword, null_position());
     
+    add_flags(&entity.low->sim, Entity_flag_moveable);
+    
     entity.low->sim.dim.y = 0.5f;
     entity.low->sim.dim.x  = 1.0f;
     
@@ -580,7 +581,7 @@ add_player(Game_state* game_state) {
     init_hit_points(entity.low, 3);
     entity.low->sim.dim.y = 0.5f;
     entity.low->sim.dim.x  = 1.0f;
-    add_flag(&entity.low->sim, Entity_flag_collides);
+    add_flags(&entity.low->sim, Entity_flag_collides|Entity_flag_moveable);
     
     Add_low_entity_result sword = add_sword(game_state);
     entity.low->sim.sword.index = sword.low_index;
@@ -600,8 +601,8 @@ add_monster(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile
     
     init_hit_points(entity.low, 2);
     entity.low->sim.dim.y = 0.5f;
-    entity.low->sim.dim.x  = 1.0f;
-    add_flag(&entity.low->sim, Entity_flag_collides);
+    entity.low->sim.dim.x = 1.0f;
+    add_flags(&entity.low->sim, Entity_flag_collides|Entity_flag_moveable);
     
     return entity;
 }
@@ -614,7 +615,7 @@ add_familiar(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_til
     
     entity.low->sim.dim.y = 0.5f;
     entity.low->sim.dim.x  = 1.0f;
-    add_flag(&entity.low->sim, Entity_flag_collides);
+    add_flags(&entity.low->sim, Entity_flag_collides|Entity_flag_moveable);
     
     return entity;
 }
@@ -626,8 +627,8 @@ add_wall(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z)
     Add_low_entity_result entity = add_low_entity(game_state, Entity_type_wall, pos);
     
     entity.low->sim.dim.y = game_state->world->tile_side_meters;
-    entity.low->sim.dim.x  = entity.low->sim.dim.y;
-    add_flag(&entity.low->sim, Entity_flag_collides);
+    entity.low->sim.dim.x = entity.low->sim.dim.y;
+    add_flags(&entity.low->sim, Entity_flag_collides);
     
     return entity;
 }
@@ -635,12 +636,14 @@ add_wall(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z)
 internal
 Add_low_entity_result 
 add_stairs(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
-    World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
-    Add_low_entity_result entity = add_low_entity(game_state, Entity_type_stairs, pos);
+    World_position pos = chunk_pos_from_tile_pos(game_state->world, 
+                                                 abs_tile_x, abs_tile_y, abs_tile_z,
+                                                 v3 {.0f, .0f, .5f*game_state->world->tile_depth_meters});
+    Add_low_entity_result entity = add_low_entity(game_state, Entity_type_stairwell, pos);
     
     entity.low->sim.dim.y = game_state->world->tile_side_meters;
     entity.low->sim.dim.x = entity.low->sim.dim.y;
-    entity.low->sim.dim.z = game_state->world->tile_depth_meters;
+    entity.low->sim.dim.z = 1.2f * game_state->world->tile_depth_meters;
     
     return entity;
 }
@@ -927,7 +930,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         
         add_monster(game_state, camera_tile_x + 1, camera_tile_y + 1, camera_tile_z);
         
-        for (u32 familiar_index = 0; familiar_index < 2; familiar_index++) {
+        for (u32 familiar_index = 0; familiar_index < 0; familiar_index++) {
             i32 familiar_offset_x = (random_number_table[random_number_index++] % 10) - 7;
             i32 familiar_offset_y = (random_number_table[random_number_index++] % 10) - 3;
             
@@ -1178,9 +1181,10 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                     push_bitmap(&piece_group, &game_state->tree, v2{0, 0}, 0, align);
                 } break;
                 
-                case Entity_type_stairs: {
-                    v2 align = {24, 41};
-                    push_bitmap(&piece_group, &game_state->stairwell, v2{0, 0}, 0, align);
+                case Entity_type_stairwell: {
+                    v4 color = {1, 1, 0, 1};
+                    push_rect(&piece_group, v2{0,0}, 0, entity->dim.xy, color, 0.0f);
+                    //push_bitmap(&piece_group, &game_state->stairwell, v2{0, 0}, 0, align);
                 } break;
                 
                 default: {
@@ -1188,7 +1192,8 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 } break;
             }
             
-            if (!is_set(entity, Entity_flag_non_spatial)) {
+            if (!is_set(entity, Entity_flag_non_spatial) &&
+                is_set(entity, Entity_flag_moveable)) {
                 move_entity(game_state, sim_region, entity, input->time_delta, &move_spec, ddp);
             }
             

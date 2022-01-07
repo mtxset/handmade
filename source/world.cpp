@@ -125,14 +125,14 @@ bool are_in_same_chunk(World* world, World_position* pos_x, World_position* pos_
 
 internal
 World_position 
-chunk_pos_from_tile_pos(World* world, i32 abs_tile_x, i32 abs_tile_y, i32 abs_tile_z) {
+chunk_pos_from_tile_pos(World* world, i32 abs_tile_x, i32 abs_tile_y, i32 abs_tile_z, v3 additional_offset = v3{0,0,0}) {
     
     World_position result = {};
     World_position base_pos = {};
     
     v3 offset = world->tile_side_meters * v3 {(f32)abs_tile_x, (f32)abs_tile_y, (f32)abs_tile_z};
     
-    result = map_into_chunk_space(world, base_pos, offset);
+    result = map_into_chunk_space(world, base_pos, offset + additional_offset);
     macro_assert(is_canonical(world, result._offset));
     
     return result;
@@ -273,10 +273,10 @@ change_entity_location(Memory_arena* arena, World* world, u32 low_entity_index, 
     
     if (new_pos) {
         low_entity->position = *new_pos;
-        clear_flag(&low_entity->sim, Entity_flag_non_spatial);
+        clear_flags(&low_entity->sim, Entity_flag_non_spatial);
     }
     else {
         low_entity->position = null_position();
-        add_flag(&low_entity->sim, Entity_flag_non_spatial);
+        add_flags(&low_entity->sim, Entity_flag_non_spatial);
     }
 }

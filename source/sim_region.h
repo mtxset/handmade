@@ -19,7 +19,7 @@ enum Entity_type {
     Entity_type_familiar,
     Entity_type_monster,
     Entity_type_sword,
-    Entity_type_stairs,
+    Entity_type_stairwell,
 };
 
 #define HIT_POINT_SUB_COUNT 4
@@ -35,8 +35,9 @@ union Entity_ref {
 };
 
 enum Sim_entity_flags {
-    Entity_flag_collides    = (1 << 1),
-    Entity_flag_non_spatial = (1 << 2),
+    Entity_flag_collides    = (1 << 0),
+    Entity_flag_non_spatial = (1 << 1),
+    Entity_flag_moveable    = (1 << 2),
     
     Entity_flag_simming     = (1 << 30),
 };

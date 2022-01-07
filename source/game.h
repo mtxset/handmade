@@ -194,13 +194,8 @@ struct Controlled_hero {
     f32 boost;
 };
 
-enum Pairwise_collision_rule_flag {
-    Pairwise_collision_flag_should_collid = 0x1,
-    Pairwise_collision_flag_temporary = 0x2,
-};
-
 struct Pairwise_collision_rule {
-    bool should_collide;
+    bool can_collide;
     u32 storage_index_a;
     u32 storage_index_b;
     

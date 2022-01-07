@@ -5,7 +5,399 @@
 
 #include <math.h>
 #include "platform.h"
-#include "vectors.h"
+
+union v2 {
+    struct {
+        f32 x, y;
+    };
+    f32 e[2];
+};
+
+union v3 {
+    struct {
+        f32 x, y, z;
+    };
+    struct {
+        f32 r, g, b;
+    };
+    struct {
+        v2 xy;
+        f32 _discard;
+    };
+    struct {
+        f32 _discard;
+        v2 yz;
+    };
+    f32 e[3];
+};
+
+union v4 {
+    struct {
+        f32 x, y, z, w;
+    };
+    
+    struct {
+        f32 r, g, b, a;
+    };
+    f32 e[4];
+};
+
+inline
+f32 
+clamp(f32 min_value, f32 value, f32 max_value) {
+    f32 result = value;
+    
+    if (result < min_value)
+        result = min_value;
+    else if (result > max_value)
+        result = max_value;
+    
+    return result;
+}
+
+inline
+f32
+clamp01(f32 value) {
+    f32 result = clamp(0.0f, value, 1.0f);
+    return result;
+}
+
+// VECTORS START
+inline
+v2 operator + (v2 a, v2 b) {
+    v2 result;
+    
+    result.x = a.x + b.x;
+    result.y = a.y + b.y;
+    
+    return result;
+}
+
+inline 
+v2 operator - (v2 a, v2 b) {
+    v2 result;
+    
+    result.x = a.x - b.x;
+    result.y = a.y - b.y;
+    
+    return result;
+}
+
+inline
+v2 operator += (v2 &a, v2 b) {
+    a = a + b;
+    return a;
+}
+
+inline
+v2 operator -= (v2 &a, v2 b) {
+    a = a - b;
+    return a;
+}
+
+inline
+v2 operator - (v2 a) {
+    v2 result;
+    
+    result.x = -a.x;
+    result.y = -a.y;
+    
+    return result;
+}
+
+inline
+v2 operator * (f32 a, v2 b) {
+    v2 result;
+    
+    result.x = b.x * a;
+    result.y = b.y * a;
+    
+    return result;
+}
+
+inline
+v2 operator * (v2 a, f32 b) {
+    v2 result;
+    
+    result = b * a;
+    
+    return result;
+}
+
+inline
+v2 operator *= (v2 &a, f32 b) {
+    a = b * a;
+    return a;
+}
+
+inline 
+bool is_zero(v2 a)
+{
+    bool result = a.x == 0 && a.y == 0;
+    return result;
+}
+
+inline
+f32 inner(v2 a, v2 b) {
+    f32 result;
+    
+    result = a.x * b.x + a.y * b.y;
+    
+    return result;
+}
+
+inline
+v2
+hadamard(v2 a, v2 b) {
+    v2 result;
+    
+    result = { a.x * b.x, a.y * b.y };
+    
+    return result;
+}
+
+inline
+f32 length_squared(v2 a) {
+    f32 result;
+    
+    result = inner(a, a);
+    
+    return result;
+}
+
+inline
+f32 
+length(v2 a) {
+    f32 result;
+    
+    f32 dot = inner(a, a);
+    result = sqrtf(dot);
+    
+    return result;
+}
+
+inline
+v3
+clamp01(v3 value) {
+    v3 result; 
+    
+    result.x = clamp01(value.x);
+    result.y = clamp01(value.y);
+    result.z = clamp01(value.z);
+    
+    return result;
+}
+
+inline
+v2 perpendicular_v2(v2 a) {
+    v2 result;
+    
+    result = { -a.y, a.x };
+    
+    return result;
+}
+
+inline
+f32 arctan(f32 value) {
+    f32 result; 
+    
+    result = (f32)atan(value);
+    
+    return result;
+}
+
+inline
+u32 quadrant_v2(v2 a) {
+    u32 result = 0;
+    
+    if      (a.x >= 0 && a.y >= 0) {
+        result = 1;
+    }
+    else if (a.x < 0 && a.y >= 0) {
+        result = 2;
+    }
+    else if (a.x < 0 && a.y < 0) {
+        result = 3;
+    }
+    else if (a.x >= 0 && a.y < 0) {
+        result = 4;
+    }
+    
+    macro_assert(result > 0 && result < 5);
+    
+    return result;
+}
+
+inline
+v3
+v2_to_v3(v2 a, f32 z) {
+    v3 result;
+    
+    result = v3{a.x, a.y, z};
+    
+    return result;
+}
+
+inline
+v3 operator + (v3 a, v3 b) {
+    v3 result;
+    
+    result.x = a.x + b.x;
+    result.y = a.y + b.y;
+    result.z = a.z + b.z;
+    
+    return result;
+}
+
+inline 
+v3 operator - (v3 a, v3 b) {
+    v3 result;
+    
+    result.x = a.x - b.x;
+    result.y = a.y - b.y;
+    result.z = a.z - b.z;
+    
+    return result;
+}
+
+inline
+v3 operator += (v3 &a, v3 b) {
+    a = a + b;
+    return a;
+}
+
+inline
+v3 operator -= (v3 &a, v3 b) {
+    a = a - b;
+    return a;
+}
+
+inline
+v3 operator - (v3 a) {
+    v3 result;
+    
+    result.x = -a.x;
+    result.y = -a.y;
+    result.z = -a.z;
+    
+    return result;
+}
+
+inline
+v3 operator * (f32 a, v3 b) {
+    v3 result;
+    
+    result.x = b.x * a;
+    result.y = b.y * a;
+    result.z = b.z * a;
+    
+    return result;
+}
+
+inline
+v3 operator * (v3 a, f32 b) {
+    v3 result;
+    
+    result = b * a;
+    
+    return result;
+}
+
+inline
+v3 operator *= (v3 &a, f32 b) {
+    a = b * a;
+    return a;
+}
+
+inline
+v3 operator / (f32 a, v3 b) {
+    v3 result;
+    
+    result = b * (1 / a);
+    
+    return result;
+}
+
+inline
+v3 operator / (v3 a, f32 b) {
+    v3 result;
+    
+    result = (1 / b) * a;
+    
+    return result;
+}
+
+inline 
+bool is_zero(v3 a)
+{
+    bool result = a.x == 0 && a.y == 0 && a.z == 0;
+    return result;
+}
+
+inline
+f32 inner(v3 a, v3 b) {
+    f32 result;
+    
+    result = a.x * b.x + a.y * b.y + a.z * b.z; 
+    
+    return result;
+}
+
+inline
+v3
+hadamard(v3 a, v3 b) {
+    v3 result;
+    
+    result = { a.x * b.x, a.y * b.y, a.z * b.z};
+    
+    return result;
+}
+
+inline
+f32 dot(v3 a, v3 b) {
+    return inner(a, b);
+}
+
+v3 cross(v3 a, v3 b) {
+    v3 result;
+    
+    result.x = a.y * b.z - a.z * b.y;
+    result.y = a.z * b.x - a.x * b.z;
+    result.z = a.x * b.y - a.y * b.x;
+    
+    return result;
+}
+
+inline
+f32 length_squared(v3 a) {
+    f32 result;
+    
+    result = inner(a, a);
+    
+    return result;
+}
+
+inline
+f32 length(v3 a) {
+    f32 result;
+    
+    f32 dot = inner(a, a);
+    result = sqrtf(dot);
+    
+    return result;
+}
+
+inline
+v3 unit_vector(v3 a) {
+    v3 result;
+    
+    result = a / length(a);
+    
+    return result;
+}
+
+// VECTORS END
+
 
 struct Bit_scan_result {
     bool found;
@@ -118,10 +510,22 @@ Bit_scan_result find_least_significant_first_bit(u32 value) {
 }
 
 inline
-f32 square(f32 value) {
+f32 
+square(f32 value) {
     f32 result;
     
     result = value * value;
+    
+    return result;
+}
+
+
+inline
+f32 
+lerp(f32 a, f32 t, f32 b) {
+    f32 result;
+    
+    result = (1.0f - t) * a + t * b;
     
     return result;
 }
@@ -400,6 +804,48 @@ rects_intersects(Rect3 a, Rect3 b) {
     return result;
 }
 
+inline
+f32
+safe_ratio_n(f32 numerator, f32 divisor, f32 n) {
+    f32 result = n;
+    
+    if (divisor != 0.0f) {
+        result = numerator / divisor;
+    }
+    
+    return result;
+}
+
+inline
+f32
+safe_ratio_0(f32 num, f32 div) {
+    f32 result = safe_ratio_n(num, div, 0.0f);
+    
+    return result;
+}
+
+
+inline
+f32
+safe_ratio_1(f32 num, f32 div) {
+    f32 result = safe_ratio_n(num, div, 1.0f);
+    
+    return result;
+}
+
+inline
+v3
+get_barycentric(Rect3 a, v3 pos) {
+    v3 result;
+    
+    result.x = safe_ratio_0(pos.x - a.min.x, a.max.x - a.min.x);
+    result.y = safe_ratio_0(pos.y - a.min.y, a.max.y - a.min.y);
+    result.z = safe_ratio_0(pos.z - a.min.z, a.max.z - a.min.z);
+    
+    return result;
+}
+
 // RECT3 END
+
 
 #endif //INTRINSICS_H

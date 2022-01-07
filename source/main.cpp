@@ -1,4 +1,4 @@
-// https://youtu.be/e0yjNipizK0?t=1728
+// https://youtu.be/Hm_CTQwV13U?t=2711
 #include <stdio.h>
 #include <stdint.h>
 #include <windows.h>
@@ -391,13 +391,15 @@ void win32_display_buffer_to_window(Win32_bitmap_buffer* bitmap_buffer, HDC devi
 }
 
 internal
-void win32_process_xinput_button(DWORD xinput_button_state, DWORD button_bit, Game_button_state* old_state, Game_button_state* new_state) {
+void 
+win32_process_xinput_button(DWORD xinput_button_state, DWORD button_bit, Game_button_state* old_state, Game_button_state* new_state) {
     new_state->ended_down = (xinput_button_state & button_bit) == button_bit;
     new_state->half_transition_count = old_state->ended_down != new_state->ended_down ? 1 : 0;
 }
 
 internal
-void win32_process_keyboard_input(Game_button_state* new_state, bool is_down) {
+void 
+win32_process_keyboard_input(Game_button_state* new_state, bool is_down) {
     if (new_state->ended_down != is_down){ 
         new_state->ended_down = is_down;
         new_state->half_transition_count++;
@@ -409,7 +411,8 @@ void win32_process_keyboard_input(Game_button_state* new_state, bool is_down) {
     * this will just set window to take "fullscreen" but it won't be able to affect refresh rate
 * for that use: ChangeDisplaySettings
 */
-void toggle_fullscreen(HWND window_handle) {
+void 
+toggle_fullscreen(HWND window_handle) {
     DWORD style = GetWindowLong(window_handle, GWL_STYLE);
     
     if (style & WS_OVERLAPPEDWINDOW) {
@@ -441,7 +444,8 @@ void toggle_fullscreen(HWND window_handle) {
 }
 
 internal
-void win32_handle_messages(Win32_state* win_state, Game_controller_input* keyboard_input) {
+void 
+win32_handle_messages(Win32_state* win_state, Game_controller_input* keyboard_input) {
     MSG message;
     while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
         switch (message.message) {
@@ -583,13 +587,15 @@ win32_window_proc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
     return result;
 }
 
-LARGE_INTEGER win32_get_wall_clock() {
+LARGE_INTEGER 
+win32_get_wall_clock() {
     LARGE_INTEGER result;
     QueryPerformanceCounter(&result);
     return result;
 }
 
-f32 win32_get_seconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end) {
+f32 
+win32_get_seconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end) {
     return (f32)(end.QuadPart - start.QuadPart) / Global_perf_freq;
 }
 
