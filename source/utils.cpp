@@ -1,6 +1,17 @@
 #include <stdint.h>
 #include "types.h"
 
+internal
+void
+win32_debug_msg(char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    
+    char buffer[1024];
+    auto count = vsprintf_s((char*)buffer, macro_array_count(buffer), format, args); 
+    OutputDebugStringA((char*)buffer);
+}
+
 template <typename T> 
 void swap(T& a, T& b) {
     T c(a);

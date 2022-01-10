@@ -4,7 +4,6 @@
 #define RAY_H
 #include <cstdlib>
 
-
 struct Ray {
     v3 origin;
     v3 direction;
@@ -70,7 +69,7 @@ v3 random_in_unit_sphere() {
     while (true) {
         v3 p = random_v3(-1.0f, 1.0f);
         
-        if (length_squared_v3(p) >= 1) 
+        if (length_squared(p) >= 1) 
             continue;
         
         return p;
@@ -129,16 +128,16 @@ v3 ray_at(Ray* ray, f32 t) {
 
 inline
 void set_face_normal(Ray* ray, Hit_record* hit_record, v3 outward_normal) {
-    hit_record->front_face = dot_v3(ray->direction, outward_normal) < 0;
+    hit_record->front_face = dot(ray->direction, outward_normal) < 0;
     hit_record->normal = hit_record->front_face ? outward_normal :-outward_normal;
 }
 
 internal
 bool hit_sphere(Sphere* sphere, Ray* ray, f32 t_min, f32 t_max, Hit_record* hit_record) {
     v3 oc = ray->origin - sphere->center;
-    f32 a = length_squared_v3(ray->direction);
-    f32 half_b = dot_v3(oc, ray->direction);
-    f32 c = length_squared_v3(oc) - square(sphere->radius);
+    f32 a = length_squared(ray->direction);
+    f32 half_b = dot(oc, ray->direction);
+    f32 c = length_squared(oc) - square(sphere->radius);
     auto discriminant = half_b*half_b - a * c;
     
     if (discriminant < 0)
@@ -196,7 +195,7 @@ v3 ray_color(Sphere_world* world, Ray* ray, u32 depth) {
         return 0.5f * ray_color(world, &temp_ray, depth - 1);
     }
     
-    v3 unit_direction = unit_vector_v3(ray->direction);
+    v3 unit_direction = unit_vector(ray->direction);
     f32 t = 0.5f * (unit_direction.y + 1.0f);
     
     return (1.0f - t) * v3{1.0, 1.0, 1.0} + t * v3{0.5f, 0.7f, 1.0f};

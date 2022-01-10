@@ -1,4 +1,5 @@
-// https://youtu.be/Hm_CTQwV13U?t=2711
+// https://youtu.be/bZxa4fdtI2Y?t=1857
+// there is seems to be a bug where stairs take whole y or overlapping/collision detection has bugs (figure out before proceeding to ohter video)
 #include <stdio.h>
 #include <stdint.h>
 #include <windows.h>
@@ -228,7 +229,9 @@ win32_xinput_cutoff_deadzone(SHORT thumb_value) {
     return result;
 }
 
-FILETIME win32_get_last_write_time(char* filename) {
+internal
+FILETIME
+win32_get_last_write_time(char* filename) {
     FILETIME result = {};
     
     WIN32_FILE_ATTRIBUTE_DATA file_data;
@@ -353,7 +356,8 @@ win32_resize_dib_section(Win32_bitmap_buffer* bitmap_buffer, i32 width, i32 heig
 }
 
 internal
-void win32_display_buffer_to_window(Win32_bitmap_buffer* bitmap_buffer, HDC device_context, i32 window_width, i32 window_height) {
+void 
+win32_display_buffer_to_window(Win32_bitmap_buffer* bitmap_buffer, HDC device_context, i32 window_width, i32 window_height) {
     i32 offset_x = 10;
     i32 offset_y = 10;
     
@@ -600,7 +604,8 @@ win32_get_seconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end) {
 }
 
 internal 
-void win32_debug_draw_vertical_line(Win32_bitmap_buffer* backbuffer, i32 x, i32 top, i32 bottom, u32 color) {
+void 
+win32_debug_draw_vertical_line(Win32_bitmap_buffer* backbuffer, i32 x, i32 top, i32 bottom, u32 color) {
     
     if (x < 0 || x >= backbuffer->width)
         return;
@@ -618,14 +623,16 @@ void win32_debug_draw_vertical_line(Win32_bitmap_buffer* backbuffer, i32 x, i32 
     }
 }
 
-void win32_draw_sound_buffer_marker(Win32_bitmap_buffer* backbuffer, Win32_sound_output* sound_output, f32 ratio, i32 pad_x, i32 top, i32 bottom, DWORD value, u32 color) {
+void 
+win32_draw_sound_buffer_marker(Win32_bitmap_buffer* backbuffer, Win32_sound_output* sound_output, f32 ratio, i32 pad_x, i32 top, i32 bottom, DWORD value, u32 color) {
     auto float_x = ratio * (f32)value;
     auto x = pad_x + (i32)float_x;
     
     win32_debug_draw_vertical_line(backbuffer, x, top, bottom, color);
 }
 
-void win32_debug_sync_display(Win32_bitmap_buffer* backbuffer, i32 marker_count, i32 current_marker_index, Win32_debug_time_marker* markers, Win32_sound_output* sound_output, f32 target_seconds_per_frame) {
+void 
+win32_debug_sync_display(Win32_bitmap_buffer* backbuffer, i32 marker_count, i32 current_marker_index, Win32_debug_time_marker* markers, Win32_sound_output* sound_output, f32 target_seconds_per_frame) {
     i32 x_padding = 16, y_padding = 16;
     
     i32 line_height = 64;
@@ -697,7 +704,8 @@ void win32_debug_sync_display(Win32_bitmap_buffer* backbuffer, i32 marker_count,
 }
 
 internal
-HWND create_default_window(LRESULT win32_window_processor, HINSTANCE current_instance, char* class_name, i32 initial_window_width, i32 initial_window_height) {
+HWND 
+create_default_window(LRESULT win32_window_processor, HINSTANCE current_instance, char* class_name, i32 initial_window_width, i32 initial_window_height) {
     
     HWND result = {};
     
@@ -729,7 +737,8 @@ HWND create_default_window(LRESULT win32_window_processor, HINSTANCE current_ins
     return result;
 }
 
-i32 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
+i32 
+main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
     
     LARGE_INTEGER performance_freq, end_counter, last_counter, flip_wall_clock;
     QueryPerformanceFrequency(&performance_freq);
@@ -1147,7 +1156,7 @@ i32 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLi
             }
 #endif
             
-#if 0
+#if 1
             // output fps
             auto cycles_elapsed = (u32)(end_cycle_count - begin_cycle_count);
             auto counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
