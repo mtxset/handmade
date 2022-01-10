@@ -38,6 +38,7 @@ enum Sim_entity_flags {
     Entity_flag_collides    = (1 << 0),
     Entity_flag_non_spatial = (1 << 1),
     Entity_flag_moveable    = (1 << 2),
+    Entity_flag_zsupported  = (1 << 3),
     
     Entity_flag_simming     = (1 << 30),
 };

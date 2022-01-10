@@ -6,18 +6,21 @@
 global_var const v3 Global_invalid_pos = v3{100000.0f, 100000.0f, 100000.0f};
 
 inline
-bool is_set(Sim_entity* entity, u32 sim_entity_flag) {
+bool 
+is_set(Sim_entity* entity, u32 sim_entity_flag) {
     bool result = entity->flags & sim_entity_flag;
     return result;
 }
 
 inline
-void add_flags(Sim_entity* entity, u32 sim_entity_flag) {
+void 
+add_flags(Sim_entity* entity, u32 sim_entity_flag) {
     entity->flags |= sim_entity_flag;
 }
 
 inline
-void clear_flags(Sim_entity* entity, u32 sim_entity_flag) {
+void 
+clear_flags(Sim_entity* entity, u32 sim_entity_flag) {
     entity->flags &= ~sim_entity_flag;
 }
 

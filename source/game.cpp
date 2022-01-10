@@ -472,7 +472,8 @@ void draw_bitmap(Game_bitmap_buffer* bitmap_buffer, Loaded_bmp* bitmap, v2 start
 }
 
 internal
-void subpixel_test_udpdate(Game_bitmap_buffer* buffer, Game_state* game_state, Game_input* input, v3 color) {
+void 
+subpixel_test_update(Game_bitmap_buffer* buffer, Game_state* game_state, Game_input* input, v3 color) {
     
     clear_screen(buffer, color_black_byte);
     
@@ -641,9 +642,11 @@ add_stairs(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_
                                                  v3 {.0f, .0f, .5f*game_state->world->tile_depth_meters});
     Add_low_entity_result entity = add_low_entity(game_state, Entity_type_stairwell, pos);
     
-    entity.low->sim.dim.y = game_state->world->tile_side_meters;
-    entity.low->sim.dim.x = entity.low->sim.dim.y;
-    entity.low->sim.dim.z = 1.2f * game_state->world->tile_depth_meters;
+    entity.low->sim.dim.x = game_state->world->tile_side_meters;
+    entity.low->sim.dim.y = 1.5f * game_state->world->tile_side_meters;
+    entity.low->sim.dim.z = game_state->world->tile_depth_meters;
+    
+    add_flags(&entity.low->sim, Entity_flag_collides);
     
     return entity;
 }
@@ -930,7 +933,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         
         add_monster(game_state, camera_tile_x + 1, camera_tile_y + 1, camera_tile_z);
         
-        for (u32 familiar_index = 0; familiar_index < 0; familiar_index++) {
+        for (u32 familiar_index = 0; familiar_index < 1; familiar_index++) {
             i32 familiar_offset_x = (random_number_table[random_number_index++] % 10) - 7;
             i32 familiar_offset_y = (random_number_table[random_number_index++] % 10) - 3;
             
@@ -1118,17 +1121,20 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                     Sim_entity* closest_hero = 0;
                     // distance we want it start to follow
                     f32 closest_hero_delta_squared = square(10.0f);
+                    bool follow_player = false;
                     
-                    Sim_entity* test_entity = sim_region->entity_list;
-                    for (u32 test_entity_index = 0; test_entity_index < sim_region->entity_count; test_entity_index++, test_entity++) {
-                        if (test_entity->type != Entity_type_hero)
-                            continue;
-                        
-                        f32 test_delta_squared = length_squared(test_entity->position - entity->position);
-                        
-                        if (closest_hero_delta_squared > test_delta_squared) {
-                            closest_hero = test_entity;
-                            closest_hero_delta_squared = test_delta_squared;
+                    if (follow_player) {
+                        Sim_entity* test_entity = sim_region->entity_list;
+                        for (u32 test_entity_index = 0; test_entity_index < sim_region->entity_count; test_entity_index++, test_entity++) {
+                            if (test_entity->type != Entity_type_hero)
+                                continue;
+                            
+                            f32 test_delta_squared = length_squared(test_entity->position - entity->position);
+                            
+                            if (closest_hero_delta_squared > test_delta_squared) {
+                                closest_hero = test_entity;
+                                closest_hero_delta_squared = test_delta_squared;
+                            }
                         }
                     }
                     
@@ -1197,14 +1203,16 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 move_entity(game_state, sim_region, entity, input->time_delta, &move_spec, ddp);
             }
             
+            f32 z_fudge = (1.0f + 0.1f * entity->position.z);
+            
             v2 entity_ground_point = { 
-                screen_center_x + entity->position.x * meters_to_pixels,
-                screen_center_y - entity->position.y * meters_to_pixels
+                screen_center_x + entity->position.x * z_fudge * meters_to_pixels,
+                screen_center_y - entity->position.y * z_fudge * meters_to_pixels
             };
             f32 entity_z = -meters_to_pixels * entity->position.z;
             
 #if 0
-            v2 player_start = { 
+            v2 player_start = {
                 entity_ground_point.x - .5f * low->sim.dim.x  * meters_to_pixels,
                 entity_ground_point.y - .5f * low->sim.dim.y * meters_to_pixels
             };
@@ -1243,7 +1251,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     end_sim(sim_region, game_state);
     
 #if 0
-    subpixel_test_udpdate(bitmap_buffer, game_state, input, gold_v3);
+    subpixel_test_update(bitmap_buffer, game_state, input, gold_v3);
 #endif
     
 #if 0

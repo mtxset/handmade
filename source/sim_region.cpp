@@ -242,8 +242,10 @@ end_sim(Sim_region* region, Game_state* game_state) {
             f32 cam_z_offset = new_camera_pos._offset.z;
             new_camera_pos = stored->position;
             new_camera_pos._offset.z = cam_z_offset;
+            
 #endif
             
+            // win32_debug_msg("offset: %f chunk: %i\n", new_camera_pos._offset.y, new_camera_pos.chunk_y);
             game_state->camera_pos = new_camera_pos;
         }
     }
@@ -378,10 +380,6 @@ can_collide(Game_state* game_state, Sim_entity* a_entity, Sim_entity* b_entity) 
         result = true;
     }
     
-    if (a_entity->type == Entity_type_stairwell || b_entity->type == Entity_type_stairwell) {
-        result = false;
-    }
-    
     u32 hash_bucket = a_entity->storage_index & (macro_array_count(game_state->collision_rule_hash) - 1);
     for (Pairwise_collision_rule* rule = game_state->collision_rule_hash[hash_bucket]; rule; rule = rule->next_in_hash) {
         if (rule->storage_index_a == a_entity->storage_index &&
@@ -399,11 +397,10 @@ bool
 can_overlap(Game_state* game_state, Sim_entity* mover, Sim_entity* region) {
     bool result = false;
     
-    if (mover == region)
-        return result;
-    
-    if (region->type == Entity_type_stairwell) {
-        result = true;
+    if (mover != region) {
+        if (region->type == Entity_type_stairwell) {
+            result = true;
+        }
     }
     
     return result;
@@ -420,6 +417,27 @@ handle_overlap(Game_state* game_state, Sim_entity* mover, Sim_entity* region, f3
         
         *ground = lerp(region_rect.min.z, barycentric.y, region_rect.max.z);
     }
+}
+
+internal
+bool
+speculative_collide(Sim_entity* mover, Sim_entity* region) {
+    bool result = true;
+    
+    if (region->type == Entity_type_stairwell) {
+        Rect3 region_rect = rect_center_dim(region->position, region->dim);
+        
+        v3 unclamped_bary = get_barycentric(region_rect, mover->position);
+        v3 barycentric = clamp01(unclamped_bary);
+        
+        f32 ground = lerp(region_rect.min.z, barycentric.y, region_rect.max.z);
+        f32 step_height = 0.1f;
+        
+        result = ((absolute(mover->position.z - ground) > step_height) ||
+                  (barycentric.y > 0.1f && barycentric.y < 0.9f));
+    }
+    
+    return result;
 }
 
 internal
@@ -445,7 +463,9 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
     
     player_acceleration_dd *= move_speed;
     player_acceleration_dd += -move_spec->drag * entity->velocity_d;
-    player_acceleration_dd += v3 {0, 0, -9.8f};
+    // gravity
+    if (!is_set(entity, Entity_flag_zsupported))
+        player_acceleration_dd += v3 {0, 0, -9.8f};
     
     v3 old_player_pos = entity->position;
     
@@ -497,9 +517,9 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
                     continue;
                 
                 v3 minkowski_diameter = {
-                    test_entity->dim.x  + entity->dim.x,
-                    test_entity->dim.y  + entity->dim.y,
-                    test_entity->dim.z  + entity->dim.z,
+                    test_entity->dim.x + entity->dim.x,
+                    test_entity->dim.y + entity->dim.y,
+                    test_entity->dim.z + entity->dim.z,
                 };
                 
                 // assumption: compiler knows these values (min/max_coner) are not using anything from loop so it can pull it out
@@ -509,25 +529,40 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
                 // relative position delta
                 v3 rel = entity->position - test_entity->position;
                 
-                if (test_wall(min_corner.x, rel.x, rel.y, player_delta.x, player_delta.y, &t_min, min_corner.y, max_corner.y)) {
-                    wall_normal = {-1, 0 };
-                    hit_entity = test_entity;
+                //if (rel.z >= min_corner.z && rel.z < max_corner.z) {
+                f32 t_min_test = t_min;
+                v3 test_wall_normal = {};
+                bool hit_this = false;
+                
+                if (test_wall(min_corner.x, rel.x, rel.y, player_delta.x, player_delta.y, &t_min_test, min_corner.y, max_corner.y)) {
+                    test_wall_normal = {-1, 0, 0 };
+                    hit_this = true;
                 }
                 
-                if (test_wall(max_corner.x, rel.x, rel.y, player_delta.x, player_delta.y, &t_min, min_corner.y, max_corner.y)) {
-                    wall_normal = { 1, 0 };
-                    hit_entity = test_entity;
+                if (test_wall(max_corner.x, rel.x, rel.y, player_delta.x, player_delta.y, &t_min_test, min_corner.y, max_corner.y)) {
+                    test_wall_normal = { 1, 0, 0 };
+                    hit_this = true;
                 }
                 
-                if (test_wall(min_corner.y, rel.y, rel.x, player_delta.y, player_delta.x, &t_min, min_corner.x, max_corner.x)) {
-                    wall_normal = { 0, -1 };
-                    hit_entity = test_entity;
+                if (test_wall(min_corner.y, rel.y, rel.x, player_delta.y, player_delta.x, &t_min_test, min_corner.x, max_corner.x)) {
+                    test_wall_normal = { 0, -1, 0 };
+                    hit_this = true;
                 }
                 
-                if (test_wall(max_corner.y, rel.y, rel.x, player_delta.y, player_delta.x, &t_min, min_corner.x, max_corner.x)) {
-                    wall_normal = { 0, 1 };
-                    hit_entity = test_entity;
+                if (test_wall(max_corner.y, rel.y, rel.x, player_delta.y, player_delta.x, &t_min_test, min_corner.x, max_corner.x)) {
+                    test_wall_normal = { 0, 1, 0 };
+                    hit_this = true;
                 }
+                
+                if (hit_this) {
+                    v3 test_pos = entity->position + t_min_test * player_delta;
+                    if (speculative_collide(entity, test_entity)) {
+                        t_min = t_min_test;
+                        wall_normal = test_wall_normal;
+                        hit_entity = test_entity;
+                    }
+                }
+                //}
             }
         }
         
@@ -558,21 +593,28 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
     // overlapping
     {
         Rect3 entity_rect = rect_center_dim(entity->position, entity->dim);
+        
         for (u32 test_high_entity_index = 0; test_high_entity_index < sim_region->entity_count; test_high_entity_index++) {
             Sim_entity* test_entity = sim_region->entity_list + test_high_entity_index;
-            if (!can_overlap(game_state, entity, test_entity))
-                continue;
             
-            Rect3 test_rect = rect_center_dim(entity->position, entity->dim);
-            if (rects_intersects(entity_rect, test_rect)) {
-                handle_overlap(game_state, entity, test_entity, time_delta, &ground);
+            if (can_overlap(game_state, entity, test_entity)) {
+                
+                Rect3 test_rect = rect_center_dim(test_entity->position, test_entity->dim);
+                if (rects_intersects(entity_rect, test_rect)) {
+                    handle_overlap(game_state, entity, test_entity, time_delta, &ground);
+                }
             }
         }
     }
     
-    if (entity->position.z < ground) {
+    if (entity->position.z <= ground ||
+        (is_set(entity, Entity_flag_zsupported) && entity->velocity_d.z == 0.0f)) {
         entity->position.z = ground;
         entity->velocity_d.z = 0;
+        add_flags(entity, Entity_flag_zsupported);
+    }
+    else {
+        clear_flags(entity, Entity_flag_zsupported);
     }
     
     if (entity->distance_limit != 0.0f) {
