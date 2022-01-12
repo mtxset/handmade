@@ -1,5 +1,5 @@
-// https://youtu.be/bZxa4fdtI2Y?t=1857
-// there is seems to be a bug where stairs take whole y or overlapping/collision detection has bugs (figure out before proceeding to ohter video)
+// https://youtu.be/0mGWYcE6yG8?t=1837
+
 #include <stdio.h>
 #include <stdint.h>
 #include <windows.h>
