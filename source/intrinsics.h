@@ -797,9 +797,9 @@ bool
 rects_intersects(Rect3 a, Rect3 b) {
     bool result = false;
     
-    result = !(b.max.x < a.min.x || b.min.x > a.max.x ||
-               b.max.y < a.min.y || b.min.y > a.max.y ||
-               b.max.z < a.min.z || b.min.z > a.max.z);
+    result = !(b.max.x <= a.min.x || b.min.x >= a.max.x ||
+               b.max.y <= a.min.y || b.min.y >= a.max.y ||
+               b.max.z <= a.min.z || b.min.z >= a.max.z);
     
     return result;
 }

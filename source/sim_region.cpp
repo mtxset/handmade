@@ -529,40 +529,40 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
                 // relative position delta
                 v3 rel = entity->position - test_entity->position;
                 
-                //if (rel.z >= min_corner.z && rel.z < max_corner.z) {
-                f32 t_min_test = t_min;
-                v3 test_wall_normal = {};
-                bool hit_this = false;
-                
-                if (test_wall(min_corner.x, rel.x, rel.y, player_delta.x, player_delta.y, &t_min_test, min_corner.y, max_corner.y)) {
-                    test_wall_normal = {-1, 0, 0 };
-                    hit_this = true;
-                }
-                
-                if (test_wall(max_corner.x, rel.x, rel.y, player_delta.x, player_delta.y, &t_min_test, min_corner.y, max_corner.y)) {
-                    test_wall_normal = { 1, 0, 0 };
-                    hit_this = true;
-                }
-                
-                if (test_wall(min_corner.y, rel.y, rel.x, player_delta.y, player_delta.x, &t_min_test, min_corner.x, max_corner.x)) {
-                    test_wall_normal = { 0, -1, 0 };
-                    hit_this = true;
-                }
-                
-                if (test_wall(max_corner.y, rel.y, rel.x, player_delta.y, player_delta.x, &t_min_test, min_corner.x, max_corner.x)) {
-                    test_wall_normal = { 0, 1, 0 };
-                    hit_this = true;
-                }
-                
-                if (hit_this) {
-                    v3 test_pos = entity->position + t_min_test * player_delta;
-                    if (speculative_collide(entity, test_entity)) {
-                        t_min = t_min_test;
-                        wall_normal = test_wall_normal;
-                        hit_entity = test_entity;
+                if (rel.z >= min_corner.z && rel.z < max_corner.z) {
+                    f32 t_min_test = t_min;
+                    v3 test_wall_normal = {};
+                    bool hit_this = false;
+                    
+                    if (test_wall(min_corner.x, rel.x, rel.y, player_delta.x, player_delta.y, &t_min_test, min_corner.y, max_corner.y)) {
+                        test_wall_normal = {-1, 0, 0 };
+                        hit_this = true;
+                    }
+                    
+                    if (test_wall(max_corner.x, rel.x, rel.y, player_delta.x, player_delta.y, &t_min_test, min_corner.y, max_corner.y)) {
+                        test_wall_normal = { 1, 0, 0 };
+                        hit_this = true;
+                    }
+                    
+                    if (test_wall(min_corner.y, rel.y, rel.x, player_delta.y, player_delta.x, &t_min_test, min_corner.x, max_corner.x)) {
+                        test_wall_normal = { 0, -1, 0 };
+                        hit_this = true;
+                    }
+                    
+                    if (test_wall(max_corner.y, rel.y, rel.x, player_delta.y, player_delta.x, &t_min_test, min_corner.x, max_corner.x)) {
+                        test_wall_normal = { 0, 1, 0 };
+                        hit_this = true;
+                    }
+                    
+                    if (hit_this) {
+                        v3 test_pos = entity->position + t_min_test * player_delta;
+                        if (speculative_collide(entity, test_entity)) {
+                            t_min = t_min_test;
+                            wall_normal = test_wall_normal;
+                            hit_entity = test_entity;
+                        }
                     }
                 }
-                //}
             }
         }
         

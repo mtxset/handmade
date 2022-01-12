@@ -560,6 +560,17 @@ init_hit_points(Low_entity* entity_low, u32 hit_point_count) {
     }
 }
 
+internal 
+Add_low_entity_result
+add_grounded_entity(Game_state* game_state, Entity_type type, World_position pos, v3 dim)
+{
+    World_position offset_pos = map_into_chunk_space(game_state->world, pos, v3{0, 0, 0.5f * dim.z});
+    Add_low_entity_result entity = add_low_entity(game_state, type, offset_pos);
+    entity.low->sim.dim = dim;
+    
+    return entity;
+}
+
 internal
 Add_low_entity_result 
 add_sword(Game_state* game_state) {
@@ -568,7 +579,8 @@ add_sword(Game_state* game_state) {
     add_flags(&entity.low->sim, Entity_flag_moveable);
     
     entity.low->sim.dim.y = 0.5f;
-    entity.low->sim.dim.x  = 1.0f;
+    entity.low->sim.dim.x = 1.0f;
+    entity.low->sim.dim.z = 0.1f;
     
     return entity;
 }
@@ -576,12 +588,14 @@ add_sword(Game_state* game_state) {
 internal
 Add_low_entity_result 
 add_player(Game_state* game_state) {
+    
+    v3 dim = { 1.0f, 0.5f, 1.2f };
+    
     World_position pos = game_state->camera_pos;
-    Add_low_entity_result entity = add_low_entity(game_state, Entity_type_hero, pos);
+    Add_low_entity_result entity = add_grounded_entity(game_state, Entity_type_hero, pos, dim);
     
     init_hit_points(entity.low, 3);
-    entity.low->sim.dim.y = 0.5f;
-    entity.low->sim.dim.x  = 1.0f;
+    
     add_flags(&entity.low->sim, Entity_flag_collides|Entity_flag_moveable);
     
     Add_low_entity_result sword = add_sword(game_state);
@@ -597,12 +611,14 @@ add_player(Game_state* game_state) {
 internal
 Add_low_entity_result 
 add_monster(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
+    
+    v3 dim = { 1.0f, 0.5f, 0.5f };
+    
     World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
-    Add_low_entity_result entity = add_low_entity(game_state, Entity_type_monster, pos);
+    Add_low_entity_result entity = add_grounded_entity(game_state, Entity_type_monster, pos, dim);
     
     init_hit_points(entity.low, 2);
-    entity.low->sim.dim.y = 0.5f;
-    entity.low->sim.dim.x = 1.0f;
+    
     add_flags(&entity.low->sim, Entity_flag_collides|Entity_flag_moveable);
     
     return entity;
@@ -611,11 +627,12 @@ add_monster(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile
 internal
 Add_low_entity_result 
 add_familiar(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
-    World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
-    Add_low_entity_result entity = add_low_entity(game_state, Entity_type_familiar, pos);
     
-    entity.low->sim.dim.y = 0.5f;
-    entity.low->sim.dim.x  = 1.0f;
+    v3 dim = { 1.0f, 0.5f, 0.5f };
+    
+    World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
+    Add_low_entity_result entity = add_grounded_entity(game_state, Entity_type_familiar, pos, dim);
+    
     add_flags(&entity.low->sim, Entity_flag_collides|Entity_flag_moveable);
     
     return entity;
@@ -624,11 +641,16 @@ add_familiar(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_til
 internal
 Add_low_entity_result 
 add_wall(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
-    World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
-    Add_low_entity_result entity = add_low_entity(game_state, Entity_type_wall, pos);
     
-    entity.low->sim.dim.y = game_state->world->tile_side_meters;
-    entity.low->sim.dim.x = entity.low->sim.dim.y;
+    v3 dim = { 
+        game_state->world->tile_side_meters,
+        game_state->world->tile_side_meters,
+        game_state->world->tile_depth_meters
+    };
+    
+    World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
+    Add_low_entity_result entity = add_grounded_entity(game_state, Entity_type_wall, pos, dim);
+    
     add_flags(&entity.low->sim, Entity_flag_collides);
     
     return entity;
@@ -637,14 +659,15 @@ add_wall(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z)
 internal
 Add_low_entity_result 
 add_stairs(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
-    World_position pos = chunk_pos_from_tile_pos(game_state->world, 
-                                                 abs_tile_x, abs_tile_y, abs_tile_z,
-                                                 v3 {.0f, .0f, .5f*game_state->world->tile_depth_meters});
-    Add_low_entity_result entity = add_low_entity(game_state, Entity_type_stairwell, pos);
     
-    entity.low->sim.dim.x = game_state->world->tile_side_meters;
-    entity.low->sim.dim.y = 1.5f * game_state->world->tile_side_meters;
-    entity.low->sim.dim.z = game_state->world->tile_depth_meters;
+    v3 dim = { 
+        game_state->world->tile_side_meters,
+        2.0f * game_state->world->tile_side_meters,
+        game_state->world->tile_depth_meters
+    };
+    
+    World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
+    Add_low_entity_result entity = add_grounded_entity(game_state, Entity_type_stairwell, pos, dim);
     
     add_flags(&entity.low->sim, Entity_flag_collides);
     
@@ -801,8 +824,9 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
         game_state->world = mem_push_struct(&game_state->world_arena, World);
         World* world = game_state->world;
         
-        const f32 meters_to_pixels = 1.4f; 
-        init_world(world, meters_to_pixels);
+        const f32 meters_to_pixels = 1.4f;
+        const f32 floor_height = 3.0f;
+        init_world(world, meters_to_pixels, floor_height);
         
         u32 screen_base_x = 0;
         u32 screen_base_y = 0;
