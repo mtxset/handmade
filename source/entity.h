@@ -38,4 +38,28 @@ make_entity_spatial(Sim_entity* entity, v3 pos, v3 velocity_d) {
     entity->velocity_d = velocity_d;
 }
 
+internal
+f32
+get_stair_ground(Sim_entity* entity, v3 ground_point) {
+    
+    macro_assert(entity->type == Entity_type_stairwell);
+    
+    Rect3 region_rect = rect_center_dim(entity->position, entity->dim);
+    
+    v3 unclamped_bary = get_barycentric(region_rect, ground_point);
+    v3 barycentric = clamp01(unclamped_bary);
+    
+    f32 result = region_rect.min.z + barycentric.y * entity->walkable_height;
+    
+    return result;
+}
+
+internal
+v3
+get_entity_ground_point(Sim_entity* entity) {
+    v3 result = entity->position + v3 { 0, 0, -0.5f * entity->dim.z };
+    
+    return result;
+}
+
 #endif //ENTITY_H

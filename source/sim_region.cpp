@@ -410,12 +410,7 @@ internal
 void
 handle_overlap(Game_state* game_state, Sim_entity* mover, Sim_entity* region, f32 time_delta, f32* ground) {
     if (region->type == Entity_type_stairwell) {
-        Rect3 region_rect = rect_center_dim(region->position, region->dim);
-        
-        v3 unclamped_bary = get_barycentric(region_rect, mover->position);
-        v3 barycentric = clamp01(unclamped_bary);
-        
-        *ground = lerp(region_rect.min.z, barycentric.y, region_rect.max.z);
+        *ground = get_stair_ground(region, get_entity_ground_point(mover));
     }
 }
 
@@ -425,16 +420,16 @@ speculative_collide(Sim_entity* mover, Sim_entity* region) {
     bool result = true;
     
     if (region->type == Entity_type_stairwell) {
-        Rect3 region_rect = rect_center_dim(region->position, region->dim);
         
-        v3 unclamped_bary = get_barycentric(region_rect, mover->position);
-        v3 barycentric = clamp01(unclamped_bary);
-        
-        f32 ground = lerp(region_rect.min.z, barycentric.y, region_rect.max.z);
         f32 step_height = 0.1f;
-        
-        result = ((absolute(mover->position.z - ground) > step_height) ||
+#if 0
+        result = (((absolute(entity_ground_point.z) - ground) > step_height) ||
                   (barycentric.y > 0.1f && barycentric.y < 0.9f));
+#else
+        v3 mover_ground_point = get_entity_ground_point(mover);
+        f32 ground = get_stair_ground(region, mover_ground_point);
+        result = (absolute(mover_ground_point.z) - ground) > step_height;
+#endif
     }
     
     return result;
@@ -605,6 +600,9 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
                 }
             }
         }
+        
+        v3 entity_ground_point = get_entity_ground_point(entity);
+        ground += entity->position.z - entity_ground_point.z;
     }
     
     if (entity->position.z <= ground ||
