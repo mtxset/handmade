@@ -663,13 +663,14 @@ add_stairs(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_
     v3 dim = { 
         game_state->world->tile_side_meters,
         2.0f * game_state->world->tile_side_meters,
-        game_state->world->tile_depth_meters
+        1.1f * game_state->world->tile_depth_meters
     };
     
     World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
     Add_low_entity_result entity = add_grounded_entity(game_state, Entity_type_stairwell, pos, dim);
     
     add_flags(&entity.low->sim, Entity_flag_collides);
+    entity.low->sim.walkable_height = game_state->world->tile_depth_meters;
     
     return entity;
 }
@@ -694,12 +695,12 @@ void push_piece(Entity_visible_piece_group* group, Loaded_bmp* bitmap,
     macro_assert(group->count < macro_array_count(group->piece_list));
     Entity_visible_piece* piece = group->piece_list + group->count++;
     
-    piece->bitmap = bitmap;
-    piece->offset = group->game_state->meters_to_pixels * v2 { offset.x, -offset.y } - align;
-    piece->offset_z = group->game_state->meters_to_pixels * offset_z;
+    piece->bitmap    = bitmap;
+    piece->offset    = group->game_state->meters_to_pixels * v2 { offset.x, -offset.y } - align;
+    piece->offset_z  = offset_z;
     piece->entity_zc = entity_zc;
-    piece->color = color;
-    piece->dim = dim;
+    piece->color     = color;
+    piece->dim       = dim;
 }
 
 inline
@@ -1214,7 +1215,8 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 case Entity_type_stairwell: {
                     v4 color = {1, 1, 0, 1};
                     push_rect(&piece_group, v2{0,0}, 0, entity->dim.xy, color, 0.0f);
-                    //push_bitmap(&piece_group, &game_state->stairwell, v2{0, 0}, 0, align);
+                    color.y = 0.5f;
+                    push_rect(&piece_group, v2{0,0}, entity->dim.z, entity->dim.xy, color, 0.0f);
                 } break;
                 
                 default: {
@@ -1227,33 +1229,23 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 move_entity(game_state, sim_region, entity, input->time_delta, &move_spec, ddp);
             }
             
-            f32 z_fudge = (1.0f + 0.1f * entity->position.z);
-            
-            v2 entity_ground_point = { 
-                screen_center_x + entity->position.x * z_fudge * meters_to_pixels,
-                screen_center_y - entity->position.y * z_fudge * meters_to_pixels
-            };
-            f32 entity_z = -meters_to_pixels * entity->position.z;
-            
-#if 0
-            v2 player_start = {
-                entity_ground_point.x - .5f * low->sim.dim.x  * meters_to_pixels,
-                entity_ground_point.y - .5f * low->sim.dim.y * meters_to_pixels
-            };
-            
-            v2 player_end = {
-                player_start.x + low->sim.dim.x * meters_to_pixels, 
-                player_start.y + low->sim.dim.y * meters_to_pixels, 
-            };
-#endif
-            
             // actually draw
             for (u32 piece_index = 0; piece_index < piece_group.count; piece_index++) {
+                
                 Entity_visible_piece* piece = piece_group.piece_list + piece_index;
+                
+                v3 entity_base_point = get_entity_ground_point(entity);
+                f32 z_fudge = 1.0f + 0.1f * (entity_base_point.z + piece->offset_z);
+                
+                v2 entity_ground_point = { 
+                    screen_center_x + entity_base_point.x * z_fudge * meters_to_pixels,
+                    screen_center_y - entity_base_point.y * z_fudge * meters_to_pixels
+                };
+                f32 entity_z = -meters_to_pixels * entity_base_point.z;
                 
                 v2 center = { 
                     entity_ground_point.x + piece->offset.x, 
-                    entity_ground_point.y + piece->offset.y + piece->offset_z + piece->entity_zc * entity_z
+                    entity_ground_point.y + piece->offset.y + piece->entity_zc * entity_z
                 };
                 
                 if (piece->bitmap) {

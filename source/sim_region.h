@@ -66,6 +66,8 @@ struct Sim_entity {
     f32 t_bob;
     
     Entity_ref sword;
+    
+    f32 walkable_height;
 };
 
 struct Sim_entity_hash {

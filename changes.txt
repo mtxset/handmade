@@ -9,6 +9,9 @@ Enter will spawn player
 WASD, arrows moves him
 Space - jumps
 
+day77:
+- some sort of stairs/ramp
+
 day66:
 - added simualtion regions
 - added sword projectile
