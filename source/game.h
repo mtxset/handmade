@@ -226,6 +226,14 @@ struct Game_state {
     Pairwise_collision_rule* collision_rule_hash[256];
     Pairwise_collision_rule* first_free_collsion_rule;
     
+    Sim_entity_collision_group* null_collision;
+    Sim_entity_collision_group* sword_collision;
+    Sim_entity_collision_group* stairs_collision;
+    Sim_entity_collision_group* player_collision;
+    Sim_entity_collision_group* monster_collision;
+    Sim_entity_collision_group* familiar_collision;
+    Sim_entity_collision_group* wall_collision;
+    
     Hero_bitmaps hero_bitmaps[4];
 #if 0
     Pacman_state pacman_state;

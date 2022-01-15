@@ -44,12 +44,12 @@ get_stair_ground(Sim_entity* entity, v3 ground_point) {
     
     macro_assert(entity->type == Entity_type_stairwell);
     
-    Rect3 region_rect = rect_center_dim(entity->position, entity->dim);
+    Rect2 region_rect = rect_center_dim(entity->position.xy, entity->walkable_dim);
     
-    v3 unclamped_bary = get_barycentric(region_rect, ground_point);
-    v3 barycentric = clamp01(unclamped_bary);
+    v2 unclamped_bary = get_barycentric(region_rect, ground_point.xy);
+    v2 barycentric = clamp01(unclamped_bary);
     
-    f32 result = region_rect.min.z + barycentric.y * entity->walkable_height;
+    f32 result = entity->position.z + barycentric.y * entity->walkable_height;
     
     return result;
 }
@@ -57,7 +57,7 @@ get_stair_ground(Sim_entity* entity, v3 ground_point) {
 internal
 v3
 get_entity_ground_point(Sim_entity* entity) {
-    v3 result = entity->position + v3 { 0, 0, -0.5f * entity->dim.z };
+    v3 result = entity->position;
     
     return result;
 }

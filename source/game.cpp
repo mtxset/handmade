@@ -393,7 +393,8 @@ debug_load_bmp(char* file_name) {
 }
 
 internal
-void draw_bitmap(Game_bitmap_buffer* bitmap_buffer, Loaded_bmp* bitmap, v2 start, f32 c_alpha = 1.0f) {
+void 
+draw_bitmap(Game_bitmap_buffer* bitmap_buffer, Loaded_bmp* bitmap, v2 start, f32 c_alpha = 1.0f) {
     
     i32 min_x = round_f32_i32(start.x);
     i32 min_y = round_f32_i32(start.y);
@@ -537,6 +538,7 @@ add_low_entity(Game_state* game_state, Entity_type type, World_position pos) {
     Low_entity* entity_low = game_state->low_entity_list + entity_index;
     *entity_low = {};
     entity_low->sim.type = type;
+    entity_low->sim.collision = game_state->null_collision;
     entity_low->position = null_position();
     
     change_entity_location(&game_state->world_arena, game_state->world, entity_index, entity_low, pos);
@@ -562,11 +564,10 @@ init_hit_points(Low_entity* entity_low, u32 hit_point_count) {
 
 internal 
 Add_low_entity_result
-add_grounded_entity(Game_state* game_state, Entity_type type, World_position pos, v3 dim)
+add_grounded_entity(Game_state* game_state, Entity_type type, World_position pos, Sim_entity_collision_group* collision)
 {
-    World_position offset_pos = map_into_chunk_space(game_state->world, pos, v3{0, 0, 0.5f * dim.z});
-    Add_low_entity_result entity = add_low_entity(game_state, type, offset_pos);
-    entity.low->sim.dim = dim;
+    Add_low_entity_result entity = add_low_entity(game_state, type, pos);
+    entity.low->sim.collision = collision;
     
     return entity;
 }
@@ -577,10 +578,7 @@ add_sword(Game_state* game_state) {
     Add_low_entity_result entity = add_low_entity(game_state, Entity_type_sword, null_position());
     
     add_flags(&entity.low->sim, Entity_flag_moveable);
-    
-    entity.low->sim.dim.y = 0.5f;
-    entity.low->sim.dim.x = 1.0f;
-    entity.low->sim.dim.z = 0.1f;
+    entity.low->sim.collision = game_state->sword_collision;
     
     return entity;
 }
@@ -589,10 +587,8 @@ internal
 Add_low_entity_result 
 add_player(Game_state* game_state) {
     
-    v3 dim = { 1.0f, 0.5f, 1.2f };
-    
     World_position pos = game_state->camera_pos;
-    Add_low_entity_result entity = add_grounded_entity(game_state, Entity_type_hero, pos, dim);
+    Add_low_entity_result entity = add_grounded_entity(game_state, Entity_type_hero, pos, game_state->player_collision);
     
     init_hit_points(entity.low, 3);
     
@@ -612,10 +608,8 @@ internal
 Add_low_entity_result 
 add_monster(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
     
-    v3 dim = { 1.0f, 0.5f, 0.5f };
-    
     World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
-    Add_low_entity_result entity = add_grounded_entity(game_state, Entity_type_monster, pos, dim);
+    Add_low_entity_result entity = add_grounded_entity(game_state, Entity_type_monster, pos, game_state->monster_collision);
     
     init_hit_points(entity.low, 2);
     
@@ -628,10 +622,8 @@ internal
 Add_low_entity_result 
 add_familiar(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
     
-    v3 dim = { 1.0f, 0.5f, 0.5f };
-    
     World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
-    Add_low_entity_result entity = add_grounded_entity(game_state, Entity_type_familiar, pos, dim);
+    Add_low_entity_result entity = add_grounded_entity(game_state, Entity_type_familiar, pos, game_state->familiar_collision);
     
     add_flags(&entity.low->sim, Entity_flag_collides|Entity_flag_moveable);
     
@@ -642,14 +634,8 @@ internal
 Add_low_entity_result 
 add_wall(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
     
-    v3 dim = { 
-        game_state->world->tile_side_meters,
-        game_state->world->tile_side_meters,
-        game_state->world->tile_depth_meters
-    };
-    
     World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
-    Add_low_entity_result entity = add_grounded_entity(game_state, Entity_type_wall, pos, dim);
+    Add_low_entity_result entity = add_grounded_entity(game_state, Entity_type_wall, pos, game_state->wall_collision);
     
     add_flags(&entity.low->sim, Entity_flag_collides);
     
@@ -660,16 +646,11 @@ internal
 Add_low_entity_result 
 add_stairs(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
     
-    v3 dim = { 
-        game_state->world->tile_side_meters,
-        2.0f * game_state->world->tile_side_meters,
-        1.1f * game_state->world->tile_depth_meters
-    };
-    
     World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
-    Add_low_entity_result entity = add_grounded_entity(game_state, Entity_type_stairwell, pos, dim);
+    Add_low_entity_result entity = add_grounded_entity(game_state, Entity_type_stairwell, pos, game_state->stairs_collision);
     
     add_flags(&entity.low->sim, Entity_flag_collides);
+    entity.low->sim.walkable_dim = entity.low->sim.collision->total_volume.dim.xy;
     entity.low->sim.walkable_height = game_state->world->tile_depth_meters;
     
     return entity;
@@ -690,8 +671,9 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
 #else
 
 inline
-void push_piece(Entity_visible_piece_group* group, Loaded_bmp* bitmap, 
-                v2 offset, f32 offset_z, v2 align, v2 dim, v4 color, f32 entity_zc) {
+void 
+push_piece(Entity_visible_piece_group* group, Loaded_bmp* bitmap, 
+           v2 offset, f32 offset_z, v2 align, v2 dim, v4 color, f32 entity_zc) {
     macro_assert(group->count < macro_array_count(group->piece_list));
     Entity_visible_piece* piece = group->piece_list + group->count++;
     
@@ -717,7 +699,8 @@ push_rect(Entity_visible_piece_group* group, v2 offset, f32 offset_z, v2 dim, v4
 }
 
 inline
-void draw_hitpoints(Entity_visible_piece_group* piece_group, Sim_entity* entity) {
+void
+draw_hitpoints(Entity_visible_piece_group* piece_group, Sim_entity* entity) {
     if (entity->hit_points_max > 0) {
         v2 health_dim = { 0.2f, 0.2f };
         f32 spacing_x = 1.5f * health_dim.x;
@@ -745,8 +728,38 @@ void draw_hitpoints(Entity_visible_piece_group* piece_group, Sim_entity* entity)
     }
 }
 
+Sim_entity_collision_group*
+make_null_collision(Game_state* game_state) {
+    Sim_entity_collision_group* group = mem_push_struct(&game_state->world_arena, Sim_entity_collision_group);
+    group->volume_count = 0;
+    group->volume_list = 0;
+    group->total_volume.offset_pos = v3 {0, 0, 0};
+    group->total_volume.dim = v3 {0, 0, 0};
+    
+    return group;
+}
+
+Sim_entity_collision_group*
+make_simple_grounded_collision(Game_state* game_state, f32 x, f32 y, f32 z) {
+    Sim_entity_collision_group* group = mem_push_struct(&game_state->world_arena, Sim_entity_collision_group);
+    group->volume_count = 1;
+    group->volume_list = mem_push_array(&game_state->world_arena, group->volume_count, Sim_entity_collision_volume);
+    group->total_volume.offset_pos = v3 {0, 0, 0.5f * z};
+    group->total_volume.dim = v3 {x, y, z};
+    group->volume_list[0] = group->total_volume;
+    
+    return group;
+}
+
+Sim_entity_collision_group*
+make_simple_grounded_collision(Game_state* game_state, v3 dim) {
+    Sim_entity_collision_group* group = make_simple_grounded_collision(game_state, dim.x, dim.y, dim.z);
+    return group;
+}
+
 extern "C"
-void game_update_render(thread_context* thread, Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer) {
+void 
+game_update_render(thread_context* thread, Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer) {
     
 #if 1
     run_tests();
@@ -758,10 +771,55 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     Game_state* game_state = (Game_state*)memory->permanent_storage;
     
     // init game state
-    if (!memory->is_initialized)
-    {
+    if (!memory->is_initialized) {
+        // init memory arenas
+        initialize_arena(&game_state->world_arena, 
+                         memory->permanent_storage_size - sizeof(Game_state),
+                         (u8*)memory->permanent_storage + sizeof(Game_state));
+        
         // reserve null entity for ?
         add_low_entity(game_state, Entity_type_null, null_position());
+        
+        game_state->world = mem_push_struct(&game_state->world_arena, World);
+        World* world = game_state->world;
+        
+        const f32 meters_to_pixels = 1.4f;
+        const f32 floor_height = 3.0f;
+        init_world(world, meters_to_pixels, floor_height);
+        
+        i32 tile_side_pixels = 60;
+        game_state->meters_to_pixels = (f32)tile_side_pixels / (f32)world->tile_side_meters;
+        
+        // collision entries
+        {
+            game_state->null_collision = make_null_collision(game_state);
+            
+            v3 sword_dim = { 0.5f, 1.0f, 0.1f };
+            game_state->sword_collision = make_simple_grounded_collision(game_state, sword_dim);
+            
+            v3 stair_dim = { 
+                game_state->world->tile_side_meters,
+                2.0f * game_state->world->tile_side_meters,
+                1.1f * game_state->world->tile_depth_meters
+            };
+            game_state->stairs_collision = make_simple_grounded_collision(game_state, stair_dim);
+            
+            v3 player_dim = { 1.0f, 0.5f, 1.2f };
+            game_state->player_collision = make_simple_grounded_collision(game_state, player_dim);
+            
+            v3 monster_dim = { 1.0f, 0.5f, 0.5f };
+            game_state->monster_collision = make_simple_grounded_collision(game_state, monster_dim);
+            
+            v3 wall_dim = { 
+                game_state->world->tile_side_meters,
+                game_state->world->tile_side_meters,
+                game_state->world->tile_depth_meters
+            };
+            game_state->wall_collision = make_simple_grounded_collision(game_state, wall_dim);
+            
+            v3 familiar_dim = { 1.0f, 0.5f, 0.5f };
+            game_state->familiar_collision = make_simple_grounded_collision(game_state, familiar_dim);
+        }
         
 #if 0
         // pacman init
@@ -816,18 +874,6 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
             }
 #endif
         }
-        
-        // init memory arenas
-        initialize_arena(&game_state->world_arena, 
-                         memory->permanent_storage_size - sizeof(Game_state),
-                         (u8*)memory->permanent_storage + sizeof(Game_state));
-        
-        game_state->world = mem_push_struct(&game_state->world_arena, World);
-        World* world = game_state->world;
-        
-        const f32 meters_to_pixels = 1.4f;
-        const f32 floor_height = 3.0f;
-        init_world(world, meters_to_pixels, floor_height);
         
         u32 screen_base_x = 0;
         u32 screen_base_y = 0;
@@ -970,11 +1016,8 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
     }
     
     World* world = game_state->world;
-    i32 tile_side_pixels = 60;
-    game_state->meters_to_pixels = (f32)tile_side_pixels / (f32)world->tile_side_meters;
     
     f32 meters_to_pixels = game_state->meters_to_pixels;
-    macro_assert(world);
     macro_assert(world);
     
     // check input and move player
@@ -1213,10 +1256,9 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
                 } break;
                 
                 case Entity_type_stairwell: {
-                    v4 color = {1, 1, 0, 1};
-                    push_rect(&piece_group, v2{0,0}, 0, entity->dim.xy, color, 0.0f);
-                    color.y = 0.5f;
-                    push_rect(&piece_group, v2{0,0}, entity->dim.z, entity->dim.xy, color, 0.0f);
+                    
+                    push_rect(&piece_group, v2{0,0}, 0, entity->walkable_dim, v4 {1, .5f, 0, 1}, 0.0f);
+                    push_rect(&piece_group, v2{0,0}, entity->walkable_height, entity->walkable_dim, v4 {1, 1, 0, 1}, 0.0f);
                 } break;
                 
                 default: {
@@ -1286,7 +1328,8 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
 #endif
 
 extern "C" 
-void game_get_sound_samples(thread_context* thread, Game_memory* memory, Game_sound_buffer* sound_buffer) {
+void 
+game_get_sound_samples(thread_context* thread, Game_memory* memory, Game_sound_buffer* sound_buffer) {
     auto game_state = (Game_state*)memory->permanent_storage;
     game_output_sound(sound_buffer, 400, game_state);
 }
