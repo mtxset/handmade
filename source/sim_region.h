@@ -43,6 +43,19 @@ enum Sim_entity_flags {
     Entity_flag_simming     = (1 << 30),
 };
 
+struct Sim_entity_collision_volume {
+    v3 offset_pos;
+    v3 dim;
+};
+
+struct Sim_entity_collision_group {
+    
+    Sim_entity_collision_volume total_volume;
+    
+    u32 volume_count;
+    Sim_entity_collision_volume* volume_list;
+};
+
 struct Sim_entity {
     u32 storage_index;
     bool updatable;
@@ -55,7 +68,7 @@ struct Sim_entity {
     Entity_type type;
     u32 flags;
     
-    v3 dim;
+    Sim_entity_collision_group* collision;
     
     i32 d_abs_tile_z;
     
@@ -67,6 +80,7 @@ struct Sim_entity {
     
     Entity_ref sword;
     
+    v2 walkable_dim;
     f32 walkable_height;
 };
 

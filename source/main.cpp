@@ -1,4 +1,5 @@
-// https://youtu.be/9IGZGfVvc0s?t=2377
+// https://youtu.be/o1DO5sjUhi0?t=2199
+// there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include <stdio.h>
 #include <stdint.h>
@@ -415,7 +416,8 @@ win32_process_keyboard_input(Game_button_state* new_state, bool is_down) {
     * this will just set window to take "fullscreen" but it won't be able to affect refresh rate
 * for that use: ChangeDisplaySettings
 */
-void 
+internal
+void
 toggle_fullscreen(HWND window_handle) {
     DWORD style = GetWindowLong(window_handle, GWL_STYLE);
     

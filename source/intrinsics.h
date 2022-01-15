@@ -42,6 +42,35 @@ union v4 {
     f32 e[4];
 };
 
+
+inline
+f32
+safe_ratio_n(f32 numerator, f32 divisor, f32 n) {
+    f32 result = n;
+    
+    if (divisor != 0.0f) {
+        result = numerator / divisor;
+    }
+    
+    return result;
+}
+
+inline
+f32
+safe_ratio_0(f32 num, f32 div) {
+    f32 result = safe_ratio_n(num, div, 0.0f);
+    
+    return result;
+}
+
+inline
+f32
+safe_ratio_1(f32 num, f32 div) {
+    f32 result = safe_ratio_n(num, div, 1.0f);
+    
+    return result;
+}
+
 inline
 f32 
 clamp(f32 min_value, f32 value, f32 max_value) {
@@ -172,6 +201,17 @@ length(v2 a) {
     
     f32 dot = inner(a, a);
     result = sqrtf(dot);
+    
+    return result;
+}
+
+inline
+v2
+clamp01(v2 value) {
+    v2 result; 
+    
+    result.x = clamp01(value.x);
+    result.y = clamp01(value.y);
     
     return result;
 }
@@ -378,7 +418,8 @@ f32 length_squared(v3 a) {
 }
 
 inline
-f32 length(v3 a) {
+f32 
+length(v3 a) {
     f32 result;
     
     f32 dot = inner(a, a);
@@ -388,7 +429,8 @@ f32 length(v3 a) {
 }
 
 inline
-v3 unit_vector(v3 a) {
+v3 
+unit_vector(v3 a) {
     v3 result;
     
     result = a / length(a);
@@ -686,6 +728,18 @@ add_radius_to(Rect2 rect, v2 radius) {
     return result;
 }
 
+inline
+v2
+get_barycentric(Rect2 a, v2 pos) {
+    v2 result;
+    
+    result.x = safe_ratio_0(pos.x - a.min.x, a.max.x - a.min.x);
+    result.y = safe_ratio_0(pos.y - a.min.y, a.max.y - a.min.y);
+    
+    return result;
+}
+
+
 // Rect2 END
 
 // Rect3 START
@@ -696,7 +750,19 @@ struct Rect3 {
 };
 
 inline
-v3 get_min_corner(Rect3 rect) {
+Rect2
+to_rect_xy(Rect3 rect) {
+    Rect2 result;
+    
+    result.min = rect.min.xy;
+    result.max = rect.max.xy;
+    
+    return result;
+}
+
+inline
+v3 
+get_min_corner(Rect3 rect) {
     v3 result;
     
     result = rect.min;
@@ -800,35 +866,6 @@ rects_intersects(Rect3 a, Rect3 b) {
     result = !(b.max.x <= a.min.x || b.min.x >= a.max.x ||
                b.max.y <= a.min.y || b.min.y >= a.max.y ||
                b.max.z <= a.min.z || b.min.z >= a.max.z);
-    
-    return result;
-}
-
-inline
-f32
-safe_ratio_n(f32 numerator, f32 divisor, f32 n) {
-    f32 result = n;
-    
-    if (divisor != 0.0f) {
-        result = numerator / divisor;
-    }
-    
-    return result;
-}
-
-inline
-f32
-safe_ratio_0(f32 num, f32 div) {
-    f32 result = safe_ratio_n(num, div, 0.0f);
-    
-    return result;
-}
-
-
-inline
-f32
-safe_ratio_1(f32 num, f32 div) {
-    f32 result = safe_ratio_n(num, div, 1.0f);
     
     return result;
 }
