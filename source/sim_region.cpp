@@ -376,6 +376,9 @@ can_collide(Game_state* game_state, Sim_entity* a_entity, Sim_entity* b_entity) 
         swap(a_entity, b_entity);
     }
     
+    if (!is_set(a_entity, Entity_flag_collides) || !is_set(a_entity, Entity_flag_collides))
+        return result;
+    
     if (!is_set(a_entity, Entity_flag_non_spatial) &&
         !is_set(b_entity, Entity_flag_non_spatial)) {
         result = true;

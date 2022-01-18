@@ -573,6 +573,18 @@ add_grounded_entity(Game_state* game_state, Entity_type type, World_position pos
 }
 
 internal
+Add_low_entity_result
+add_std_room(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
+    
+    World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
+    Add_low_entity_result entity = add_grounded_entity(game_state, Entity_type_space, pos, game_state->std_room_collision);
+    
+    add_flags(&entity.low->sim, Entity_flag_traversable);
+    
+    return entity;
+}
+
+internal
 Add_low_entity_result 
 add_sword(Game_state* game_state) {
     Add_low_entity_result entity = add_low_entity(game_state, Entity_type_sword, null_position());
@@ -699,6 +711,18 @@ push_rect(Entity_visible_piece_group* group, v2 offset, f32 offset_z, v2 dim, v4
 }
 
 inline
+void 
+push_rect_outline(Entity_visible_piece_group* group, v2 offset, f32 offset_z, v2 dim, v4 color, f32 entity_zc = 1.0f) {
+    
+    f32 thickness = 0.1f;
+    push_piece(group, 0, offset - v2{0, dim.y/2}, offset_z, v2{0, 0}, v2{dim.x, thickness}, color, entity_zc);
+    push_piece(group, 0, offset + v2{0, dim.y/2}, offset_z, v2{0, 0}, v2{dim.x, thickness}, color, entity_zc);
+    
+    push_piece(group, 0, offset - v2{dim.x/2, 0}, offset_z, v2{0, 0}, v2{thickness, dim.y}, color, entity_zc);
+    push_piece(group, 0, offset + v2{dim.x/2, 0}, offset_z, v2{0, 0}, v2{thickness, dim.y}, color, entity_zc);
+}
+
+inline
 void
 draw_hitpoints(Entity_visible_piece_group* piece_group, Sim_entity* entity) {
     if (entity->hit_points_max > 0) {
@@ -772,6 +796,9 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     
     // init game state
     if (!memory->is_initialized) {
+        const u32 tiles_per_width  = 17;
+        const u32 tiles_per_height = 9;
+        
         // init memory arenas
         initialize_arena(&game_state->world_arena, 
                          memory->permanent_storage_size - sizeof(Game_state),
@@ -816,6 +843,13 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                 game_state->world->tile_depth_meters
             };
             game_state->wall_collision = make_simple_grounded_collision(game_state, wall_dim);
+            
+            v3 room_dim = { 
+                tiles_per_width  * game_state->world->tile_side_meters,
+                tiles_per_height * game_state->world->tile_side_meters,
+                0.9f * game_state->world->tile_depth_meters
+            };
+            game_state->std_room_collision = make_simple_grounded_collision(game_state, room_dim);
             
             v3 familiar_dim = { 1.0f, 0.5f, 0.5f };
             game_state->familiar_collision = make_simple_grounded_collision(game_state, familiar_dim);
@@ -884,10 +918,8 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         u32 absolute_tile_z = screen_base_z;
         
         // 256 x 256 tile chunks 
-        u32 tiles_per_width = 17;
-        u32 tiles_per_height = 9;
         
-        // create tiles
+        // world generation
         u32 random_number_index = 0;
         {
             u32 room_goes_horizontal = 1;
@@ -926,6 +958,11 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                 else {
                     door_north = true;
                 }
+                
+                add_std_room(game_state, 
+                             screen_x * tiles_per_width + tiles_per_width / 2, 
+                             screen_y * tiles_per_height + tiles_per_height / 2,
+                             absolute_tile_z);
                 
                 for (u32 tile_y = 0; tile_y < tiles_per_height; tile_y++) {
                     for (u32 tile_x = 0; tile_x < tiles_per_width; tile_x++) {
@@ -1256,9 +1293,16 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                 } break;
                 
                 case Entity_type_stairwell: {
-                    
-                    push_rect(&piece_group, v2{0,0}, 0, entity->walkable_dim, v4 {1, .5f, 0, 1}, 0.0f);
-                    push_rect(&piece_group, v2{0,0}, entity->walkable_height, entity->walkable_dim, v4 {1, 1, 0, 1}, 0.0f);
+                    push_rect_outline(&piece_group, v2{0,0}, 0, entity->walkable_dim, v4 {1, .5f, 0, 1}, 0.0f);
+                    push_rect_outline(&piece_group, v2{0,0}, entity->walkable_height, entity->walkable_dim, v4 {1, 1, 0, 1}, 0.0f);
+                } break;
+                
+                case Entity_type_space: {
+                    for (u32 volume_index = 0; volume_index < entity->collision->volume_count; volume_index++) {
+                        Sim_entity_collision_volume* volume = entity->collision->volume_list + volume_index;
+                        
+                        push_rect_outline(&piece_group, volume->offset_pos.xy, 0, volume->dim.xy, v4 {0, .5f, 0, 1}, 0.0f);
+                    }
                 } break;
                 
                 default: {
