@@ -14,6 +14,8 @@ struct Move_spec {
 
 enum Entity_type {
     Entity_type_null,
+    
+    Entity_type_space,
     Entity_type_hero,
     Entity_type_wall,
     Entity_type_familiar,
@@ -39,6 +41,7 @@ enum Sim_entity_flags {
     Entity_flag_non_spatial = (1 << 1),
     Entity_flag_moveable    = (1 << 2),
     Entity_flag_zsupported  = (1 << 3),
+    Entity_flag_traversable = (1 << 4),
     
     Entity_flag_simming     = (1 << 30),
 };

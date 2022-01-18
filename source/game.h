@@ -233,6 +233,7 @@ struct Game_state {
     Sim_entity_collision_group* monster_collision;
     Sim_entity_collision_group* familiar_collision;
     Sim_entity_collision_group* wall_collision;
+    Sim_entity_collision_group* std_room_collision;
     
     Hero_bitmaps hero_bitmaps[4];
 #if 0
