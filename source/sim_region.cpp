@@ -252,6 +252,17 @@ end_sim(Sim_region* region, Game_state* game_state) {
     }
 }
 
+struct Test_wall {
+    f32 x; 
+    f32 rel_x;
+    f32 rel_y; 
+    f32 delta_x; 
+    f32 delta_y; 
+    f32 min_y;
+    f32 max_y;
+    v3 normal;
+};
+
 internal
 bool 
 test_wall(f32 wall_x, f32 rel_x, f32 rel_y, f32 player_delta_x, f32 player_delta_y, f32* t_min, f32 min_y, f32 max_y) {
@@ -440,6 +451,34 @@ speculative_collide(Sim_entity* mover, Sim_entity* region) {
 }
 
 internal
+bool
+entities_overlap(Sim_entity* entity, Sim_entity* test_entity, v3 epsilon = v3{0,0,0}) {
+    bool overlapped = false;
+    
+    for (u32 entity_volume_index = 0;
+         !overlapped &&
+         entity_volume_index < entity->collision->volume_count; entity_volume_index++) 
+    {
+        
+        Sim_entity_collision_volume* volume = entity->collision->volume_list + entity_volume_index;
+        
+        for (u32 test_volume_index = 0; 
+             !overlapped && 
+             test_volume_index < test_entity->collision->volume_count; test_volume_index++) 
+        {
+            Sim_entity_collision_volume* test_volume = test_entity->collision->volume_list + test_volume_index;
+            
+            Rect3 entity_rect = rect_center_dim(entity->position      + volume->offset_pos,      volume->dim + epsilon);
+            Rect3 test_rect   = rect_center_dim(test_entity->position + test_volume->offset_pos, test_volume->dim);
+            
+            overlapped = rects_intersects(entity_rect, test_rect);
+        }
+    }
+    
+    return overlapped;
+}
+
+internal
 void
 move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, f32 time_delta, Move_spec* move_spec, v3 player_acceleration_dd) {
     
@@ -494,6 +533,7 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
     for (u32 i = 0; i < correction_tries; i++) {
         
         f32 t_min = 1.0f;
+        f32 t_max = 0.0f;
         
         f32 player_delta_length = length(player_delta);
         
@@ -504,8 +544,10 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
             t_min = distance_remaining / player_delta_length;
         }
         
-        v3 wall_normal = { };
-        Sim_entity* hit_entity = 0;
+        v3 wall_normal_min = { };
+        v3 wall_normal_max = { };
+        Sim_entity* hit_entity_min = 0;
+        Sim_entity* hit_entity_max = 0;
         
         v3 desired_postion = entity->position + player_delta;
         
@@ -514,61 +556,136 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
             for (u32 test_high_entity_index = 0; test_high_entity_index < sim_region->entity_count; test_high_entity_index++) {
                 
                 Sim_entity* test_entity = sim_region->entity_list + test_high_entity_index;
-                // skip self collission
-                if (!can_collide(game_state, entity, test_entity))
-                    continue;
                 
-                for (u32 entity_volume_index = 0; entity_volume_index < entity->collision->volume_count; entity_volume_index++) {
-                    Sim_entity_collision_volume* volume = entity->collision->volume_list + entity_volume_index;
+                f32 overlap_epsilon = 0.001f;
+                
+                if ((is_set(test_entity, Entity_flag_traversable) &&
+                     entities_overlap(entity, test_entity, overlap_epsilon * v3{1,1,1})) ||
+                    can_collide(game_state, entity, test_entity)) {
                     
-                    for (u32 test_volume_index = 0; test_volume_index < test_entity->collision->volume_count; test_volume_index++) {
+                    for (u32 entity_volume_index = 0; entity_volume_index < entity->collision->volume_count; entity_volume_index++) {
+                        Sim_entity_collision_volume* volume = entity->collision->volume_list + entity_volume_index;
                         
-                        Sim_entity_collision_volume* test_volume = test_entity->collision->volume_list + test_volume_index;
-                        
-                        v3 minkowski_diameter = {
-                            test_volume->dim.x + volume->dim.x,
-                            test_volume->dim.y + volume->dim.y,
-                            test_volume->dim.z + volume->dim.z,
-                        };
-                        
-                        // assumption: compiler knows these values (min/max_coner) are not using anything from loop so it can pull it out
-                        v3 min_corner = -0.5f * minkowski_diameter;
-                        v3 max_corner =  0.5f * minkowski_diameter;
-                        
-                        // relative position delta
-                        v3 rel = (entity->position + volume->offset_pos) - (test_entity->position + test_volume->offset_pos);
-                        
-                        if (rel.z >= min_corner.z && rel.z < max_corner.z) {
-                            f32 t_min_test = t_min;
-                            v3 test_wall_normal = {};
-                            bool hit_this = false;
+                        for (u32 test_volume_index = 0; test_volume_index < test_entity->collision->volume_count; test_volume_index++) {
                             
-                            if (test_wall(min_corner.x, rel.x, rel.y, player_delta.x, player_delta.y, &t_min_test, min_corner.y, max_corner.y)) {
-                                test_wall_normal = {-1, 0, 0 };
-                                hit_this = true;
-                            }
+                            Sim_entity_collision_volume* test_volume = test_entity->collision->volume_list + test_volume_index;
                             
-                            if (test_wall(max_corner.x, rel.x, rel.y, player_delta.x, player_delta.y, &t_min_test, min_corner.y, max_corner.y)) {
-                                test_wall_normal = { 1, 0, 0 };
-                                hit_this = true;
-                            }
+                            v3 minkowski_diameter = {
+                                test_volume->dim.x + volume->dim.x,
+                                test_volume->dim.y + volume->dim.y,
+                                test_volume->dim.z + volume->dim.z,
+                            };
                             
-                            if (test_wall(min_corner.y, rel.y, rel.x, player_delta.y, player_delta.x, &t_min_test, min_corner.x, max_corner.x)) {
-                                test_wall_normal = { 0, -1, 0 };
-                                hit_this = true;
-                            }
+                            // assumption: compiler knows these values (min/max_coner) are not using anything from loop so it can pull it out
+                            v3 min_corner = -0.5f * minkowski_diameter;
+                            v3 max_corner =  0.5f * minkowski_diameter;
                             
-                            if (test_wall(max_corner.y, rel.y, rel.x, player_delta.y, player_delta.x, &t_min_test, min_corner.x, max_corner.x)) {
-                                test_wall_normal = { 0, 1, 0 };
-                                hit_this = true;
-                            }
+                            // relative position delta
+                            v3 rel = (entity->position + volume->offset_pos) - (test_entity->position + test_volume->offset_pos);
                             
-                            if (hit_this) {
-                                v3 test_pos = entity->position + t_min_test * player_delta;
-                                if (speculative_collide(entity, test_entity)) {
-                                    t_min = t_min_test;
-                                    wall_normal = test_wall_normal;
-                                    hit_entity = test_entity;
+                            if (rel.z >= min_corner.z && rel.z < max_corner.z) {
+                                
+                                Test_wall wall_list[] = {
+                                    {
+                                        min_corner.x, 
+                                        rel.x, rel.y, 
+                                        player_delta.x, player_delta.y, 
+                                        min_corner.y, max_corner.y, 
+                                        v3{-1, 0, 0 }
+                                    },
+                                    {
+                                        max_corner.x, 
+                                        rel.x, rel.y, 
+                                        player_delta.x, player_delta.y, 
+                                        min_corner.y, max_corner.y,
+                                        v3{ 1, 0, 0 }
+                                    },
+                                    {
+                                        min_corner.y, 
+                                        rel.y, rel.x, 
+                                        player_delta.y, player_delta.x, 
+                                        min_corner.x, max_corner.x,
+                                        v3{ 0, -1, 0 }
+                                    },
+                                    {
+                                        max_corner.y, 
+                                        rel.y, rel.x, 
+                                        player_delta.y, player_delta.x, 
+                                        min_corner.x, max_corner.x,
+                                        v3{ 0, 1, 0 }
+                                    }
+                                    
+                                };
+                                
+                                if (is_set(test_entity, Entity_flag_traversable)) {
+                                    
+                                    f32 t_max_test = t_max;
+                                    bool hit_this = false;
+                                    
+                                    v3 test_wall_normal = {};
+                                    
+                                    for (u32 wall_index = 0; wall_index < sizeof(wall_list) / sizeof(wall_list[0]); wall_index++) {
+                                        Test_wall* wall = wall_list + wall_index;
+                                        
+                                        f32 t_epsilon = 0.0001f;
+                                        
+                                        if (wall->delta_x != 0.0f) {
+                                            f32 t_result = (wall->x - wall->rel_x) / wall->delta_x;
+                                            f32 y = wall->rel_y + t_result * wall->delta_y;
+                                            
+                                            if (t_result >= 0.0f && t_max_test < t_result) {
+                                                if (y >= wall->min_y && y <= wall->max_y) {
+                                                    t_max_test = max(0.0f, t_result - t_epsilon);
+                                                    test_wall_normal = wall->normal;
+                                                    hit_this = true;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    if (hit_this) {
+                                        t_max = t_max_test;
+                                        wall_normal_max = test_wall_normal;
+                                        hit_entity_max = test_entity;
+                                    }
+                                    
+                                }
+                                else {
+                                    
+                                    f32 t_min_test = t_min;
+                                    
+                                    bool hit_this = false;
+                                    
+                                    v3 test_wall_normal = {};
+                                    
+                                    for (u32 wall_index = 0; wall_index < sizeof(wall_list) / sizeof(wall_list[0]); wall_index++) {
+                                        Test_wall* wall = wall_list + wall_index;
+                                        
+                                        f32 t_epsilon = 0.0001f;
+                                        
+                                        if (wall->delta_x != 0.0f) {
+                                            f32 t_result = (wall->x - wall->rel_x) / wall->delta_x;
+                                            f32 y = wall->rel_y + t_result * wall->delta_y;
+                                            
+                                            if (t_result >= 0.0f && t_min_test > t_result) {
+                                                if (y >= wall->min_y && y <= wall->max_y) {
+                                                    t_min_test= max(0.0f, t_result - t_epsilon);
+                                                    test_wall_normal = wall->normal;
+                                                    hit_this = true;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    if (hit_this) {
+                                        v3 test_pos = entity->position + t_min_test * player_delta;
+                                        if (speculative_collide(entity, test_entity)) {
+                                            t_min = t_min_test;
+                                            wall_normal_min = test_wall_normal;
+                                            hit_entity_min = test_entity;
+                                        }
+                                    }
+                                    
                                 }
                             }
                         }
@@ -577,8 +694,23 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
             }
         }
         
-        entity->position += t_min * player_delta;
-        distance_remaining -= t_min * player_delta_length;
+        v3 wall_normal = { };
+        Sim_entity* hit_entity = 0;
+        
+        f32 t_stop;
+        if (t_min < t_max) {
+            t_stop = t_min;
+            hit_entity = hit_entity_min;
+            wall_normal = wall_normal_min;
+        }
+        else {
+            t_stop = t_max;
+            hit_entity = hit_entity_max;
+            wall_normal = wall_normal_max;
+        }
+        
+        entity->position += t_stop * player_delta;
+        distance_remaining -= t_stop * player_delta_length;
         
         if (hit_entity) {
             //v' = v - 2*dot(v,r) * r
@@ -603,18 +735,12 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
     f32 ground = 0.0f;
     // overlapping
     {
-        Rect3 entity_rect = rect_center_dim(entity->position + entity->collision->total_volume.offset_pos, entity->collision->total_volume.dim);
         
         for (u32 test_high_entity_index = 0; test_high_entity_index < sim_region->entity_count; test_high_entity_index++) {
             Sim_entity* test_entity = sim_region->entity_list + test_high_entity_index;
             
-            if (can_overlap(game_state, entity, test_entity)) {
-                
-                Rect3 test_rect = rect_center_dim(test_entity->position + test_entity->collision->total_volume.offset_pos, test_entity->collision->total_volume.dim);
-                if (rects_intersects(entity_rect, test_rect)) {
-                    handle_overlap(game_state, entity, test_entity, time_delta, &ground);
-                }
-            }
+            if (can_overlap(game_state, entity, test_entity) && entities_overlap(entity, test_entity))
+                handle_overlap(game_state, entity, test_entity, time_delta, &ground);
         }
         
         v3 entity_ground_point = get_entity_ground_point(entity);

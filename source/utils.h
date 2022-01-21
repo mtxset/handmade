@@ -23,7 +23,7 @@ global_var const float PI = 3.14159265358979323846f;
 #define macro_megabytes(value) (macro_kilobytes(value) * 1024ull)
 #define macro_gigabytes(value) (macro_megabytes(value) * 1024ull)
 #define macro_terabytes(value) (macro_gigabytes(value) * 1024ull)
-#define macro_array_count(array) sizeof(array) / sizeof((array)[0]) // array is in parenthesis because we can pass x + y and we want to have (x + y)[0]
+#define macro_array_count(array) (sizeof(array) / sizeof((array)[0])) // array is in parenthesis because we can pass x + y and we want to have (x + y)[0]
 
 template <typename T> 
 void swap(T& a, T& b);
