@@ -988,7 +988,8 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                         }
                         
                         if (should_be_door) {
-                            add_wall(game_state, absolute_tile_x, absolute_tile_y, absolute_tile_z);
+                            if (screen_index == 0)
+                                add_wall(game_state, absolute_tile_x, absolute_tile_y, absolute_tile_z);
                         }
                         else if (created_z_door) {
                             if (tile_y == 6 && tile_x == 6) {
