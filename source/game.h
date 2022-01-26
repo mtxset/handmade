@@ -215,6 +215,10 @@ struct Game_state {
     u32 low_entity_count;
     Low_entity low_entity_list[100000];
     
+    Loaded_bmp grass[2];
+    Loaded_bmp stone[4];
+    Loaded_bmp tuft[3];
+    
     Loaded_bmp background;
     Loaded_bmp tree;
     Loaded_bmp monster;

@@ -42,7 +42,6 @@ union v4 {
     f32 e[4];
 };
 
-
 inline
 f32
 safe_ratio_n(f32 numerator, f32 divisor, f32 n) {
@@ -92,6 +91,27 @@ clamp01(f32 value) {
 }
 
 // VECTORS START
+
+inline
+v2
+v2_i32(i32 x, i32 y) {
+    v2 result;
+    
+    result = {(f32)x, (f32)y};
+    
+    return result;
+}
+
+inline
+v2
+v2_u32(u32 x, u32 y) {
+    v2 result;
+    
+    result = {(f32)x, (f32)y};
+    
+    return result;
+}
+
 inline
 v2 operator + (v2 a, v2 b) {
     v2 result;

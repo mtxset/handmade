@@ -3,6 +3,9 @@
 #ifndef RANDOM_H
 #define RANDOM_H
 
+#define MAX_RANDOM_NUMBER 0x05f5c21f
+#define MIN_RANDOM_NUMBER 0x000025a0
+
 global_var
 u32 random_number_table[] = {
     0x4f0143b, 0x3402005, 0x26f2b01, 0x22796b6, 0x57343bb, 0x2d9954e, 0x06f9425, 0x1789180,
@@ -518,5 +521,7 @@ u32 random_number_table[] = {
     0x1d46fff, 0x146703c, 0x07dc71f, 0x05a6b46, 0x53660a3, 0x3b4b5c9, 0x4ec4cbb, 0x248ae53,
     0x0d5d155, 0x4363005, 0x2cbd064, 0x5c18f03, 0x214bedd, 0x42ef202, 0x41827cd, 0x27a8fe9,
 };
+
+
 
 #endif //RANDOM_H
