@@ -728,6 +728,7 @@ draw_hitpoints(Entity_visible_piece_group* piece_group, Sim_entity* entity) {
     if (entity->hit_points_max > 0) {
         v2 health_dim = { 0.2f, 0.2f };
         f32 spacing_x = 1.5f * health_dim.x;
+        
         v2 hit_p = { 
             -0.5f * (entity->hit_points_max - 1) * spacing_x, 
             -0.25f 
@@ -742,6 +743,7 @@ draw_hitpoints(Entity_visible_piece_group* piece_group, Sim_entity* entity) {
             Hit_point* hit_point = entity->hit_point + health_index;
             
             v4 color = { 1.0f, 0.0f, 0.0f, 1.0f };
+            
             if (hit_point->filled_amount == 0) {
                 color = { 0.2f, 0.2f, 0.2f, 1.0f };
             }
@@ -779,6 +781,61 @@ Sim_entity_collision_group*
 make_simple_grounded_collision(Game_state* game_state, v3 dim) {
     Sim_entity_collision_group* group = make_simple_grounded_collision(game_state, dim.x, dim.y, dim.z);
     return group;
+}
+
+internal
+void
+draw_test_ground(Game_state* game_state, Game_bitmap_buffer* bitmap_buffer) {
+    
+    v2 center = 0.5f * v2_i32(bitmap_buffer->width, bitmap_buffer->height);
+    
+    u32 random_number_index = 0;
+    f32 radius = 5.0f;
+    for (u32 grass_index = 0; grass_index < 100; grass_index++) {
+        macro_assert(random_number_index < macro_array_count(random_number_table));
+        
+        Loaded_bmp* stamp;
+        
+        if (random_number_table[random_number_index++] % 2) {
+            u32 count = macro_array_count(game_state->grass);
+            u32 random_index = random_number_table[random_number_index++] % count;
+            stamp = game_state->grass + random_index;
+        }
+        else {
+            u32 count = macro_array_count(game_state->stone);
+            u32 random_index = random_number_table[random_number_index++] & count;
+            stamp = game_state->stone + random_index;
+        }
+        
+        v2 bitmap_center = 0.5f * v2_i32(stamp->width, stamp->height);
+        v2 offset = {
+            2.0f * (f32)random_number_table[random_number_index++] / f32(MAX_RANDOM_NUMBER) - 1,
+            2.0f * (f32)random_number_table[random_number_index++] / f32(MAX_RANDOM_NUMBER) - 1
+        };
+        
+        v2 pos = center + game_state->meters_to_pixels * offset * radius - bitmap_center;
+        draw_bitmap(bitmap_buffer, stamp, pos);
+    }
+    
+    for (u32 grass_index = 0; grass_index < 30; grass_index++) {
+        macro_assert(random_number_index < macro_array_count(random_number_table));
+        
+        Loaded_bmp* stamp;
+        
+        u32 count = macro_array_count(game_state->tuft);
+        u32 random_index = random_number_table[random_number_index++] % count;
+        stamp = game_state->tuft + random_index;
+        
+        v2 bitmap_center = 0.5f * v2_i32(stamp->width, stamp->height);
+        v2 offset = {
+            2.0f * (f32)random_number_table[random_number_index++] / f32(MAX_RANDOM_NUMBER) - 1,
+            2.0f * (f32)random_number_table[random_number_index++] / f32(MAX_RANDOM_NUMBER) - 1
+        };
+        
+        v2 pos = center + game_state->meters_to_pixels * offset * radius - bitmap_center;
+        draw_bitmap(bitmap_buffer, stamp, pos);
+    }
+    
 }
 
 extern "C"
@@ -870,6 +927,18 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         
         // load sprites
         {
+            game_state->grass[0]   = debug_load_bmp("../data/grass00.bmp");
+            game_state->grass[1]   = debug_load_bmp("../data/grass01.bmp");
+            
+            game_state->tuft[0]    = debug_load_bmp("../data/tuft00.bmp");
+            game_state->tuft[1]    = debug_load_bmp("../data/tuft01.bmp");
+            game_state->tuft[2]    = debug_load_bmp("../data/tuft02.bmp");
+            
+            game_state->stone[0]   = debug_load_bmp("../data/ground00.bmp");
+            game_state->stone[1]   = debug_load_bmp("../data/ground01.bmp");
+            game_state->stone[2]   = debug_load_bmp("../data/ground02.bmp");
+            game_state->stone[3]   = debug_load_bmp("../data/ground03.bmp");
+            
             game_state->background = debug_load_bmp("../data/bg_nebula.bmp");
             game_state->tree       = debug_load_bmp("../data/tree.bmp");
             game_state->monster    = debug_load_bmp("../data/george-front-0.bmp");
@@ -1148,6 +1217,8 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     
     // draw background
     draw_bitmap(bitmap_buffer, &game_state->background, v2 {0, 0});
+    
+    draw_test_ground(game_state, bitmap_buffer);
     
     f32 screen_center_x = (f32)bitmap_buffer->width / 2;
     f32 screen_center_y = (f32)bitmap_buffer->height / 2;

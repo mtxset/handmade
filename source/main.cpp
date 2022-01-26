@@ -1,4 +1,4 @@
-// https://youtu.be/QxxVwnE8V1c?t=3117
+// https://youtu.be/EGOrMZwQVEk?t=4364
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include <stdio.h>
@@ -1016,8 +1016,8 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
             DWORD bytes_to_lock, bytes_to_write, target_cursor, play_cursor, write_cursor;
             bytes_to_lock = bytes_to_write = target_cursor = play_cursor = write_cursor = 0;
             Game_sound_buffer sound_buffer = {};
-            auto audio_wallclock = win32_get_wall_clock();
-            auto from_begin_to_audio_seconds = win32_get_seconds_elapsed(flip_wall_clock, audio_wallclock);
+            LARGE_INTEGER audio_wallclock = win32_get_wall_clock();
+            f32 from_begin_to_audio_seconds = win32_get_seconds_elapsed(flip_wall_clock, audio_wallclock);
             
             if (Global_sound_buffer->GetCurrentPosition(&play_cursor, &write_cursor) != DS_OK) {
                 goto failed_sound_exit;
