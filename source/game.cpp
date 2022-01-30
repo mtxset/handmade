@@ -802,6 +802,7 @@ draw_test_ground(Game_state* game_state, Loaded_bmp* bitmap_buffer) {
     u32 random_number_index = 0;
     
     v2 center = 0.5f * v2_i32(bitmap_buffer->width, bitmap_buffer->height);
+
     f32 radius = 5.0f;
     for (u32 grass_index = 0; grass_index < 100; grass_index++) {
         macro_assert(random_number_index < macro_array_count(random_number_table));
@@ -811,6 +812,7 @@ draw_test_ground(Game_state* game_state, Loaded_bmp* bitmap_buffer) {
         if (random_choise(&series, 2)) {
             u32 count = macro_array_count(game_state->grass);
             u32 random_index = random_choise(&series, count);
+            
             stamp = game_state->grass + random_index;
         }
         else {

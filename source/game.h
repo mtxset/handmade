@@ -218,7 +218,7 @@ struct Game_state {
     Low_entity low_entity_list[100000];
     
     Loaded_bmp ground_buffer;
-    
+  
     Loaded_bmp grass[2];
     Loaded_bmp stone[4];
     Loaded_bmp tuft[3];
