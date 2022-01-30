@@ -522,6 +522,72 @@ u32 random_number_table[] = {
     0x0d5d155, 0x4363005, 0x2cbd064, 0x5c18f03, 0x214bedd, 0x42ef202, 0x41827cd, 0x27a8fe9,
 };
 
+struct Random_series {
+    u32 index;
+};
 
+inline
+Random_series
+random_seed(u32 seed) {
+    Random_series series;
+    
+    series.index = seed % macro_array_count(random_number_table); 
+    
+    return series;
+}
+
+inline
+u32
+random_next_number_i32(Random_series* series) {
+    u32 result = random_number_table[series->index++];
+    
+    if (series->index > macro_array_count(random_number_table))
+        series->index = 0;
+    
+    return result;
+}
+
+inline
+u32
+random_choise(Random_series* series, u32 choise_count) {
+    u32 result = random_next_number_i32(series) % choise_count;
+    
+    return result;
+}
+
+inline
+f32
+random_unilateral(Random_series* series) {
+    f32 divisor = 1.0f / (f32)MAX_RANDOM_NUMBER;
+    f32 result = (f32)random_next_number_i32(series) * divisor;
+    
+    return result;
+}
+
+inline
+f32
+random_bilateral(Random_series* series) {
+    f32 result = 2.0f * random_unilateral(series) - 1.0f;
+    
+    return result;
+}
+
+inline
+f32
+random_between(Random_series* series, f32 min_value, f32 max_value) {
+    
+    f32 result = lerp(min_value, random_unilateral(series), max_value);
+    
+    return result;
+}
+
+inline
+i32
+random_between(Random_series* series, i32 min_value, i32 max_value) {
+    
+    i32 result = min_value + (random_next_number_i32(series) % (max_value + 1 - min_value));
+    
+    return result;
+}
 
 #endif //RANDOM_H

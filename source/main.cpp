@@ -1,4 +1,4 @@
-// https://youtu.be/EGOrMZwQVEk?t=4364
+// https://youtu.be/09bUpNbRzzc?t=4668
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include <stdio.h>
@@ -999,7 +999,6 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
             game_buffer.pitch = Global_backbuffer.pitch;
             game_buffer.window_width = initial_window_width;
             game_buffer.window_height = initial_window_height;
-            game_buffer.bytes_per_pixel = Global_backbuffer.bytes_per_pixel;
             
             if (win_state.recording_input_index)
                 win32_record_input(&win_state, new_input);

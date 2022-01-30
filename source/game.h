@@ -8,13 +8,14 @@
 #include "sim_region.h"
 #include "entity.h"
 
+#define BITMAP_BYTES_PER_PIXEL 4
+
 struct Game_bitmap_buffer {
     // pixels are always 32 bit, memory order BB GG RR XX (padding)
     void* memory;
     i32 width;
     i32 height;
     i32 pitch;
-    i32 bytes_per_pixel;
     u32 window_width;
     u32 window_height;
 };
@@ -131,7 +132,8 @@ struct Subpixel_test {
 struct Loaded_bmp {
     i32 height;
     i32 width;
-    u32* pixels;
+    i32 pitch;
+    void* memory;
 };
 
 // struct is from: https://www.fileformat.info/format/bmp/egff.htm
@@ -214,6 +216,8 @@ struct Game_state {
     
     u32 low_entity_count;
     Low_entity low_entity_list[100000];
+    
+    Loaded_bmp ground_buffer;
     
     Loaded_bmp grass[2];
     Loaded_bmp stone[4];
