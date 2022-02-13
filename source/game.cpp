@@ -373,20 +373,31 @@ debug_load_bmp(char* file_name) {
     macro_assert(scan_blue.found);
     macro_assert(scan_alpha.found);
     
-    i32 shift_alpha = 24 - (i32)scan_alpha.index;
-    i32 shift_red   = 16 - (i32)scan_red.index;
-    i32 shift_green = 8  - (i32)scan_green.index;
-    i32 shift_blue  = 0  - (i32)scan_blue.index;
+    i32 shift_alpha_down = (i32)scan_alpha.index;
+    i32 shift_red_down   = (i32)scan_red.index;
+    i32 shift_green_down = (i32)scan_green.index;
+    i32 shift_blue_down  = (i32)scan_blue.index;
     
     u32* source_dest = (u32*)result.memory;
     for (i32 y = 0; y < header->Height; y++) {
         for (i32 x = 0; x < header->Width; x++) {
             u32 color = *source_dest;
             
-            *source_dest++ = (rotate_left(color & mask_alpha, shift_alpha) |
-                              rotate_left(color & mask_red,   shift_red  ) |
-                              rotate_left(color & mask_green, shift_green) |
-                              rotate_left(color & mask_blue,  shift_blue));
+            f32 r = (f32)((color & mask_red)   >> shift_red_down);
+            f32 g = (f32)((color & mask_green) >> shift_green_down);
+            f32 b = (f32)((color & mask_blue)  >> shift_blue_down);
+            f32 a = (f32)((color & mask_alpha) >> shift_alpha_down);
+            
+            f32 a_norm = a / 255.0f;
+            
+            r = r * a_norm;
+            g = g * a_norm;
+            b = b * a_norm;
+            
+            *source_dest++ = (((u32)(a + 0.5f) << 24) | 
+                              ((u32)(r + 0.5f) << 16) | 
+                              ((u32)(g + 0.5f) << 8 ) | 
+                              ((u32)(b + 0.5f) << 0 ));
         }
     }
     
@@ -442,16 +453,18 @@ draw_bitmap(Loaded_bmp* bitmap_buffer, Loaded_bmp* bitmap, v2 start, f32 c_alpha
         u32* source = (u32*)source_row;   // backbuffer pixel
         
         for (i32 x = min_x; x < max_x; x++) {
-            f32 src_a = (f32)((*source >> 24) & 0xff) / 255.0f;
-            f32 src_r = (f32)((*source >> 16) & 0xff);
-            f32 src_g = (f32)((*source >> 8)  & 0xff);
-            f32 src_b = (f32)((*source >> 0)  & 0xff);
-            src_a *= c_alpha;
+            f32 src_a = (f32)((*source >> 24) & 0xff);
+            f32 src_r_a = (src_a / 255.0f) * c_alpha;
+            
+            f32 src_r = c_alpha * (f32)((*source >> 16) & 0xff);
+            f32 src_g = c_alpha * (f32)((*source >> 8)  & 0xff);
+            f32 src_b = c_alpha * (f32)((*source >> 0)  & 0xff);
             
             f32 dst_a = (f32)((*dest >> 24) & 0xff);
             f32 dst_r = (f32)((*dest >> 16) & 0xff);
             f32 dst_g = (f32)((*dest >> 8)  & 0xff);
             f32 dst_b = (f32)((*dest >> 0)  & 0xff);
+            f32 dst_r_a = (dst_a / 255.0f);
             
             // (1-t)A + tB 
             // alpha (0 - 1);
@@ -461,11 +474,11 @@ draw_bitmap(Loaded_bmp* bitmap_buffer, Loaded_bmp* bitmap, v2 start, f32 c_alpha
             // blending techniques: http://ycpcs.github.io/cs470-fall2014/labs/lab09.html
             
             // linear blending
-            
-            f32 a = max(dst_a, 255.0f * src_a);
-            f32 r = (1.0f - src_a) * dst_r + src_a * src_r;
-            f32 g = (1.0f - src_a) * dst_g + src_a * src_g;
-            f32 b = (1.0f - src_a) * dst_b + src_a * src_b;
+            f32 inv_r_src_alpha = 1.0f - src_r_a;
+            f32 a = 255.0f * (src_r_a + dst_r_a - src_r_a * dst_r_a);
+            f32 r = inv_r_src_alpha * dst_r + src_r;
+            f32 g = inv_r_src_alpha * dst_g + src_g;
+            f32 b = inv_r_src_alpha * dst_b + src_b;
             
             *dest = (((u32)(a + 0.5f) << 24) | 
                      ((u32)(r + 0.5f) << 16) | 
@@ -802,7 +815,7 @@ draw_test_ground(Game_state* game_state, Loaded_bmp* bitmap_buffer) {
     u32 random_number_index = 0;
     
     v2 center = 0.5f * v2_i32(bitmap_buffer->width, bitmap_buffer->height);
-
+    
     f32 radius = 5.0f;
     for (u32 grass_index = 0; grass_index < 100; grass_index++) {
         macro_assert(random_number_index < macro_array_count(random_number_table));
