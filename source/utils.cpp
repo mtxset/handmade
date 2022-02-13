@@ -19,7 +19,8 @@ void swap(T& a, T& b) {
     b = c;
 }
 
-void string_concat(size_t src_a_count, char* src_a, size_t src_b_count, char* src_b, size_t dest_count, char* dest) {
+void 
+string_concat(size_t src_a_count, char* src_a, size_t src_b_count, char* src_b, size_t dest_count, char* dest) {
     for (u32 i = 0; i < src_a_count; i++) {
         *dest++ = *src_a++;
     }
@@ -31,7 +32,8 @@ void string_concat(size_t src_a_count, char* src_a, size_t src_b_count, char* sr
     *dest++ = 0;
 }
 
-i32 string_len(char* string) {
+i32 
+string_len(char* string) {
     i32 result = 0;
     
     // *string dereference value
@@ -44,7 +46,8 @@ i32 string_len(char* string) {
     return result;
 }
 
-i32 string_to_binary(char* str) {
+i32 
+string_to_binary(char* str) {
 	i32 size = string_len(str);
 	i32 result = 0;
 	char* ptr = str;
@@ -61,7 +64,8 @@ i32 string_to_binary(char* str) {
 	return result;
 }
 
-char* i32_to_string(i32 n) {
+char* 
+i32_to_string(i32 n) {
 	local_persist char binary[8] = {};
 	for (auto x = 0; x < 8; x++) {
 		binary[x] = n & 0x80 ? '1' : '0';
@@ -70,38 +74,41 @@ char* i32_to_string(i32 n) {
 	return binary;
 }
 
-i32 clamp_i32(i32 val, i32 min = 0, i32 max = 1) {
+i32 
+clamp_i32(i32 val, i32 min_value = 0, i32 max_value = 1) {
     i32 result = val;
     
-    if (val < min)
-        result = min;
+    if (val < min_value)
+        result = min_value;
     
-    if (val > max)
-        result = max;
+    if (val > max_value)
+        result = max_value;
     
     return result;
 }
 
-u32 clamp_u32(u32 val, u32 min = 0, u32 max = 1) {
+u32 
+clamp_u32(u32 val, u32 min_value = 0, u32 max_value = 1) {
     u32 result = val;
     
-    if (val < min)
-        result = min;
+    if (val < min_value)
+        result = min_value;
     
-    if (val > max)
-        result = max;
+    if (val > max_value)
+        result = max_value;
     
     return result;
 }
 
-f32 clamp_f32(f32 val, f32 min = 0.0f, f32 max = 1.0f) {
+f32 
+clamp_f32(f32 val, f32 min_value = 0.0f, f32 max_value = 1.0f) {
     f32 result = val;
     
-    if (val < min)
-        result = min;
+    if (val < min_value)
+        result = min_value;
     
-    if (val > max)
-        result = max;
+    if (val > max_value)
+        result = max_value;
     
     return result;
 }

@@ -1,4 +1,4 @@
-// https://youtu.be/09bUpNbRzzc?t=4668
+// https://youtu.be/bidrZj1YosA?t=3555
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include <stdio.h>
@@ -74,8 +74,8 @@ win32_build_exe_filename(Win32_state* win_state, char* filename, i32 dest_count,
                   string_len(filename), filename, dest_count, dest);
 }
 
-internal 
-void 
+internal
+void
 win32_get_input_file_location(Win32_state* win_state, i32 index, i32 dest_count, char* dest) {
     char* file_name = "game.input";
     win32_build_exe_filename(win_state, file_name, dest_count, dest); 
