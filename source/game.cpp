@@ -808,16 +808,18 @@ make_simple_grounded_collision(Game_state* game_state, v3 dim) {
 
 internal
 void
-draw_test_ground(Game_state* game_state, Loaded_bmp* bitmap_buffer) {
+draw_ground_chunk(Game_state* game_state, Loaded_bmp* bitmap_buffer, World_position* chunk_pos) {
     
-    Random_series series = random_seed(1234);
+    Random_series series = random_seed(139*chunk_pos->chunk_x + 593*chunk_pos->chunk_y + 329*chunk_pos->chunk_z);
     
     u32 random_number_index = 0;
     
-    v2 center = 0.5f * v2_i32(bitmap_buffer->width, bitmap_buffer->height);
+    //v2 center = 0.5f * v2_i32(bitmap_buffer->width, bitmap_buffer->height);
     
-    f32 radius = 5.0f;
-    for (u32 grass_index = 0; grass_index < 100; grass_index++) {
+    f32 width = (f32)bitmap_buffer->width;
+    f32 height = (f32)bitmap_buffer->height;
+    
+    for (u32 grass_index = 0; grass_index < 1000; grass_index++) {
         macro_assert(random_number_index < macro_array_count(random_number_table));
         
         Loaded_bmp* stamp;
@@ -836,15 +838,15 @@ draw_test_ground(Game_state* game_state, Loaded_bmp* bitmap_buffer) {
         
         v2 bitmap_center = 0.5f * v2_i32(stamp->width, stamp->height);
         v2 offset = {
-            random_bilateral(&series),
-            random_bilateral(&series)
+            width  * random_unilateral(&series),
+            height * random_unilateral(&series)
         };
         
-        v2 pos = center + game_state->meters_to_pixels * offset * radius - bitmap_center;
+        v2 pos = offset - bitmap_center;
         draw_bitmap(bitmap_buffer, stamp, pos);
     }
     
-    for (u32 grass_index = 0; grass_index < 30; grass_index++) {
+    for (u32 grass_index = 0; grass_index < 300; grass_index++) {
         macro_assert(random_number_index < macro_array_count(random_number_table));
         
         Loaded_bmp* stamp;
@@ -855,11 +857,11 @@ draw_test_ground(Game_state* game_state, Loaded_bmp* bitmap_buffer) {
         
         v2 bitmap_center = 0.5f * v2_i32(stamp->width, stamp->height);
         v2 offset = {
-            random_bilateral(&series),
-            random_bilateral(&series)
+            width  * random_unilateral(&series),
+            height * random_unilateral(&series)
         };
         
-        v2 pos = center + game_state->meters_to_pixels * offset * radius - bitmap_center;
+        v2 pos = offset - bitmap_center;
         draw_bitmap(bitmap_buffer, stamp, pos);
     }
     
@@ -1048,7 +1050,9 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
             const u32 max_screens = 2000;
             
             for (u32 screen_index = 0; screen_index < max_screens; screen_index++) {
-                u32 door_direction = random_choise(&series, (door_up || door_down) ? 2 : 3);
+                //u32 door_direction = random_choise(&series, (door_up || door_down) ? 2 : 3);
+                
+                u32 door_direction = random_choise(&series, 2);
                 
                 bool created_z_door = false;
                 if (door_direction == room_has_stairs) {
@@ -1094,8 +1098,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                         }
                         
                         if (should_be_door) {
-                            if (screen_index == 0)
-                                add_wall(game_state, absolute_tile_x, absolute_tile_y, absolute_tile_z);
+                            add_wall(game_state, absolute_tile_x, absolute_tile_y, absolute_tile_z);
                         }
                         else if (created_z_door) {
                             if (tile_y == 6 && tile_x == 6) {
@@ -1156,8 +1159,16 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                 add_familiar(game_state, camera_tile_x + familiar_offset_x, camera_tile_y + familiar_offset_y, camera_tile_z);
         }
         
-        game_state->ground_buffer = make_empty_bitmap(&game_state->world_arena, 512, 512);
-        draw_test_ground(game_state, &game_state->ground_buffer);
+        f32 screen_width = (f32)bitmap_buffer->width;
+        f32 screen_height = (f32)bitmap_buffer->height;
+        f32 max_z_scale = 0.5f;
+        f32 ground_overscan = 1.5f;
+        u32 ground_buffer_width = round_f32_u32(ground_overscan * screen_width);
+        u32 ground_buffer_height = round_f32_u32(ground_overscan * screen_height);
+        
+        game_state->ground_buffer = make_empty_bitmap(&game_state->world_arena, ground_buffer_width, ground_buffer_height);
+        game_state->ground_buffer_pos = game_state->camera_pos;
+        draw_ground_chunk(game_state, &game_state->ground_buffer, &game_state->ground_buffer_pos);
         
         memory->is_initialized = true;
     }
@@ -1262,12 +1273,20 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     
     clear_screen(draw_buffer, color_gray_byte);
     
-    // draw background
-    draw_bitmap(draw_buffer, &game_state->background, v2 {0, 0});
-    draw_bitmap(draw_buffer, &game_state->ground_buffer, v2 {0, 0});
-    
     f32 screen_center_x = (f32)draw_buffer->width / 2;
     f32 screen_center_y = (f32)draw_buffer->height / 2;
+    
+    v2 ground = {
+        screen_center_x - 0.5f * (f32)game_state->ground_buffer.width,
+        screen_center_y - 0.5f * (f32)game_state->ground_buffer.height
+    };
+    
+    v3 delta = subtract_pos(game_state->world, &game_state->ground_buffer_pos, &game_state->camera_pos);
+    delta.y = -delta.y;
+    ground += game_state->meters_to_pixels * delta.xy;
+    // draw background
+    draw_bitmap(draw_buffer, &game_state->background, v2 {0, 0});
+    draw_bitmap(draw_buffer, &game_state->ground_buffer, ground);
     
     // move, group and draw
     {
