@@ -218,7 +218,7 @@ struct Game_state {
     Low_entity low_entity_list[100000];
     
     Loaded_bmp ground_buffer;
-  
+    
     Loaded_bmp grass[2];
     Loaded_bmp stone[4];
     Loaded_bmp tuft[3];
@@ -242,6 +242,8 @@ struct Game_state {
     Sim_entity_collision_group* familiar_collision;
     Sim_entity_collision_group* wall_collision;
     Sim_entity_collision_group* std_room_collision;
+    
+    World_position ground_buffer_pos;
     
     Hero_bitmaps hero_bitmaps[4];
 #if 0
