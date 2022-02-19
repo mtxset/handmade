@@ -808,7 +808,7 @@ make_simple_grounded_collision(Game_state* game_state, v3 dim) {
 
 internal
 void
-draw_ground_chunk(Game_state* game_state, Loaded_bmp* bitmap_buffer, World_position* chunk_pos) {
+fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_buffer* ground_buffer, World_position* chunk_pos) {
     
     Random_series series = random_seed(139*chunk_pos->chunk_x + 593*chunk_pos->chunk_y + 329*chunk_pos->chunk_z);
     
@@ -816,10 +816,15 @@ draw_ground_chunk(Game_state* game_state, Loaded_bmp* bitmap_buffer, World_posit
     
     //v2 center = 0.5f * v2_i32(bitmap_buffer->width, bitmap_buffer->height);
     
-    f32 width = (f32)bitmap_buffer->width;
-    f32 height = (f32)bitmap_buffer->height;
+    Loaded_bmp bitmap_buffer = tran_state->ground_buffer_template;
+    bitmap_buffer.memory = ground_buffer->memory;
     
-    for (u32 grass_index = 0; grass_index < 1000; grass_index++) {
+    ground_buffer->position = *chunk_pos;
+    
+    f32 width = (f32)bitmap_buffer.width;
+    f32 height = (f32)bitmap_buffer.height;
+    
+    for (u32 grass_index = 0; grass_index < 100; grass_index++) {
         macro_assert(random_number_index < macro_array_count(random_number_table));
         
         Loaded_bmp* stamp;
@@ -843,10 +848,10 @@ draw_ground_chunk(Game_state* game_state, Loaded_bmp* bitmap_buffer, World_posit
         };
         
         v2 pos = offset - bitmap_center;
-        draw_bitmap(bitmap_buffer, stamp, pos);
+        draw_bitmap(&bitmap_buffer, stamp, pos);
     }
     
-    for (u32 grass_index = 0; grass_index < 300; grass_index++) {
+    for (u32 grass_index = 0; grass_index < 100; grass_index++) {
         macro_assert(random_number_index < macro_array_count(random_number_table));
         
         Loaded_bmp* stamp;
@@ -862,13 +867,24 @@ draw_ground_chunk(Game_state* game_state, Loaded_bmp* bitmap_buffer, World_posit
         };
         
         v2 pos = offset - bitmap_center;
-        draw_bitmap(bitmap_buffer, stamp, pos);
+        draw_bitmap(&bitmap_buffer, stamp, pos);
     }
     
 }
 
+internal
+void
+clear_bitmap(Loaded_bmp* bitmap) {
+    if (bitmap->memory) {
+        u32 bytes_per_pixel = BITMAP_BYTES_PER_PIXEL;
+        u32 total_bitmap_size = bitmap->width * bitmap->height * bytes_per_pixel;
+        mem_zero_size_(total_bitmap_size, bitmap->memory);
+    }
+}
+
+internal
 Loaded_bmp
-make_empty_bitmap(Memory_arena* arena, i32 width, i32 height) {
+make_empty_bitmap(Memory_arena* arena, i32 width, i32 height, bool clear_to_zero = true) {
     Loaded_bmp result = {};
     
     u32 bytes_per_pixel = BITMAP_BYTES_PER_PIXEL;
@@ -877,8 +893,10 @@ make_empty_bitmap(Memory_arena* arena, i32 width, i32 height) {
     result.pitch  = result.width * bytes_per_pixel;
     
     u32 total_bitmap_size = width * height * bytes_per_pixel;
-    result.memory = mem_push_size_(arena, total_bitmap_size); 
-    mem_zero_size_(total_bitmap_size, result.memory);
+    result.memory = mem_push_size_(arena, total_bitmap_size);
+    
+    if (clear_to_zero)
+        mem_zero_size_(total_bitmap_size, result.memory);
     
     return result;
 }
@@ -887,12 +905,12 @@ extern "C"
 void 
 game_update_render(thread_context* thread, Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer) {
     
-#if 1
+#if 0
     run_tests();
 #endif
     
-    macro_assert(sizeof(Game_state) <= memory->permanent_storage_size);
     macro_assert(&input->gamepad[0].back - &input->gamepad[0].buttons[0] == macro_array_count(input->gamepad[0].buttons) - 1); // we need to ensure that we take last element in union
+    macro_assert(sizeof(Game_state) <= memory->permanent_storage_size);
     
     Game_state* game_state = (Game_state*)memory->permanent_storage;
     
@@ -902,7 +920,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         const u32 tiles_per_height = 9;
         
         // init memory arenas
-        initialize_arena(&game_state->world_arena, 
+        initialize_arena(&game_state->world_arena,
                          memory->permanent_storage_size - sizeof(Game_state),
                          (u8*)memory->permanent_storage + sizeof(Game_state));
         
@@ -1159,18 +1177,37 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                 add_familiar(game_state, camera_tile_x + familiar_offset_x, camera_tile_y + familiar_offset_y, camera_tile_z);
         }
         
-        f32 screen_width = (f32)bitmap_buffer->width;
-        f32 screen_height = (f32)bitmap_buffer->height;
-        f32 max_z_scale = 0.5f;
-        f32 ground_overscan = 1.5f;
-        u32 ground_buffer_width = round_f32_u32(ground_overscan * screen_width);
-        u32 ground_buffer_height = round_f32_u32(ground_overscan * screen_height);
-        
-        game_state->ground_buffer = make_empty_bitmap(&game_state->world_arena, ground_buffer_width, ground_buffer_height);
-        game_state->ground_buffer_pos = game_state->camera_pos;
-        draw_ground_chunk(game_state, &game_state->ground_buffer, &game_state->ground_buffer_pos);
-        
         memory->is_initialized = true;
+    }
+    
+    // transient init
+    macro_assert(sizeof(Transient_state) <= memory->transient_storage_size);
+    Transient_state* tran_state = (Transient_state*)memory->transient_storage;
+    if (!tran_state->is_initialized) {
+        
+        initialize_arena(&tran_state->tran_arena,
+                         memory->transient_storage_size - sizeof(Transient_state),
+                         (u8*)memory->transient_storage + sizeof(Transient_state));
+        
+        u32 ground_buffer_width  = 256;
+        u32 ground_buffer_height = 256;
+        
+        tran_state->ground_buffer_count = 128;
+        tran_state->ground_buffer_list = mem_push_array(&tran_state->tran_arena, tran_state->ground_buffer_count, Ground_buffer);
+        
+        for (u32 ground_buffer_index = 0; ground_buffer_index < tran_state->ground_buffer_count; ground_buffer_index++) {
+            Ground_buffer* ground_buffer = tran_state->ground_buffer_list + ground_buffer_index;
+            tran_state->ground_buffer_template = make_empty_bitmap(&tran_state->tran_arena,
+                                                                   ground_buffer_width,
+                                                                   ground_buffer_height,
+                                                                   false);
+            ground_buffer->memory = tran_state->ground_buffer_template.memory;
+            ground_buffer->position = null_position();
+        }
+        
+        fill_ground_chunk(tran_state, game_state, tran_state->ground_buffer_list, &game_state->camera_pos);
+        
+        tran_state->is_initialized = true;
     }
     
     World* world = game_state->world;
@@ -1245,6 +1282,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     
     // sim
     Sim_region* sim_region = {};
+    Temp_memory sim_memory = {};
     {
         u32 tile_span_x = 17 * 3;
         u32 tile_span_y = 9  * 3;
@@ -1256,10 +1294,9 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         };
         
         Rect3 camera_bounds = rect_center_dim(v3 {0, 0, 0}, world->tile_side_meters * tile_spans);
-        Memory_arena sim_arena;
-        initialize_arena(&sim_arena, memory->transient_storage_size, memory->transient_storage);
         
-        sim_region = begin_sim(&sim_arena, 
+        sim_memory = begin_temp_memory(&tran_state->tran_arena);
+        sim_region = begin_sim(&tran_state->tran_arena, 
                                game_state, game_state->world, 
                                game_state->camera_pos, camera_bounds, input->time_delta);
     }
@@ -1276,17 +1313,30 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     f32 screen_center_x = (f32)draw_buffer->width / 2;
     f32 screen_center_y = (f32)draw_buffer->height / 2;
     
-    v2 ground = {
-        screen_center_x - 0.5f * (f32)game_state->ground_buffer.width,
-        screen_center_y - 0.5f * (f32)game_state->ground_buffer.height
-    };
-    
-    v3 delta = subtract_pos(game_state->world, &game_state->ground_buffer_pos, &game_state->camera_pos);
-    delta.y = -delta.y;
-    ground += game_state->meters_to_pixels * delta.xy;
     // draw background
     draw_bitmap(draw_buffer, &game_state->background, v2 {0, 0});
-    draw_bitmap(draw_buffer, &game_state->ground_buffer, ground);
+    
+    // draw ground
+    for (u32 ground_buffer_index = 0; ground_buffer_index < tran_state->ground_buffer_count; ground_buffer_index++) {
+        Ground_buffer* ground_buffer = tran_state->ground_buffer_list + ground_buffer_index;
+        
+        if (!is_position_valid(ground_buffer->position))
+            continue;
+        
+        Loaded_bmp bitmap = tran_state->ground_buffer_template;
+        bitmap.memory = ground_buffer->memory;
+        
+        v3 delta = game_state->meters_to_pixels * subtract_pos(game_state->world, 
+                                                               &ground_buffer->position, 
+                                                               &game_state->camera_pos);
+        
+        v2 ground = {
+            screen_center_x + delta.x - 0.5f * (f32)bitmap.width,
+            screen_center_y - delta.y - 0.5f * (f32)bitmap.height
+        };
+        
+        draw_bitmap(draw_buffer, &bitmap, ground);
+    }
     
     // move, group and draw
     {
@@ -1494,6 +1544,9 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     draw_rect(draw_buffer, diff.xy, v2 {10.0f, 10.0f}, v3{1.0f,1.0f,0.0f});
     end_sim(sim_region, game_state);
     
+    end_temp_memory(sim_memory);
+    check_arena(&game_state->world_arena);
+    check_arena(&tran_state->tran_arena);
 #if 0
     subpixel_test_update(draw_buffer, game_state, input, gold_v3);
 #endif

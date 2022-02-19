@@ -1,4 +1,4 @@
-// https://youtu.be/U5AAAaiMlYQ?t=2714
+// https://youtu.be/QhjuxnQyBwk?t=2723
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include <stdio.h>
@@ -10,7 +10,7 @@
 #include "main.h"
 #include "utils.h"
 #include "utils.cpp"
-#include "game.h"
+#include "game.h" 
 
 /* Add to win32 layer
 - save games locations
@@ -29,7 +29,7 @@
 
 // if for recording of input and gamestate we use disk this will allocate file of PERMANENT_MEMORY_SIZE_MB + TRANSIENT_MEMORY_SIZE_MB size, and that will hang game till it's written
 global_var const i32           PERMANENT_MEMORY_SIZE_MB = 64;
-global_var const i32           TRANSIENT_MEMORY_SIZE_MB = 512;
+global_var const i32           TRANSIENT_MEMORY_SIZE_MB = 256;
 
 global_var bool                Global_game_running = true;
 global_var bool                Global_pause_sound_debug_sync = false;
@@ -739,7 +739,7 @@ create_default_window(LRESULT win32_window_processor, HINSTANCE current_instance
     return result;
 }
 
-i32 
+i32
 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
     
     LARGE_INTEGER performance_freq, end_counter, last_counter, flip_wall_clock;
@@ -833,7 +833,8 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
         // That would allow Translation lookaside buffer (TLB) (cpu table between physical memory and virtual) to work faster, maybe.
         win_state.total_memory_size = memory.permanent_storage_size + memory.transient_storage_size;
         win_state.game_memory_block = VirtualAlloc(base_address,
-                                                   (size_t)win_state.total_memory_size, MEM_RESERVE|MEM_COMMIT, 
+                                                   (size_t)win_state.total_memory_size,
+                                                   MEM_RESERVE|MEM_COMMIT, 
                                                    PAGE_READWRITE);
         
         memory.permanent_storage = win_state.game_memory_block;

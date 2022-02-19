@@ -9,6 +9,11 @@ Enter will spawn player
 WASD, arrows moves him
 Space - jumps
 
+
+
+day84: 
+- ground
+
 day77:
 - some sort of stairs/ramp
 
