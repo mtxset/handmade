@@ -78,14 +78,15 @@ struct Game_input {
     Game_controller_input gamepad[5];
 };
 
-struct Game_memory {
+typedef struct Game_memory {
     bool is_initialized;
-    u64 permanent_storage_size;
-    u64 transient_storage_size;
     
+    u64 permanent_storage_size;
     void* permanent_storage;
+    
+    u64 transient_storage_size;
     void* transient_storage;
-};
+} Game_memory;
 
 // https://www.youtube.com/watch?v=es-Bou2dIdY
 struct thread_context {
@@ -101,6 +102,13 @@ struct drop {
 struct Memory_arena {
     u8* base;
     size_t size;
+    size_t used;
+    
+    u32 temp_count;
+};
+
+struct Temp_memory {
+    Memory_arena* arena;
     size_t used;
 };
 
@@ -204,9 +212,15 @@ struct Pairwise_collision_rule {
     Pairwise_collision_rule* next_in_hash;
 };
 
+struct Ground_buffer {
+    World_position position;
+    void* memory;
+};
+
 struct Game_state {
     Memory_arena world_arena;
     World* world;
+    
     World_position camera_pos;
     f32 t_sine;
     
@@ -216,8 +230,6 @@ struct Game_state {
     
     u32 low_entity_count;
     Low_entity low_entity_list[100000];
-    
-    Loaded_bmp ground_buffer;
     
     Loaded_bmp grass[2];
     Loaded_bmp stone[4];
@@ -243,8 +255,6 @@ struct Game_state {
     Sim_entity_collision_group* wall_collision;
     Sim_entity_collision_group* std_room_collision;
     
-    World_position ground_buffer_pos;
-    
     Hero_bitmaps hero_bitmaps[4];
 #if 0
     Pacman_state pacman_state;
@@ -256,6 +266,14 @@ struct Game_state {
     
     i32 drop_index;
     drop drops[32];
+};
+
+struct Transient_state {
+    bool is_initialized;
+    Memory_arena tran_arena;
+    u32 ground_buffer_count;
+    Loaded_bmp ground_buffer_template;
+    Ground_buffer* ground_buffer_list;
 };
 
 struct Entity_visible_piece_group {

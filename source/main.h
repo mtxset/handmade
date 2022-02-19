@@ -56,8 +56,8 @@ struct Win32_game_code {
 };
 
 struct Win32_state {
-    void* game_memory_block;
     u64 total_memory_size;
+    void* game_memory_block;
     
     HANDLE recording_file_handle;
     HANDLE playing_file_handle;
@@ -76,11 +76,40 @@ void initialize_arena(Memory_arena* arena, size_t size, void* base) {
     arena->size = size;
     arena->base = (u8*)base;
     arena->used = 0;
+    arena->temp_count = 0;
 }
 
 #define mem_push_struct(arena, type)       (type *)mem_push_size_(arena, sizeof(type))
 #define mem_push_array(arena, count, type) (type *)mem_push_size_(arena, (count) * sizeof(type))
 #define mem_zero_struct(instance)                  mem_zero_size_(sizeof(instance), &(instance))
+
+inline
+Temp_memory
+begin_temp_memory(Memory_arena* arena) {
+    Temp_memory result;
+    
+    result.arena = arena;
+    result.used = arena->used;
+    arena->temp_count++;
+    
+    return result;
+}
+
+inline
+void
+end_temp_memory(Temp_memory temp_memory) {
+    Memory_arena* arena = temp_memory.arena;
+    macro_assert(arena->used >= temp_memory.used);
+    arena->used = temp_memory.used;
+    macro_assert(arena->temp_count > 0);
+    arena->temp_count--;
+}
+
+inline
+void
+check_arena(Memory_arena* arena) {
+    macro_assert(arena->temp_count == 0);
+}
 
 inline
 void* 
