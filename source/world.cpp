@@ -3,7 +3,7 @@
 
 global_var const i32 TILE_CHUNK_SAFE_MARGIN = (INT32_MAX / 64);
 global_var const i32 TILE_CHUNK_UNINITIALIZED = INT32_MAX;
-global_var const i32 TILES_PER_CHUNK = 16;
+global_var const i32 TILES_PER_CHUNK = 8;
 
 inline
 bool is_position_valid(World_position pos) {
@@ -124,23 +124,6 @@ bool are_in_same_chunk(World* world, World_position* pos_x, World_position* pos_
 }
 
 internal
-World_position 
-chunk_pos_from_tile_pos(World* world, i32 abs_tile_x, i32 abs_tile_y, i32 abs_tile_z, v3 additional_offset = v3{0,0,0}) {
-    
-    World_position result = {};
-    World_position base_pos = {};
-    
-    v3 tile_side_dim = v3 { world->tile_side_meters, world->tile_side_meters, world->tile_depth_meters };
-    v3 abs_tile_dim = v3 {(f32)abs_tile_x, (f32)abs_tile_y, (f32)abs_tile_z};
-    v3 offset = hadamard(tile_side_dim, abs_tile_dim);
-    
-    result = map_into_chunk_space(world, base_pos, offset + additional_offset);
-    macro_assert(is_canonical(world, result._offset));
-    
-    return result;
-}
-
-internal
 v3
 subtract_pos(World* world, World_position* pos_a, World_position* pos_b) {
     v3 result = {};
@@ -157,7 +140,8 @@ subtract_pos(World* world, World_position* pos_a, World_position* pos_b) {
 }
 
 internal
-World_position centered_chunk_point(u32 chunk_x, u32 chunk_y, u32 chunk_z) {
+World_position 
+centered_chunk_point(u32 chunk_x, u32 chunk_y, u32 chunk_z) {
     
     World_position result = {};
     
@@ -169,14 +153,19 @@ World_position centered_chunk_point(u32 chunk_x, u32 chunk_y, u32 chunk_z) {
 }
 
 internal
-void init_world(World* world, f32 tile_side_meters, f32 tile_depth_meters) {
-    world->tile_side_meters = tile_side_meters;
-    world->chunk_dim_meters = { 
-        (f32)TILES_PER_CHUNK * tile_side_meters,
-        (f32)TILES_PER_CHUNK * tile_side_meters,
-        tile_depth_meters
-    };
-    world->tile_depth_meters = tile_depth_meters;
+World_position 
+centered_chunk_point(World_chunk* chunk) {
+    
+    World_position result = {};
+    
+    result = centered_chunk_point(chunk->chunk_x, chunk->chunk_y, chunk->chunk_z);
+    
+    return result;
+}
+
+internal
+void init_world(World* world, v3 chunk_dim_meters) {
+    world->chunk_dim_meters = chunk_dim_meters;
     world->first_free = 0;
     
     for (u32 tile_chunk_index = 0; tile_chunk_index < macro_array_count(world->chunk_hash); tile_chunk_index++) {

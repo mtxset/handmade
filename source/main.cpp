@@ -1,4 +1,4 @@
-// https://youtu.be/QhjuxnQyBwk?t=2723
+// https://youtu.be/TxowSnU2_cQ?t=2855
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include <stdio.h>
@@ -57,7 +57,7 @@ global_var direct_sound_create* DirectSoundCreate_;                             
 #define DirectSoundCreate DirectSoundCreate_                                                                // change name by which we reference upper-line mentioned variable
 
 internal
-void 
+void
 win32_get_exe_filename(Win32_state* win_state) {
     auto current_file_name_size = GetModuleFileNameA(0, win_state->exe_file_name, sizeof(win_state->exe_file_name));
     win_state->last_slash = win_state->exe_file_name;
@@ -68,7 +68,7 @@ win32_get_exe_filename(Win32_state* win_state) {
 }
 
 internal
-void 
+void
 win32_build_exe_filename(Win32_state* win_state, char* filename, i32 dest_count, char* dest) {
     string_concat(win_state->last_slash - win_state->exe_file_name, win_state->exe_file_name, 
                   string_len(filename), filename, dest_count, dest);
@@ -84,8 +84,8 @@ win32_get_input_file_location(Win32_state* win_state, i32 index, i32 dest_count,
 // disgusting
 #include "record_memory.cpp"
 
-internal 
-void 
+internal
+void
 win32_init_direct_sound(HWND window, i32 samples_per_second, i32 buffer_size) {
     // NOTE: Load the library
     HMODULE DSoundLibrary = LoadLibrary("dsound.dll");

@@ -29,8 +29,6 @@ struct World_chunk {
 };
 
 struct World {
-    f32 tile_side_meters;
-    f32 tile_depth_meters;
     v3 chunk_dim_meters;
     
     World_entity_block* first_free;
