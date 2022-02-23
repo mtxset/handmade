@@ -656,7 +656,8 @@ struct Rect2 {
 };
 
 inline
-v2 get_min_corner(Rect2 rect) {
+v2 
+get_min_corner(Rect2 rect) {
     v2 result;
     
     result = rect.min;
@@ -877,6 +878,16 @@ add_radius_to(Rect3 rect, v3 radius) {
     return result;
 }
 
+inline
+Rect3
+offset(Rect3 rect, v3 offset) {
+    Rect3 result;
+    
+    result.min = rect.min + offset;
+    result.max = rect.max + offset;
+    
+    return result;
+}
 
 inline
 bool

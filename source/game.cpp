@@ -138,6 +138,17 @@ draw_rect(Loaded_bmp* buffer, v2 start, v2 end, v3 color) {
     }
 }
 
+inline
+void 
+draw_rect_outline(Loaded_bmp* buffer, v2 start, v2 end, v3 color, f32 thickness = 2.0f) {
+    
+    draw_rect(buffer, v2{start.x - thickness, start.y - thickness}, v2{end.x   + thickness, start.y + thickness}, color);
+    draw_rect(buffer, v2{start.x - thickness, end.y   - thickness}, v2{end.x   + thickness, end.y   + thickness}, color);
+    
+    draw_rect(buffer, v2{start.x - thickness, start.y - thickness}, v2{start.x + thickness, end.y + thickness}, color);
+    draw_rect(buffer, v2{end.x   - thickness, start.y - thickness}, v2{end.x   + thickness, end.y + thickness}, color);
+}
+
 internal
 void 
 debug_read_and_write_random_file() {
@@ -596,6 +607,26 @@ add_grounded_entity(Game_state* game_state, Entity_type type, World_position pos
 }
 
 internal
+World_position 
+chunk_pos_from_tile_pos(World* world, i32 abs_tile_x, i32 abs_tile_y, i32 abs_tile_z, v3 additional_offset = v3{0,0,0}) {
+    
+    World_position result = {};
+    World_position base_pos = {};
+    
+    f32 tile_side_meters = 1.4f;
+    f32 tile_depth_meters = 3.0f;
+    
+    v3 tile_side_dim = v3 { tile_side_meters, tile_side_meters, tile_depth_meters };
+    v3 abs_tile_dim = v3 {(f32)abs_tile_x, (f32)abs_tile_y, (f32)abs_tile_z};
+    v3 offset = hadamard(tile_side_dim, abs_tile_dim);
+    
+    result = map_into_chunk_space(world, base_pos, offset + additional_offset);
+    macro_assert(is_canonical(world, result._offset));
+    
+    return result;
+}
+
+internal
 Add_low_entity_result
 add_std_room(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
     
@@ -686,7 +717,7 @@ add_stairs(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_
     
     add_flags(&entity.low->sim, Entity_flag_collides);
     entity.low->sim.walkable_dim = entity.low->sim.collision->total_volume.dim.xy;
-    entity.low->sim.walkable_height = game_state->world->tile_depth_meters;
+    entity.low->sim.walkable_height = game_state->typical_floor_height;
     
     return entity;
 }
@@ -901,6 +932,16 @@ make_empty_bitmap(Memory_arena* arena, i32 width, i32 height, bool clear_to_zero
     return result;
 }
 
+#if 0
+internal
+void
+request_ground_buffer(World_position center, Rect3 bounds) {
+    bounds = offset(bounds, center._offset);
+    center._offset = v3{0,0,0};
+    fill_ground_chunk(tran_state, game_state, tran_state->ground_buffer_list, &game_state->camera_pos);
+}
+#endif
+
 extern "C"
 void 
 game_update_render(thread_context* thread, Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer) {
@@ -909,11 +950,15 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     run_tests();
 #endif
     
+    u32 ground_buffer_width  = 256;
+    u32 ground_buffer_height = 256;
+    
     macro_assert(&input->gamepad[0].back - &input->gamepad[0].buttons[0] == macro_array_count(input->gamepad[0].buttons) - 1); // we need to ensure that we take last element in union
     macro_assert(sizeof(Game_state) <= memory->permanent_storage_size);
     
     Game_state* game_state = (Game_state*)memory->permanent_storage;
     
+    const f32 floor_height = 3.0f;
     // init game state
     if (!memory->is_initialized) {
         const u32 tiles_per_width  = 17;
@@ -930,24 +975,32 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         game_state->world = mem_push_struct(&game_state->world_arena, World);
         World* world = game_state->world;
         
-        const f32 meters_to_pixels = 1.4f;
-        const f32 floor_height = 3.0f;
-        init_world(world, meters_to_pixels, floor_height);
+        game_state->typical_floor_height = 3.0f;
+        game_state->meters_to_pixels = 42.0f;
+        game_state->pixels_to_meters = 1.0f / game_state->meters_to_pixels;
         
-        i32 tile_side_pixels = 60;
-        game_state->meters_to_pixels = (f32)tile_side_pixels / (f32)world->tile_side_meters;
+        v3 world_chunk_dim_meters = {
+            (f32)ground_buffer_width * game_state->pixels_to_meters,
+            (f32)ground_buffer_height * game_state->pixels_to_meters,
+            game_state->typical_floor_height
+        };
+        
+        init_world(world, world_chunk_dim_meters);
         
         // collision entries
         {
+            f32 tile_side_meters = 1.4f;
+            f32 tile_depth_meters = game_state->typical_floor_height;
+            
             game_state->null_collision = make_null_collision(game_state);
             
             v3 sword_dim = { 0.5f, 1.0f, 0.1f };
             game_state->sword_collision = make_simple_grounded_collision(game_state, sword_dim);
             
             v3 stair_dim = { 
-                game_state->world->tile_side_meters,
-                2.0f * game_state->world->tile_side_meters,
-                1.1f * game_state->world->tile_depth_meters
+                tile_side_meters,
+                2.0f * tile_side_meters,
+                1.1f * tile_depth_meters
             };
             game_state->stairs_collision = make_simple_grounded_collision(game_state, stair_dim);
             
@@ -958,16 +1011,16 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
             game_state->monster_collision = make_simple_grounded_collision(game_state, monster_dim);
             
             v3 wall_dim = { 
-                game_state->world->tile_side_meters,
-                game_state->world->tile_side_meters,
-                game_state->world->tile_depth_meters
+                tile_side_meters,
+                tile_side_meters,
+                tile_depth_meters
             };
             game_state->wall_collision = make_simple_grounded_collision(game_state, wall_dim);
             
             v3 room_dim = { 
-                tiles_per_width  * game_state->world->tile_side_meters,
-                tiles_per_height * game_state->world->tile_side_meters,
-                0.9f * game_state->world->tile_depth_meters
+                tiles_per_width  * tile_side_meters,
+                tiles_per_height * tile_side_meters,
+                0.9f * tile_depth_meters
             };
             game_state->std_room_collision = make_simple_grounded_collision(game_state, room_dim);
             
@@ -1189,9 +1242,6 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                          memory->transient_storage_size - sizeof(Transient_state),
                          (u8*)memory->transient_storage + sizeof(Transient_state));
         
-        u32 ground_buffer_width  = 256;
-        u32 ground_buffer_height = 256;
-        
         tran_state->ground_buffer_count = 128;
         tran_state->ground_buffer_list = mem_push_array(&tran_state->tran_arena, tran_state->ground_buffer_count, Ground_buffer);
         
@@ -1205,14 +1255,12 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
             ground_buffer->position = null_position();
         }
         
-        fill_ground_chunk(tran_state, game_state, tran_state->ground_buffer_list, &game_state->camera_pos);
-        
         tran_state->is_initialized = true;
     }
     
     World* world = game_state->world;
     
-    f32 meters_to_pixels = game_state->meters_to_pixels;
+    //f32 meters_to_pixels = game_state->meters_to_pixels;
     macro_assert(world);
     
     // check input and move player
@@ -1280,27 +1328,6 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         }
     }
     
-    // sim
-    Sim_region* sim_region = {};
-    Temp_memory sim_memory = {};
-    {
-        u32 tile_span_x = 17 * 3;
-        u32 tile_span_y = 9  * 3;
-        u32 tile_span_z = 1;
-        v3 tile_spans = {
-            (f32)tile_span_x,
-            (f32)tile_span_y,
-            (f32)tile_span_z
-        };
-        
-        Rect3 camera_bounds = rect_center_dim(v3 {0, 0, 0}, world->tile_side_meters * tile_spans);
-        
-        sim_memory = begin_temp_memory(&tran_state->tran_arena);
-        sim_region = begin_sim(&tran_state->tran_arena, 
-                               game_state, game_state->world, 
-                               game_state->camera_pos, camera_bounds, input->time_delta);
-    }
-    
     Loaded_bmp _draw_buffer = {};
     Loaded_bmp* draw_buffer = &_draw_buffer;
     draw_buffer->width  = bitmap_buffer->width;
@@ -1308,10 +1335,81 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     draw_buffer->pitch  = bitmap_buffer->pitch;
     draw_buffer->memory = bitmap_buffer->memory;
     
-    clear_screen(draw_buffer, color_gray_byte);
+    f32 meters_to_pixels = game_state->meters_to_pixels;
+    f32 pixels_to_meters = 1.0f / meters_to_pixels;
     
-    f32 screen_center_x = (f32)draw_buffer->width / 2;
-    f32 screen_center_y = (f32)draw_buffer->height / 2;
+    v2 screen_center = { 
+        (f32)draw_buffer->width  * 0.5f,
+        (f32)draw_buffer->height * 0.5f
+    };
+    
+    f32 screen_width_meters  = draw_buffer->width  * pixels_to_meters;
+    f32 screen_height_meters = draw_buffer->height * pixels_to_meters;
+    Rect3 camera_bounds_meters = rect_center_dim(v3 {0, 0, 0}, v3{screen_width_meters, screen_height_meters, 0.0f} );
+    if (1)
+    {
+        World_position min_chunk_pos = map_into_chunk_space(world, game_state->camera_pos, camera_bounds_meters.min);
+        World_position max_chunk_pos = map_into_chunk_space(world, game_state->camera_pos, camera_bounds_meters.max);
+        
+        for (i32 chunk_z = min_chunk_pos.chunk_z; chunk_z <= max_chunk_pos.chunk_z; chunk_z++) {
+            for (i32 chunk_y = min_chunk_pos.chunk_y; chunk_y <= max_chunk_pos.chunk_y; chunk_y++) {
+                for (i32 chunk_x = min_chunk_pos.chunk_x; chunk_x <= max_chunk_pos.chunk_x; chunk_x++) {
+                    
+                    //World_chunk* chunk = get_world_chunk(world, chunk_x, chunk_y, chunk_z);
+                    
+                    //if (!chunk)
+                    //continue;
+                    
+                    World_position chunk_center_pos = centered_chunk_point(chunk_x, chunk_y, chunk_z);
+                    v3 relative_pos = subtract_pos(world, &chunk_center_pos, &game_state->camera_pos);
+                    v2 screen_pos =  {
+                        screen_center.x + meters_to_pixels * relative_pos.x,
+                        screen_center.y - meters_to_pixels * relative_pos.y,
+                    };
+                    v2 screen_dim = meters_to_pixels * world->chunk_dim_meters.xy;
+                    
+                    bool found = false;
+                    Ground_buffer* empty_buffer = 0;
+                    for (u32 i = 0; i < tran_state->ground_buffer_count; i++) {
+                        Ground_buffer* ground_buffer = tran_state->ground_buffer_list + i;
+                        
+                        if (are_in_same_chunk(world, &ground_buffer->position, &chunk_center_pos)) {
+                            found = true;
+                            break;
+                        }
+                        else if (!is_position_valid(ground_buffer->position)) {
+                            empty_buffer = ground_buffer;
+                        }
+                    }
+                    
+                    if (!found && empty_buffer) {
+                        fill_ground_chunk(tran_state, game_state, empty_buffer, &chunk_center_pos);
+                    }
+                    
+                    draw_rect_outline(draw_buffer,
+                                      screen_pos - 0.5f * screen_dim,
+                                      screen_pos + 0.5f * screen_dim, 
+                                      yellow_v3);
+                }
+            }
+        }
+    }
+    
+    // sim
+    Sim_region* sim_region = {};
+    Temp_memory sim_memory = {};
+    {
+        v3 sim_bound_expansion = {15.0f, 15.0f, 15.0f};
+        Rect3 sim_camera_bounds = add_radius_to(camera_bounds_meters, sim_bound_expansion);
+        
+        sim_memory = begin_temp_memory(&tran_state->tran_arena);
+        sim_region = begin_sim(&tran_state->tran_arena, 
+                               game_state, game_state->world, 
+                               game_state->camera_pos, sim_camera_bounds, input->time_delta);
+    }
+    
+    
+    //clear_screen(draw_buffer, color_gray_byte);
     
     // draw background
     draw_bitmap(draw_buffer, &game_state->background, v2 {0, 0});
@@ -1331,8 +1429,8 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                                                                &game_state->camera_pos);
         
         v2 ground = {
-            screen_center_x + delta.x - 0.5f * (f32)bitmap.width,
-            screen_center_y - delta.y - 0.5f * (f32)bitmap.height
+            screen_center.x + delta.x - 0.5f * (f32)bitmap.width,
+            screen_center.y - delta.y - 0.5f * (f32)bitmap.height
         };
         
         draw_bitmap(draw_buffer, &bitmap, ground);
@@ -1516,8 +1614,8 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                 f32 z_fudge = 1.0f + 0.1f * (entity_base_point.z + piece->offset_z);
                 
                 v2 entity_ground_point = { 
-                    screen_center_x + entity_base_point.x * z_fudge * meters_to_pixels,
-                    screen_center_y - entity_base_point.y * z_fudge * meters_to_pixels
+                    screen_center.x + entity_base_point.x * z_fudge * meters_to_pixels,
+                    screen_center.y - entity_base_point.y * z_fudge * meters_to_pixels
                 };
                 f32 entity_z = -meters_to_pixels * entity_base_point.z;
                 
