@@ -27,4 +27,9 @@
 #include <intrin.h>
 #endif
 
+#include <float.h>
+
+global_var f32 MAX_F32 = 3.402823466e+38F;
+global_var f32 MIN_F32 = 1.175494351e-38F;
+
 #endif //PLATFORM_H

@@ -76,6 +76,8 @@ struct Game_input {
     
     // 1 - keyboard, other gamepads
     Game_controller_input gamepad[5];
+    
+    bool executable_reloaded;
 };
 
 typedef struct Game_memory {

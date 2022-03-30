@@ -1,4 +1,4 @@
-// https://youtu.be/TxowSnU2_cQ?t=2855
+// https://youtu.be/YAaqiKuSmsk?t=2621
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include <stdio.h>
@@ -150,7 +150,7 @@ win32_init_direct_sound(HWND window, i32 samples_per_second, i32 buffer_size) {
 }
 
 internal
-void 
+void
 win32_clear_sound_buffer(Win32_sound_output* sound_output) {
     void* region_one;
     DWORD region_one_size;
@@ -178,7 +178,7 @@ win32_clear_sound_buffer(Win32_sound_output* sound_output) {
 }
 
 internal
-void 
+void
 win32_fill_sound_buffer(Win32_sound_output* sound_output, DWORD bytes_to_lock, DWORD bytes_to_write, Game_sound_buffer* source_buffer) {
     void* region_one;
     DWORD region_one_size;
@@ -216,8 +216,8 @@ win32_fill_sound_buffer(Win32_sound_output* sound_output, DWORD bytes_to_lock, D
     Global_sound_buffer->Unlock(region_one, region_one_size, region_two, region_two_size);
 }
 
-internal 
-f32 
+internal
+f32
 win32_xinput_cutoff_deadzone(SHORT thumb_value) {
     f32 result = 0;
     auto dead_zone_threshold = XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE;
@@ -243,8 +243,8 @@ win32_get_last_write_time(char* filename) {
     return result;
 }
 
-internal 
-Win32_game_code 
+internal
+Win32_game_code
 win32_load_game_code(char* source_dll_filepath, char* source_temp_filepath, char* lock_filepath) {
     Win32_game_code result = {};
     
@@ -275,8 +275,8 @@ win32_load_game_code(char* source_dll_filepath, char* source_temp_filepath, char
     return result;
 }
 
-internal 
-void 
+internal
+void
 win32_unload_game_code(Win32_game_code* game_code) {
     if (game_code->game_code_dll) {
         FreeLibrary(game_code->game_code_dll);
@@ -288,8 +288,8 @@ win32_unload_game_code(Win32_game_code* game_code) {
     game_code->get_sound_samples = 0;
 }
 
-internal 
-bool 
+internal
+bool
 win32_load_xinput() {
     // looks locally, looks in windows
     // support only for some windows
@@ -315,7 +315,7 @@ win32_load_xinput() {
 }
 
 internal
-Win32_window_dimensions 
+Win32_window_dimensions
 get_window_dimensions(HWND window) {
     
     Win32_window_dimensions result;
@@ -331,7 +331,7 @@ get_window_dimensions(HWND window) {
 
 // DIB - device independant section
 internal
-void 
+void
 win32_resize_dib_section(Win32_bitmap_buffer* bitmap_buffer, i32 width, i32 height) {
     
     if (bitmap_buffer->memory) {
@@ -357,7 +357,7 @@ win32_resize_dib_section(Win32_bitmap_buffer* bitmap_buffer, i32 width, i32 heig
 }
 
 internal
-void 
+void
 win32_display_buffer_to_window(Win32_bitmap_buffer* bitmap_buffer, HDC device_context, i32 window_width, i32 window_height) {
     i32 offset_x = 10;
     i32 offset_y = 10;
@@ -396,14 +396,14 @@ win32_display_buffer_to_window(Win32_bitmap_buffer* bitmap_buffer, HDC device_co
 }
 
 internal
-void 
+void
 win32_process_xinput_button(DWORD xinput_button_state, DWORD button_bit, Game_button_state* old_state, Game_button_state* new_state) {
     new_state->ended_down = (xinput_button_state & button_bit) == button_bit;
     new_state->half_transition_count = old_state->ended_down != new_state->ended_down ? 1 : 0;
 }
 
 internal
-void 
+void
 win32_process_keyboard_input(Game_button_state* new_state, bool is_down) {
     if (new_state->ended_down != is_down){ 
         new_state->ended_down = is_down;
@@ -706,7 +706,7 @@ win32_debug_sync_display(Win32_bitmap_buffer* backbuffer, i32 marker_count, i32 
 }
 
 internal
-HWND 
+HWND
 create_default_window(LRESULT win32_window_processor, HINSTANCE current_instance, char* class_name, i32 initial_window_width, i32 initial_window_height) {
     
     HWND result = {};
@@ -872,6 +872,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     
     while (Global_game_running) {
         
+        new_input->executable_reloaded = false;
         new_input->time_delta = target_seconds_per_frame;
         
         // check if we need to reload game code
@@ -880,7 +881,12 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
             
             if (CompareFileTime(&new_dll_write_time, &game_code.dll_last_write_time) != 0) {
                 win32_unload_game_code(&game_code);
-                game_code = win32_load_game_code(game_code_full_path, temp_game_code_full_path, lock_file_full_path);
+                
+                game_code = win32_load_game_code(game_code_full_path, 
+                                                 temp_game_code_full_path, 
+                                                 lock_file_full_path);
+                
+                new_input->executable_reloaded = true;
             }
         }
         
