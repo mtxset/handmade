@@ -21,7 +21,7 @@
 #endif
 
 internal
-void 
+void
 clear_screen(Loaded_bmp* bitmap_buffer, u32 color) {
     // 8 bit pointer to the beginning of the memory
     // 8 bit so we have arithemtic by 1 byte
@@ -82,7 +82,7 @@ render_255_gradient(Loaded_bmp* bitmap_buffer, i32 blue_offset, i32 green_offset
 }
 
 internal
-void 
+void
 game_output_sound(Game_sound_buffer* sound_buffer, i32 tone_hz, Game_state* state) {
     i16 tone_volume = 3000;
     i32 wave_period = sound_buffer->samples_per_second / tone_hz;
@@ -112,7 +112,7 @@ game_output_sound(Game_sound_buffer* sound_buffer, i32 tone_hz, Game_state* stat
 }
 
 internal
-void 
+void
 draw_rect(Loaded_bmp* buffer, v2 start, v2 end, v3 color) {
     u32 color_hex = 0;
     
@@ -139,7 +139,7 @@ draw_rect(Loaded_bmp* buffer, v2 start, v2 end, v3 color) {
 }
 
 inline
-void 
+void
 draw_rect_outline(Loaded_bmp* buffer, v2 start, v2 end, v3 color, f32 thickness = 2.0f) {
     
     draw_rect(buffer, v2{start.x - thickness, start.y - thickness}, v2{end.x   + thickness, start.y + thickness}, color);
@@ -150,7 +150,7 @@ draw_rect_outline(Loaded_bmp* buffer, v2 start, v2 end, v3 color, f32 thickness 
 }
 
 internal
-void 
+void
 debug_read_and_write_random_file() {
     auto bitmap_read = debug_read_entire_file(__FILE__);
     if (bitmap_read.content) {
@@ -160,7 +160,7 @@ debug_read_and_write_random_file() {
 }
 
 internal
-void 
+void
 draw_pixel(Loaded_bmp* bitmap_buffer, v2 pos, v3 color) {
     v2 end = { pos.x, pos.y };
     
@@ -181,7 +181,7 @@ draw_pixel(Loaded_bmp* bitmap_buffer, v2 pos, v3 color) {
 }
 
 internal
-void 
+void
 draw_circle(Loaded_bmp* bitmap_buffer, v2 start, f32 radius, v3 color) {
     // y = sin (angle) * r
     // x = cos (angle) * r
@@ -195,7 +195,7 @@ draw_circle(Loaded_bmp* bitmap_buffer, v2 start, f32 radius, v3 color) {
 }
 
 internal
-void 
+void
 draw_line(Loaded_bmp* bitmap_buffer, v2 start, v2 end, v3 color, u32 points = 100) {
     f32 m = (end.y - start.y) / (end.x - start.x);
     // m - slope
@@ -227,7 +227,7 @@ draw_line(Loaded_bmp* bitmap_buffer, v2 start, v2 end, v3 color, u32 points = 10
 }
 
 internal
-void 
+void
 vectors_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) {
     clear_screen(bitmap_buffer, color_black_byte);
     
@@ -257,7 +257,7 @@ vectors_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) 
 }
 
 internal
-void 
+void
 each_pixel(Loaded_bmp* bitmap_buffer, Game_state* state, f32 time_delta) {
     clear_screen(bitmap_buffer, color_black_byte);
     
@@ -281,7 +281,7 @@ each_pixel(Loaded_bmp* bitmap_buffer, Game_state* state, f32 time_delta) {
 }
 
 internal
-void 
+void
 drops_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) {
     
     // draw mouse pointer
@@ -352,7 +352,7 @@ drops_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) {
 #endif
 
 internal
-Loaded_bmp 
+Loaded_bmp
 debug_load_bmp(char* file_name) {
     Loaded_bmp result = {};
     
@@ -420,7 +420,7 @@ debug_load_bmp(char* file_name) {
 }
 
 internal
-void 
+void
 draw_bitmap(Loaded_bmp* bitmap_buffer, Loaded_bmp* bitmap, v2 start, f32 c_alpha = 1.0f) {
     
     i32 min_x = round_f32_i32(start.x);
@@ -506,7 +506,7 @@ draw_bitmap(Loaded_bmp* bitmap_buffer, Loaded_bmp* bitmap, v2 start, f32 c_alpha
 }
 
 internal
-void 
+void
 subpixel_test_update(Loaded_bmp* buffer, Game_state* game_state, Game_input* input, v3 color) {
     
     clear_screen(buffer, color_black_byte);
@@ -562,7 +562,7 @@ subpixel_test_update(Loaded_bmp* buffer, Game_state* game_state, Game_input* inp
 }
 
 internal
-Add_low_entity_result 
+Add_low_entity_result
 add_low_entity(Game_state* game_state, Entity_type type, World_position pos) {
     macro_assert(game_state->low_entity_count < macro_array_count(game_state->low_entity_list));
     
@@ -584,7 +584,7 @@ add_low_entity(Game_state* game_state, Entity_type type, World_position pos) {
 }
 
 internal
-void 
+void
 init_hit_points(Low_entity* entity_low, u32 hit_point_count) {
     macro_assert(hit_point_count <= macro_array_count(entity_low->sim.hit_point));
     entity_low->sim.hit_points_max = hit_point_count;
@@ -607,7 +607,7 @@ add_grounded_entity(Game_state* game_state, Entity_type type, World_position pos
 }
 
 internal
-World_position 
+World_position
 chunk_pos_from_tile_pos(World* world, i32 abs_tile_x, i32 abs_tile_y, i32 abs_tile_z, v3 additional_offset = v3{0,0,0}) {
     
     World_position result = {};
@@ -639,7 +639,7 @@ add_std_room(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_til
 }
 
 internal
-Add_low_entity_result 
+Add_low_entity_result
 add_sword(Game_state* game_state) {
     Add_low_entity_result entity = add_low_entity(game_state, Entity_type_sword, null_position());
     
@@ -650,7 +650,7 @@ add_sword(Game_state* game_state) {
 }
 
 internal
-Add_low_entity_result 
+Add_low_entity_result
 add_player(Game_state* game_state) {
     
     World_position pos = game_state->camera_pos;
@@ -671,7 +671,7 @@ add_player(Game_state* game_state) {
 }
 
 internal
-Add_low_entity_result 
+Add_low_entity_result
 add_monster(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
     
     World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
@@ -685,7 +685,7 @@ add_monster(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile
 }
 
 internal
-Add_low_entity_result 
+Add_low_entity_result
 add_familiar(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
     
     World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
@@ -697,7 +697,7 @@ add_familiar(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_til
 }
 
 internal
-Add_low_entity_result 
+Add_low_entity_result
 add_wall(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
     
     World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
@@ -709,7 +709,7 @@ add_wall(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z)
 }
 
 internal
-Add_low_entity_result 
+Add_low_entity_result
 add_stairs(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
     
     World_position pos = chunk_pos_from_tile_pos(game_state->world, abs_tile_x, abs_tile_y, abs_tile_z);
@@ -737,7 +737,7 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
 #else
 
 inline
-void 
+void
 push_piece(Entity_visible_piece_group* group, Loaded_bmp* bitmap, 
            v2 offset, f32 offset_z, v2 align, v2 dim, v4 color, f32 entity_zc) {
     macro_assert(group->count < macro_array_count(group->piece_list));
@@ -752,20 +752,20 @@ push_piece(Entity_visible_piece_group* group, Loaded_bmp* bitmap,
 }
 
 inline
-void 
+void
 push_bitmap(Entity_visible_piece_group* group, Loaded_bmp* bitmap, 
             v2 offset, f32 offset_z, v2 align, f32 alpha = 1.0f, f32 entity_zc = 1.0f) {
     push_piece(group, bitmap, offset, offset_z, align, v2 {0, 0}, v4 {1.0f, 1.0f, 1.0f, alpha }, entity_zc);
 }
 
 inline
-void 
+void
 push_rect(Entity_visible_piece_group* group, v2 offset, f32 offset_z, v2 dim, v4 color, f32 entity_zc = 1.0f) {
     push_piece(group, 0, offset, offset_z, v2{0, 0}, dim, color, entity_zc);
 }
 
 inline
-void 
+void
 push_rect_outline(Entity_visible_piece_group* group, v2 offset, f32 offset_z, v2 dim, v4 color, f32 entity_zc = 1.0f) {
     
     f32 thickness = 0.1f;
@@ -841,11 +841,7 @@ internal
 void
 fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_buffer* ground_buffer, World_position* chunk_pos) {
     
-    Random_series series = random_seed(139*chunk_pos->chunk_x + 593*chunk_pos->chunk_y + 329*chunk_pos->chunk_z);
-    
     u32 random_number_index = 0;
-    
-    //v2 center = 0.5f * v2_i32(bitmap_buffer->width, bitmap_buffer->height);
     
     Loaded_bmp bitmap_buffer = tran_state->ground_buffer_template;
     bitmap_buffer.memory = ground_buffer->memory;
@@ -855,50 +851,76 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
     f32 width = (f32)bitmap_buffer.width;
     f32 height = (f32)bitmap_buffer.height;
     
-    for (u32 grass_index = 0; grass_index < 100; grass_index++) {
-        macro_assert(random_number_index < macro_array_count(random_number_table));
-        
-        Loaded_bmp* stamp;
-        
-        if (random_choise(&series, 2)) {
-            u32 count = macro_array_count(game_state->grass);
-            u32 random_index = random_choise(&series, count);
+    for (i32 chunk_offset_y = -1; chunk_offset_y <= 1; chunk_offset_y++) {
+        for (i32 chunk_offset_x = -1; chunk_offset_x <= 1; chunk_offset_x++) {
             
-            stamp = game_state->grass + random_index;
+            i32 chunk_x = chunk_pos->chunk_x + chunk_offset_x;
+            i32 chunk_y = chunk_pos->chunk_y + chunk_offset_y;
+            i32 chunk_z = chunk_pos->chunk_z;
+            
+            Random_series series = random_seed(139 * chunk_x + 593 * chunk_y + 329 * chunk_z);
+            
+            v2 center = v2 {chunk_offset_x * width, -chunk_offset_y * height};
+            
+            for (u32 grass_index = 0; grass_index < 100; grass_index++) {
+                macro_assert(random_number_index < macro_array_count(random_number_table));
+                
+                Loaded_bmp* stamp;
+                
+                if (random_choise(&series, 2)) {
+                    u32 count = macro_array_count(game_state->grass);
+                    u32 random_index = random_choise(&series, count);
+                    
+                    stamp = game_state->grass + random_index;
+                }
+                else {
+                    u32 count = macro_array_count(game_state->stone);
+                    u32 random_index = random_choise(&series, count);
+                    stamp = game_state->stone + random_index;
+                }
+                
+                v2 bitmap_center = 0.5f * v2_i32(stamp->width, stamp->height);
+                v2 offset = {
+                    width  * random_unilateral(&series),
+                    height * random_unilateral(&series)
+                };
+                
+                v2 pos = center + offset - bitmap_center;
+                draw_bitmap(&bitmap_buffer, stamp, pos);
+            }
         }
-        else {
-            u32 count = macro_array_count(game_state->stone);
-            u32 random_index = random_choise(&series, count);
-            stamp = game_state->stone + random_index;
-        }
-        
-        v2 bitmap_center = 0.5f * v2_i32(stamp->width, stamp->height);
-        v2 offset = {
-            width  * random_unilateral(&series),
-            height * random_unilateral(&series)
-        };
-        
-        v2 pos = offset - bitmap_center;
-        draw_bitmap(&bitmap_buffer, stamp, pos);
     }
     
-    for (u32 grass_index = 0; grass_index < 100; grass_index++) {
-        macro_assert(random_number_index < macro_array_count(random_number_table));
-        
-        Loaded_bmp* stamp;
-        
-        u32 count = macro_array_count(game_state->tuft);
-        u32 random_index = random_choise(&series, count);
-        stamp = game_state->tuft + random_index;
-        
-        v2 bitmap_center = 0.5f * v2_i32(stamp->width, stamp->height);
-        v2 offset = {
-            width  * random_unilateral(&series),
-            height * random_unilateral(&series)
-        };
-        
-        v2 pos = offset - bitmap_center;
-        draw_bitmap(&bitmap_buffer, stamp, pos);
+    for (i32 chunk_offset_y = -1; chunk_offset_y <= 1; chunk_offset_y++) {
+        for (i32 chunk_offset_x = -1; chunk_offset_x <= 1; chunk_offset_x++) {
+            
+            i32 chunk_x = chunk_pos->chunk_x + chunk_offset_x;
+            i32 chunk_y = chunk_pos->chunk_y + chunk_offset_y;
+            i32 chunk_z = chunk_pos->chunk_z;
+            
+            Random_series series = random_seed(139 * chunk_x + 593 * chunk_y + 329 * chunk_z);
+            
+            v2 center = v2 {chunk_offset_x * width, -chunk_offset_y * height};
+            
+            for (u32 grass_index = 0; grass_index < 30; grass_index++) {
+                macro_assert(random_number_index < macro_array_count(random_number_table));
+                
+                Loaded_bmp* stamp;
+                
+                u32 count = macro_array_count(game_state->tuft);
+                u32 random_index = random_choise(&series, count);
+                stamp = game_state->tuft + random_index;
+                
+                v2 bitmap_center = 0.5f * v2_i32(stamp->width, stamp->height);
+                v2 offset = {
+                    width  * random_unilateral(&series),
+                    height * random_unilateral(&series)
+                };
+                
+                v2 pos = center + offset - bitmap_center;
+                draw_bitmap(&bitmap_buffer, stamp, pos);
+            }
+        }
     }
     
 }
@@ -1242,7 +1264,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                          memory->transient_storage_size - sizeof(Transient_state),
                          (u8*)memory->transient_storage + sizeof(Transient_state));
         
-        tran_state->ground_buffer_count = 128;
+        tran_state->ground_buffer_count = 32; // = 128;
         tran_state->ground_buffer_list = mem_push_array(&tran_state->tran_arena, tran_state->ground_buffer_count, Ground_buffer);
         
         for (u32 ground_buffer_index = 0; ground_buffer_index < tran_state->ground_buffer_count; ground_buffer_index++) {
@@ -1256,6 +1278,13 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         }
         
         tran_state->is_initialized = true;
+    }
+    
+    if (input->executable_reloaded) {
+        for (u32 ground_buffer_index = 0; ground_buffer_index < tran_state->ground_buffer_count; ground_buffer_index++) {
+            Ground_buffer* ground_buffer = tran_state->ground_buffer_list + ground_buffer_index;
+            ground_buffer->position = null_position();
+        }
     }
     
     World* world = game_state->world;
@@ -1346,70 +1375,6 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     f32 screen_width_meters  = draw_buffer->width  * pixels_to_meters;
     f32 screen_height_meters = draw_buffer->height * pixels_to_meters;
     Rect3 camera_bounds_meters = rect_center_dim(v3 {0, 0, 0}, v3{screen_width_meters, screen_height_meters, 0.0f} );
-    if (1)
-    {
-        World_position min_chunk_pos = map_into_chunk_space(world, game_state->camera_pos, camera_bounds_meters.min);
-        World_position max_chunk_pos = map_into_chunk_space(world, game_state->camera_pos, camera_bounds_meters.max);
-        
-        for (i32 chunk_z = min_chunk_pos.chunk_z; chunk_z <= max_chunk_pos.chunk_z; chunk_z++) {
-            for (i32 chunk_y = min_chunk_pos.chunk_y; chunk_y <= max_chunk_pos.chunk_y; chunk_y++) {
-                for (i32 chunk_x = min_chunk_pos.chunk_x; chunk_x <= max_chunk_pos.chunk_x; chunk_x++) {
-                    
-                    //World_chunk* chunk = get_world_chunk(world, chunk_x, chunk_y, chunk_z);
-                    
-                    //if (!chunk)
-                    //continue;
-                    
-                    World_position chunk_center_pos = centered_chunk_point(chunk_x, chunk_y, chunk_z);
-                    v3 relative_pos = subtract_pos(world, &chunk_center_pos, &game_state->camera_pos);
-                    v2 screen_pos =  {
-                        screen_center.x + meters_to_pixels * relative_pos.x,
-                        screen_center.y - meters_to_pixels * relative_pos.y,
-                    };
-                    v2 screen_dim = meters_to_pixels * world->chunk_dim_meters.xy;
-                    
-                    bool found = false;
-                    Ground_buffer* empty_buffer = 0;
-                    for (u32 i = 0; i < tran_state->ground_buffer_count; i++) {
-                        Ground_buffer* ground_buffer = tran_state->ground_buffer_list + i;
-                        
-                        if (are_in_same_chunk(world, &ground_buffer->position, &chunk_center_pos)) {
-                            found = true;
-                            break;
-                        }
-                        else if (!is_position_valid(ground_buffer->position)) {
-                            empty_buffer = ground_buffer;
-                        }
-                    }
-                    
-                    if (!found && empty_buffer) {
-                        fill_ground_chunk(tran_state, game_state, empty_buffer, &chunk_center_pos);
-                    }
-                    
-                    draw_rect_outline(draw_buffer,
-                                      screen_pos - 0.5f * screen_dim,
-                                      screen_pos + 0.5f * screen_dim, 
-                                      yellow_v3);
-                }
-            }
-        }
-    }
-    
-    // sim
-    Sim_region* sim_region = {};
-    Temp_memory sim_memory = {};
-    {
-        v3 sim_bound_expansion = {15.0f, 15.0f, 15.0f};
-        Rect3 sim_camera_bounds = add_radius_to(camera_bounds_meters, sim_bound_expansion);
-        
-        sim_memory = begin_temp_memory(&tran_state->tran_arena);
-        sim_region = begin_sim(&tran_state->tran_arena, 
-                               game_state, game_state->world, 
-                               game_state->camera_pos, sim_camera_bounds, input->time_delta);
-    }
-    
-    
-    //clear_screen(draw_buffer, color_gray_byte);
     
     // draw background
     draw_bitmap(draw_buffer, &game_state->background, v2 {0, 0});
@@ -1435,6 +1400,85 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         
         draw_bitmap(draw_buffer, &bitmap, ground);
     }
+    
+    if (1)
+    {
+        World_position min_chunk_pos = map_into_chunk_space(world, game_state->camera_pos, camera_bounds_meters.min);
+        World_position max_chunk_pos = map_into_chunk_space(world, game_state->camera_pos, camera_bounds_meters.max);
+        
+        for (i32 chunk_z = min_chunk_pos.chunk_z; chunk_z <= max_chunk_pos.chunk_z; chunk_z++) {
+            for (i32 chunk_y = min_chunk_pos.chunk_y; chunk_y <= max_chunk_pos.chunk_y; chunk_y++) {
+                for (i32 chunk_x = min_chunk_pos.chunk_x; chunk_x <= max_chunk_pos.chunk_x; chunk_x++) {
+                    
+                    //World_chunk* chunk = get_world_chunk(world, chunk_x, chunk_y, chunk_z);
+                    
+                    //if (!chunk)
+                    //continue;
+                    
+                    World_position chunk_center_pos = centered_chunk_point(chunk_x, chunk_y, chunk_z);
+                    v3 relative_pos = subtract_pos(world, &chunk_center_pos, &game_state->camera_pos);
+                    v2 screen_pos =  {
+                        screen_center.x + meters_to_pixels * relative_pos.x,
+                        screen_center.y - meters_to_pixels * relative_pos.y,
+                    };
+                    v2 screen_dim = meters_to_pixels * world->chunk_dim_meters.xy;
+                    
+                    f32 furthest_buffer_len_sq = 0.0f;
+                    Ground_buffer* furthest_buffer = 0;
+                    for (u32 i = 0; i < tran_state->ground_buffer_count; i++) {
+                        Ground_buffer* ground_buffer = tran_state->ground_buffer_list + i;
+                        
+                        if (are_in_same_chunk(world, &ground_buffer->position, &chunk_center_pos)) {
+                            furthest_buffer = 0;
+                            break;
+                        }
+                        else if (is_position_valid(ground_buffer->position)) {
+                            
+                            v3 rel_pos = subtract_pos(world, &ground_buffer->position, &game_state->camera_pos);
+                            f32 buffer_length_sq = length_squared(rel_pos.xy);
+                            
+                            if (furthest_buffer_len_sq < buffer_length_sq) {
+                                furthest_buffer_len_sq = buffer_length_sq;
+                                furthest_buffer = ground_buffer;
+                            }
+                        }
+                        else {
+                            furthest_buffer_len_sq = MAX_F32;
+                            furthest_buffer = ground_buffer;
+                        }
+                    }
+                    
+                    if (furthest_buffer) {
+                        fill_ground_chunk(tran_state, game_state, furthest_buffer, &chunk_center_pos);
+                    }
+                    
+                    
+                    if (0) { 
+                        draw_rect_outline(draw_buffer,
+                                          screen_pos - 0.5f * screen_dim,
+                                          screen_pos + 0.5f * screen_dim, 
+                                          yellow_v3);
+                    }
+                }
+            }
+        }
+    }
+    
+    // sim
+    Sim_region* sim_region = {};
+    Temp_memory sim_memory = {};
+    {
+        v3 sim_bound_expansion = {15.0f, 15.0f, 15.0f};
+        Rect3 sim_camera_bounds = add_radius_to(camera_bounds_meters, sim_bound_expansion);
+        
+        sim_memory = begin_temp_memory(&tran_state->tran_arena);
+        sim_region = begin_sim(&tran_state->tran_arena, 
+                               game_state, game_state->world, 
+                               game_state->camera_pos, sim_camera_bounds, input->time_delta);
+    }
+    
+    
+    //clear_screen(draw_buffer, color_gray_byte);
     
     // move, group and draw
     {
