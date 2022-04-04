@@ -431,7 +431,7 @@ handle_overlap(Game_state* game_state, Sim_entity* mover, Sim_entity* region, f3
 
 internal
 bool
-speculative_collide(Sim_entity* mover, Sim_entity* region) {
+speculative_collide(Sim_entity* mover, Sim_entity* region, v3 test_pos) {
     bool result = true;
     
     if (region->type == Entity_type_stairwell) {
@@ -440,11 +440,10 @@ speculative_collide(Sim_entity* mover, Sim_entity* region) {
 #if 0
         result = (((absolute(entity_ground_point.z) - ground) > step_height) ||
                   (barycentric.y > 0.1f && barycentric.y < 0.9f));
-#else
-        v3 mover_ground_point = get_entity_ground_point(mover);
+#endif
+        v3 mover_ground_point = get_entity_ground_point(mover, test_pos);
         f32 ground = get_stair_ground(region, mover_ground_point);
         result = (absolute(mover_ground_point.z) - ground) > step_height;
-#endif
     }
     
     return result;
@@ -679,7 +678,7 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
                                     
                                     if (hit_this) {
                                         v3 test_pos = entity->position + t_min_test * player_delta;
-                                        if (speculative_collide(entity, test_entity)) {
+                                        if (speculative_collide(entity, test_entity, test_pos)) {
                                             t_min = t_min_test;
                                             wall_normal_min = test_wall_normal;
                                             hit_entity_min = test_entity;

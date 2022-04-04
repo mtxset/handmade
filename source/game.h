@@ -189,15 +189,6 @@ struct Add_low_entity_result {
     u32 low_index;
 };
 
-struct Entity_visible_piece {
-    Loaded_bmp* bitmap;
-    v2 offset;
-    f32 offset_z;
-    f32 entity_zc;
-    v4 color;
-    v2 dim;
-};
-
 struct Controlled_hero {
     u32 entity_index;
     v2 dd_player;
@@ -216,7 +207,7 @@ struct Pairwise_collision_rule {
 
 struct Ground_buffer {
     World_position position;
-    void* memory;
+    Loaded_bmp bitmap;
 };
 
 struct Game_state {
@@ -277,14 +268,7 @@ struct Transient_state {
     bool is_initialized;
     Memory_arena tran_arena;
     u32 ground_buffer_count;
-    Loaded_bmp ground_buffer_template;
     Ground_buffer* ground_buffer_list;
-};
-
-struct Entity_visible_piece_group {
-    Game_state* game_state;
-    u32 count;
-    Entity_visible_piece piece_list[32];
 };
 
 Game_controller_input* 

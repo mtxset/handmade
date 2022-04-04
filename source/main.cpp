@@ -1,4 +1,4 @@
-// https://youtu.be/YAaqiKuSmsk?t=2621
+// https://youtu.be/zbufcZ_JBbU?t=3163
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include <stdio.h>
