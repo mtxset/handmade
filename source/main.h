@@ -79,9 +79,11 @@ void initialize_arena(Memory_arena* arena, size_t size, void* base) {
     arena->temp_count = 0;
 }
 
-#define mem_push_struct(arena, type)       (type *)mem_push_size_(arena, sizeof(type))
-#define mem_push_array(arena, count, type) (type *)mem_push_size_(arena, (count) * sizeof(type))
-#define mem_zero_struct(instance)                  mem_zero_size_(sizeof(instance), &(instance))
+#define mem_push_struct(arena,type)      (type *)mem_push_size_(arena, sizeof(type))
+#define mem_push_array(arena,count,type) (type *)mem_push_size_(arena, (count) * sizeof(type))
+#define mem_push_size(arena,size)       mem_push_size_(arena, size)
+
+#define mem_zero_struct(instance) mem_zero_size_(sizeof(instance), &(instance))
 
 inline
 Temp_memory
@@ -114,7 +116,7 @@ check_arena(Memory_arena* arena) {
 inline
 void* 
 mem_push_size_(Memory_arena* arena, size_t size) {
-    macro_assert(arena->used + size <= arena->size);
+    macro_assert((arena->used + size) <= arena->size);
     
     void* result = arena->base + arena->used;
     arena->used += size;

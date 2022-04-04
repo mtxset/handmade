@@ -56,10 +56,21 @@ get_stair_ground(Sim_entity* entity, v3 ground_point) {
 
 internal
 v3
-get_entity_ground_point(Sim_entity* entity) {
-    v3 result = entity->position;
+get_entity_ground_point(Sim_entity* entity, v3 for_entity_pos) {
+    
+    v3 result = for_entity_pos;
     
     return result;
 }
+
+internal
+v3
+get_entity_ground_point(Sim_entity* entity) {
+    
+    v3 result = get_entity_ground_point(entity, entity->position);
+    
+    return result;
+}
+
 
 #endif //ENTITY_H
