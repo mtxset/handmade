@@ -26,7 +26,7 @@ global_var const v3 grey_v3   = { 0.1f, 0.1f, 0.1f };
 
 inline
 v3 
-color_v3_v4(v4 color) {
+color_v4_v3(v4 color) {
     v3 result;
     
     result.r = color.r;

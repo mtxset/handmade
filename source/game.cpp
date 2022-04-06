@@ -115,44 +115,6 @@ game_output_sound(Game_sound_buffer* sound_buffer, i32 tone_hz, Game_state* stat
 
 internal
 void
-draw_rect(Loaded_bmp* buffer, v2 start, v2 end, v3 color) {
-    u32 color_hex = 0;
-    
-    color_hex = (round_f32_u32(color.r * 255.0f) << 16 | 
-                 round_f32_u32(color.g * 255.0f) << 8  |
-                 round_f32_u32(color.b * 255.0f) << 0);
-    
-    u32 x0 = round_f32_u32(start.x); u32 x1 = round_f32_u32(end.x);
-    u32 y0 = round_f32_u32(start.y); u32 y1 = round_f32_u32(end.y);
-    
-    x0 = clamp_i32(x0, 0, buffer->width);  x1 = clamp_i32(x1, 0, buffer->width);
-    y0 = clamp_i32(y0, 0, buffer->height); y1 = clamp_i32(y1, 0, buffer->height);
-    
-    i32 bytes_per_pixel = BITMAP_BYTES_PER_PIXEL;
-    u8* row = (u8*)buffer->memory + x0 * bytes_per_pixel + y0 * buffer->pitch;
-    
-    for (u32 y = y0; y < y1; y++) {
-        u32* pixel = (u32*)row;
-        for (u32 x = x0; x < x1; x++) {
-            *pixel++ = color_hex;
-        }
-        row += buffer->pitch;
-    }
-}
-
-inline
-void
-draw_rect_outline(Loaded_bmp* buffer, v2 start, v2 end, v3 color, f32 thickness = 2.0f) {
-    
-    draw_rect(buffer, v2{start.x - thickness, start.y - thickness}, v2{end.x   + thickness, start.y + thickness}, color);
-    draw_rect(buffer, v2{start.x - thickness, end.y   - thickness}, v2{end.x   + thickness, end.y   + thickness}, color);
-    
-    draw_rect(buffer, v2{start.x - thickness, start.y - thickness}, v2{start.x + thickness, end.y + thickness}, color);
-    draw_rect(buffer, v2{end.x   - thickness, start.y - thickness}, v2{end.x   + thickness, end.y + thickness}, color);
-}
-
-internal
-void
 debug_read_and_write_random_file() {
     auto bitmap_read = debug_read_entire_file(__FILE__);
     if (bitmap_read.content) {
@@ -421,91 +383,6 @@ debug_load_bmp(char* file_name) {
     return result;
 }
 
-internal
-void
-draw_bitmap(Loaded_bmp* bitmap_buffer, Loaded_bmp* bitmap, v2 start, f32 c_alpha = 1.0f) {
-    
-    i32 min_x = round_f32_i32(start.x);
-    i32 min_y = round_f32_i32(start.y);
-    i32 max_x = min_x + bitmap->width;
-    i32 max_y = min_y + bitmap->height;
-    
-    i32 source_offset_x = 0;
-    i32 source_offset_y = 0;
-    
-    if (min_x < 0) {
-        source_offset_x = -min_x;
-        min_x = 0;
-    }
-    
-    if (min_y < 0) {
-        source_offset_y = -min_y;
-        min_y = 0;
-    }
-    
-    if (max_x > bitmap_buffer->width) {
-        max_x = bitmap_buffer->width;
-    }
-    
-    if (max_y > bitmap_buffer->height) {
-        max_y = bitmap_buffer->height;
-    }
-    
-    c_alpha = clamp_f32(c_alpha, 0.0f, 1.0f);
-    // reading bottom up
-    //* (bitmap->height - 1) 
-    i32 bytes_per_pixel = BITMAP_BYTES_PER_PIXEL;
-    u8* source_row = ((u8*)bitmap->memory + source_offset_y * bitmap->pitch + bytes_per_pixel * source_offset_x);
-    macro_assert(source_row);
-    u8* dest_row = ((u8*)bitmap_buffer->memory +
-                    min_x * bytes_per_pixel   + 
-                    min_y * bitmap_buffer->pitch);
-    
-    for (i32 y = min_y; y < max_y; y++) {
-        u32* dest = (u32*)dest_row; // incoming pixel
-        u32* source = (u32*)source_row;   // backbuffer pixel
-        
-        for (i32 x = min_x; x < max_x; x++) {
-            f32 src_a = (f32)((*source >> 24) & 0xff);
-            f32 src_r_a = (src_a / 255.0f) * c_alpha;
-            
-            f32 src_r = c_alpha * (f32)((*source >> 16) & 0xff);
-            f32 src_g = c_alpha * (f32)((*source >> 8)  & 0xff);
-            f32 src_b = c_alpha * (f32)((*source >> 0)  & 0xff);
-            
-            f32 dst_a = (f32)((*dest >> 24) & 0xff);
-            f32 dst_r = (f32)((*dest >> 16) & 0xff);
-            f32 dst_g = (f32)((*dest >> 8)  & 0xff);
-            f32 dst_b = (f32)((*dest >> 0)  & 0xff);
-            f32 dst_r_a = (dst_a / 255.0f);
-            
-            // (1-t)A + tB 
-            // alpha (0 - 1);
-            // color = dst_color + alpha (src_color - dst_color)
-            // color = (1 - alpha)dst_color + alpha * src_color;
-            
-            // blending techniques: http://ycpcs.github.io/cs470-fall2014/labs/lab09.html
-            
-            // linear blending
-            f32 inv_r_src_alpha = 1.0f - src_r_a;
-            f32 a = 255.0f * (src_r_a + dst_r_a - src_r_a * dst_r_a);
-            f32 r = inv_r_src_alpha * dst_r + src_r;
-            f32 g = inv_r_src_alpha * dst_g + src_g;
-            f32 b = inv_r_src_alpha * dst_b + src_b;
-            
-            *dest = (((u32)(a + 0.5f) << 24) | 
-                     ((u32)(r + 0.5f) << 16) | 
-                     ((u32)(g + 0.5f) << 8 ) | 
-                     ((u32)(b + 0.5f) << 0 ));
-            
-            dest++;
-            source++;
-        }
-        
-        dest_row += bitmap_buffer->pitch;
-        source_row += bitmap->pitch;
-    }
-}
 
 internal
 void
@@ -1104,8 +981,8 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
             const u32 max_screens = 2000;
             
             for (u32 screen_index = 0; screen_index < max_screens; screen_index++) {
-                u32 door_direction = random_choise(&series, (door_up || door_down) ? 2 : 3);
-                //u32 door_direction = random_choise(&series, 2);
+                //u32 door_direction = random_choise(&series, (door_up || door_down) ? 2 : 3);
+                u32 door_direction = random_choise(&series, 2);
                 
                 bool created_z_door = false;
                 if (door_direction == room_has_stairs) {
@@ -1612,34 +1489,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     }
     
     // actually draw
-    for (u32 base_addr = 0; base_addr < render_group->push_buffer_size;) {
-        
-        Entity_visible_piece* piece = (Entity_visible_piece*)(render_group->push_buffer_base + base_addr);
-        base_addr += sizeof(Entity_visible_piece);
-        
-        v3 entity_base_point = piece->basis->position;
-        f32 z_fudge = 1.0f + 0.1f * (entity_base_point.z + piece->offset_z);
-        
-        v2 entity_ground_point = { 
-            screen_center.x + entity_base_point.x * z_fudge * meters_to_pixels,
-            screen_center.y - entity_base_point.y * z_fudge * meters_to_pixels
-        };
-        f32 entity_z = -meters_to_pixels * entity_base_point.z;
-        
-        v2 center = { 
-            entity_ground_point.x + piece->offset.x, 
-            entity_ground_point.y + piece->offset.y + piece->entity_zc * entity_z
-        };
-        
-        if (piece->bitmap) {
-            draw_bitmap(draw_buffer, piece->bitmap, center, piece->color.a);
-        }
-        else {
-            v2 half_dim = 0.5f * meters_to_pixels * piece->dim;
-            v3 temp_color = color_v3_v4(piece->color);
-            draw_rect(draw_buffer, center - half_dim, center + half_dim, temp_color);
-        }
-    }
+    render_group_to_output(render_group, draw_buffer);
     
     end_sim(sim_region, game_state);
     
