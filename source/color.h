@@ -24,6 +24,15 @@ global_var const v3 white_v3  = { 1.0f, 1.0f, 1.0f };
 global_var const v3 yellow_v3 = { 1.0f, 1.0f, 0.0f };
 global_var const v3 grey_v3   = { 0.1f, 0.1f, 0.1f };
 
+global_var const v4 red_v4    = { 1.0f, 0.0f, 0.0f, 1.0f };
+global_var const v4 green_v4  = { 0.0f, 1.0f, 0.0f, 1.0f };
+global_var const v4 blue_v4   = { 0.0f, 0.0f, 1.0f, 1.0f };
+global_var const v4 gold_v4   = { 1.0f, 0.8f, 0.0f, 1.0f };
+global_var const v4 white_v4  = { 1.0f, 1.0f, 1.0f, 1.0f };
+global_var const v4 yellow_v4 = { 1.0f, 1.0f, 0.0f, 1.0f };
+global_var const v4 grey_v4   = { 0.1f, 0.1f, 0.1f, 1.0f };
+global_var const v4 pink_v4   = { 1.0f, 0.0f, 1.0f, 1.0f };
+
 inline
 v3 
 color_v4_v3(v4 color) {

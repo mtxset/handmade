@@ -70,19 +70,20 @@ void
 push_rect_outline(Render_group* group, v2 offset, f32 offset_z, v2 dim, v4 color, f32 entity_zc = 1.0f) {
     
     f32 thickness = 0.1f;
-    push_piece(group, 0, offset - v2{0, dim.y/2}, offset_z, v2{0, 0}, v2{dim.x, thickness}, color, entity_zc);
-    push_piece(group, 0, offset + v2{0, dim.y/2}, offset_z, v2{0, 0}, v2{dim.x, thickness}, color, entity_zc);
+    push_rect(group, offset - v2{0, dim.y/2}, offset_z, v2{dim.x, thickness}, color, entity_zc);
+    push_rect(group, offset + v2{0, dim.y/2}, offset_z, v2{dim.x, thickness}, color, entity_zc);
     
-    push_piece(group, 0, offset - v2{dim.x/2, 0}, offset_z, v2{0, 0}, v2{thickness, dim.y}, color, entity_zc);
-    push_piece(group, 0, offset + v2{dim.x/2, 0}, offset_z, v2{0, 0}, v2{thickness, dim.y}, color, entity_zc);
+    push_rect(group, offset - v2{dim.x/2, 0}, offset_z, v2{thickness, dim.y}, color, entity_zc);
+    push_rect(group, offset + v2{dim.x/2, 0}, offset_z, v2{thickness, dim.y}, color, entity_zc);
 }
 
 internal
 void
-draw_rect(Loaded_bmp* buffer, v2 start, v2 end, v3 color) {
+draw_rect(Loaded_bmp* buffer, v2 start, v2 end, v4 color) {
     u32 color_hex = 0;
     
-    color_hex = (round_f32_u32(color.r * 255.0f) << 16 | 
+    color_hex = (round_f32_u32(color.a * 255.0f) << 24 | 
+                 round_f32_u32(color.r * 255.0f) << 16 | 
                  round_f32_u32(color.g * 255.0f) << 8  |
                  round_f32_u32(color.b * 255.0f) << 0);
     
@@ -106,7 +107,7 @@ draw_rect(Loaded_bmp* buffer, v2 start, v2 end, v3 color) {
 
 inline
 void
-draw_rect_outline(Loaded_bmp* buffer, v2 start, v2 end, v3 color, f32 thickness = 2.0f) {
+draw_rect_outline(Loaded_bmp* buffer, v2 start, v2 end, v4 color, f32 thickness = 2.0f) {
     
     draw_rect(buffer, v2{start.x - thickness, start.y - thickness}, v2{end.x   + thickness, start.y + thickness}, color);
     draw_rect(buffer, v2{start.x - thickness, end.y   - thickness}, v2{end.x   + thickness, end.y   + thickness}, color);
@@ -239,6 +240,13 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
         switch (header->type) {
             case Render_group_entry_type_Render_entry_clear: {
                 Render_entry_clear* entry = (Render_entry_clear*)header;
+                
+                v2 end = {
+                    (f32)output_target->width,
+                    (f32)output_target->height
+                };
+                draw_rect(output_target, v2{0,0}, end, entry->color);
+                
                 base_addr += sizeof(*entry);
             } break;
             
@@ -260,8 +268,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
                 
                 v2 pos = get_render_entit_basis_pos(render_group, &entry->entity_basis, screen_center);
                 
-                v3 temp_color = color_v4_v3(entry->color);
-                draw_rect(output_target, pos, pos + entry->dim, temp_color);
+                draw_rect(output_target, pos, pos + entry->dim, entry->color);
             } break;
             
             default: {
@@ -288,3 +295,13 @@ allocate_render_group(Memory_arena* arena, u32 max_push_buffer_size, f32 meters_
     return result;
 }
 
+inline
+void
+push_clear(Render_group* group, v4 color) {
+    Render_entry_clear* entry = push_render_element(group, Render_entry_clear);
+    
+    if (!entry)
+        return;
+    
+    entry->color = color;
+}
