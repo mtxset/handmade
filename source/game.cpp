@@ -125,7 +125,7 @@ debug_read_and_write_random_file() {
 
 internal
 void
-draw_pixel(Loaded_bmp* bitmap_buffer, v2 pos, v3 color) {
+draw_pixel(Loaded_bmp* bitmap_buffer, v2 pos, v4 color) {
     v2 end = { pos.x, pos.y };
     
     v2 screen_center = { 
@@ -146,7 +146,7 @@ draw_pixel(Loaded_bmp* bitmap_buffer, v2 pos, v3 color) {
 
 internal
 void
-draw_circle(Loaded_bmp* bitmap_buffer, v2 start, f32 radius, v3 color) {
+draw_circle(Loaded_bmp* bitmap_buffer, v2 start, f32 radius, v4 color) {
     // y = sin (angle) * r
     // x = cos (angle) * r
     for (f32 angle = 0; angle < 360; angle++) {
@@ -160,7 +160,7 @@ draw_circle(Loaded_bmp* bitmap_buffer, v2 start, f32 radius, v3 color) {
 
 internal
 void
-draw_line(Loaded_bmp* bitmap_buffer, v2 start, v2 end, v3 color, u32 points = 100) {
+draw_line(Loaded_bmp* bitmap_buffer, v2 start, v2 end, v4 color, u32 points = 100) {
     f32 m = (end.y - start.y) / (end.x - start.x);
     // m - slope
     // b - intercept
@@ -210,14 +210,14 @@ vectors_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) 
         (f32)bitmap_buffer->height / 2 
     };
     
-    draw_pixel(bitmap_buffer, { 0, 0 }, gold_v3);
-    draw_pixel(bitmap_buffer, { 0, x }, red_v3);
-    draw_pixel(bitmap_buffer, { x, 0 }, red_v3);
-    draw_pixel(bitmap_buffer, { 0, -x }, red_v3);
-    draw_pixel(bitmap_buffer, { -x, 0 }, red_v3);
+    draw_pixel(bitmap_buffer, { 0, 0 }, gold_v4);
+    draw_pixel(bitmap_buffer, { 0, x }, red_v4);
+    draw_pixel(bitmap_buffer, { x, 0 }, red_v4);
+    draw_pixel(bitmap_buffer, { 0, -x }, red_v4);
+    draw_pixel(bitmap_buffer, { -x, 0 }, red_v4);
     
-    draw_line(bitmap_buffer, { 0, 0 }, vec, green_v3);
-    draw_line(bitmap_buffer, { 0, 0 }, perpendicular_v2(vec), green_v3);
+    draw_line(bitmap_buffer, { 0, 0 }, vec, green_v4);
+    draw_line(bitmap_buffer, { 0, 0 }, perpendicular_v2(vec), green_v4);
 }
 
 internal
@@ -241,7 +241,7 @@ each_pixel(Loaded_bmp* bitmap_buffer, Game_state* state, f32 time_delta) {
             pixel_state->y = 0;
         }
     }
-    draw_pixel(bitmap_buffer, v2 { pixel_state->x, pixel_state->y }, red_v3);
+    draw_pixel(bitmap_buffer, v2 { pixel_state->x, pixel_state->y }, red_v4);
 }
 
 internal
@@ -250,7 +250,6 @@ drops_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) {
     
     // draw mouse pointer
     f32 mouse_draw_offset = 10.0f; // offset from windows layer
-    v3 color_white = { 1.0f, 1.0f, 1.0f };
     {
         v2 mouse_start = { 
             (f32)input->mouse_x - mouse_draw_offset,
@@ -262,7 +261,7 @@ drops_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) {
             (f32)input->mouse_y
         };
         
-        draw_rect(bitmap_buffer, mouse_start, mouse_end, color_white);
+        draw_rect(bitmap_buffer, mouse_start, mouse_end, white_v4);
         
         if (input->mouse_buttons[0].ended_down) {
             i32 index = state->drop_index++;
@@ -306,7 +305,7 @@ drops_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) {
                 drop->pos.y + mouse_draw_offset
             };
             
-            draw_rect(bitmap_buffer, drop->pos, drop_end , color_white);
+            draw_rect(bitmap_buffer, drop->pos, drop_end , white_v4);
         }
     }
 }
@@ -680,6 +679,11 @@ internal
 void
 fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_buffer* ground_buffer, World_position* chunk_pos) {
     
+    Temp_memory ground_memory = begin_temp_memory(&tran_state->tran_arena);
+    Render_group* render_group = allocate_render_group(&tran_state->tran_arena, macro_megabytes(4), 1.0f);
+    
+    push_clear(render_group, yellow_v4);
+    
     u32 random_number_index = 0;
     
     Loaded_bmp* bitmap_buffer = &ground_buffer->bitmap;
@@ -724,7 +728,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
                 };
                 
                 v2 pos = center + offset - bitmap_center;
-                draw_bitmap(bitmap_buffer, stamp, pos);
+                push_bitmap(render_group, stamp, pos, 0.0f, v2{0,0});
             }
         }
     }
@@ -756,11 +760,13 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
                 };
                 
                 v2 pos = center + offset - bitmap_center;
-                draw_bitmap(bitmap_buffer, stamp, pos);
+                push_bitmap(render_group, stamp, pos, 0.0f, v2{0,0});
             }
         }
     }
     
+    render_group_to_output(render_group, bitmap_buffer);
+    end_temp_memory(ground_memory);
 }
 
 internal
@@ -1215,8 +1221,8 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     f32 screen_height_meters = draw_buffer->height * pixels_to_meters;
     Rect3 camera_bounds_meters = rect_center_dim(v3 {0, 0, 0}, v3{screen_width_meters, screen_height_meters, 0.0f} );
     
-    // draw background
-    draw_bitmap(draw_buffer, &game_state->background, v2 {0, 0});
+    // clear screen
+    push_clear(render_group, pink_v4);
     
     for (u32 ground_buffer_index = 0; ground_buffer_index < tran_state->ground_buffer_count; ground_buffer_index++) {
         Ground_buffer* ground_buffer = tran_state->ground_buffer_list + ground_buffer_index;
@@ -1251,11 +1257,6 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                     
                     World_position chunk_center_pos = centered_chunk_point(chunk_x, chunk_y, chunk_z);
                     v3 relative_pos = subtract_pos(world, &chunk_center_pos, &game_state->camera_pos);
-                    v2 screen_pos =  {
-                        screen_center.x + meters_to_pixels * relative_pos.x,
-                        screen_center.y - meters_to_pixels * relative_pos.y,
-                    };
-                    v2 screen_dim = meters_to_pixels * world->chunk_dim_meters.xy;
                     
                     f32 furthest_buffer_len_sq = 0.0f;
                     Ground_buffer* furthest_buffer = 0;
@@ -1286,12 +1287,14 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                         fill_ground_chunk(tran_state, game_state, furthest_buffer, &chunk_center_pos);
                     }
                     
+                    bool show_chunk_outlines = true;
                     
-                    if (0) { 
-                        draw_rect_outline(draw_buffer,
-                                          screen_pos - 0.5f * screen_dim,
-                                          screen_pos + 0.5f * screen_dim, 
-                                          yellow_v3);
+                    if (show_chunk_outlines) {
+                        push_rect_outline(render_group,
+                                          relative_pos.xy,
+                                          0.0f,
+                                          world->chunk_dim_meters.xy,
+                                          yellow_v4);
                     }
                 }
             }
@@ -1310,9 +1313,6 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                                game_state, game_state->world, 
                                game_state->camera_pos, sim_camera_bounds, input->time_delta);
     }
-    
-    
-    //clear_screen(draw_buffer, color_gray_byte);
     
     // move, group and draw
     {
@@ -1462,7 +1462,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                 } break;
                 
                 case Entity_type_space: {
-                    bool show_level_outlines = false;
+                    bool show_level_outlines = true;
                     
                     if (!show_level_outlines)
                         break;
@@ -1470,7 +1470,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                     for (u32 volume_index = 0; volume_index < entity->collision->volume_count; volume_index++) {
                         Sim_entity_collision_volume* volume = entity->collision->volume_list + volume_index;
                         
-                        push_rect_outline(render_group, volume->offset_pos.xy, 0, volume->dim.xy, v4 {0, .5f, 0, 1}, 0.0f);
+                        push_rect_outline(render_group, volume->offset_pos.xy, 0, volume->dim.xy, red_v4, 0.0f);
                     }
                 } break;
                 
