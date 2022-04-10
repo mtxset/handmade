@@ -18,10 +18,21 @@ enum Render_group_entry_type {
     Render_group_entry_type_Render_entry_clear,
     Render_group_entry_type_Render_entry_bitmap,
     Render_group_entry_type_Render_entry_rect,
+    Render_group_entry_type_Render_entry_coord_system,
 };
 
 struct Render_group_entry_header {
     Render_group_entry_type type;
+};
+
+struct Render_entry_coord_system {
+    Render_group_entry_header header;
+    v2 origin;
+    v2 x_axis;
+    v2 y_axis;
+    v4 color;
+    
+    v2 points[16];
 };
 
 struct Render_entry_clear {
