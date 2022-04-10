@@ -1488,6 +1488,22 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         }
     }
     
+    game_state->time += input->time_delta;
+    f32 angle = game_state->time;
+    v2 origin = screen_center + 10.0f * v2{sin(angle), 0.0f};
+    v2 x_axis = 100.0f * v2{cos(angle),sin(angle)};
+    v2 y_axis = 100.0f * v2{cos(angle + 1.0f), sin(angle + 1.0f)};
+    
+    Render_entry_coord_system* c = push_coord_system(render_group, origin, x_axis, y_axis, yellow_v4);
+    
+    u32 p_index = 0;
+    for (f32 y = 0.0f; y < 1.0f; y += 0.25f) {
+        for (f32 x = 0.0f; x < 1.0f; x += 0.25f) {
+            c->points[p_index++] = v2{x,y};
+        }
+    }
+    
+    
     // actually draw
     render_group_to_output(render_group, draw_buffer);
     

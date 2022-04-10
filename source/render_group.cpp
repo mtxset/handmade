@@ -240,6 +240,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
         switch (header->type) {
             case Render_group_entry_type_Render_entry_clear: {
                 Render_entry_clear* entry = (Render_entry_clear*)header;
+                base_addr += sizeof(*entry);
                 
                 v2 end = {
                     (f32)output_target->width,
@@ -247,7 +248,6 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
                 };
                 draw_rect(output_target, v2{0,0}, end, entry->color);
                 
-                base_addr += sizeof(*entry);
             } break;
             
             case Render_group_entry_type_Render_entry_bitmap: {
@@ -269,6 +269,27 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
                 v2 pos = get_render_entit_basis_pos(render_group, &entry->entity_basis, screen_center);
                 
                 draw_rect(output_target, pos, pos + entry->dim, entry->color);
+            } break;
+            
+            case Render_group_entry_type_Render_entry_coord_system: {
+                Render_entry_coord_system* entry = (Render_entry_coord_system*)header;
+                base_addr += sizeof(*entry);
+                
+                v2 pos = entry->origin;
+                v2 dim = v2{2,2};
+                draw_rect(output_target, pos - dim, pos + dim, entry->color);
+                
+                pos = entry->origin + entry->x_axis;
+                draw_rect(output_target, pos - dim, pos + dim, entry->color);
+                
+                pos = entry->origin + entry->y_axis;
+                draw_rect(output_target, pos - dim, pos + dim, entry->color);
+                
+                for (u32 i = 0; i < macro_array_count(entry->points); i++) {
+                    v2 p = entry->points[i];
+                    p = entry->origin + p.x * entry->x_axis + p.y * entry->y_axis;
+                    draw_rect(output_target, p - dim, p + dim, entry->color);
+                }
             } break;
             
             default: {
@@ -304,4 +325,21 @@ push_clear(Render_group* group, v4 color) {
         return;
     
     entry->color = color;
+}
+
+
+inline
+Render_entry_coord_system*
+push_coord_system(Render_group* group, v2 origin, v2 x_axis, v2 y_axis, v4 color) {
+    Render_entry_coord_system* entry = push_render_element(group, Render_entry_coord_system);
+    
+    if (!entry)
+        return entry;
+    
+    entry->origin = origin;
+    entry->x_axis = x_axis;
+    entry->y_axis = y_axis;
+    entry->color = color;
+    
+    return entry;
 }

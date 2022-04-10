@@ -9,8 +9,15 @@ Enter will spawn player
 WASD, arrows moves him
 Space - jumps
 
-day90:
+day90-91:
  coordination explanation
+ basis translation: new_vector = new_origin + a_x * new_y_axis + a_y * new_y_axis
+ to rotate by (a):
+ basis: {
+	v3 origin;
+	v3 x_axis = cos(a),sin(a)
+    v3 y_axis = cos(a+90),sin(a+90) = -sin(a),cos(a) = perpendicular(x_axis)
+ }
 
 day87:
 - seamless ground textures
