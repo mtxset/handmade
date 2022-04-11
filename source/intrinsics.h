@@ -656,6 +656,16 @@ struct Rect2 {
 };
 
 inline
+v2
+perpendicular(v2 a) {
+    v2 result;
+    
+    result = {-a.y, a.x};
+    
+    return result;
+}
+
+inline
 v2 
 get_min_corner(Rect2 rect) {
     v2 result;

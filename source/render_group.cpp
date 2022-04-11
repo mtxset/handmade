@@ -105,6 +105,76 @@ draw_rect(Loaded_bmp* buffer, v2 start, v2 end, v4 color) {
     }
 }
 
+internal
+void
+draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color) {
+    
+    u32 color_hex = 0;
+    
+    color_hex = (round_f32_u32(color.a * 255.0f) << 24 | 
+                 round_f32_u32(color.r * 255.0f) << 16 | 
+                 round_f32_u32(color.g * 255.0f) << 8  |
+                 round_f32_u32(color.b * 255.0f) << 0);
+    
+    v2 p[4] = {
+        origin,
+        origin + x_axis,
+        origin + x_axis + y_axis,
+        origin + y_axis
+    };
+    
+    i32 width_max = buffer->width - 1;
+    i32 height_max = buffer->height - 1;
+    
+    i32 y_min = height_max;
+    i32 y_max = 0;
+    i32 x_min = width_max;
+    i32 x_max = 0;
+    
+    for (i32 i = 0; i < macro_array_count(p); i++) {
+        v2 test_pos = p[i];
+        
+        int floor_x = floor_f32_i32(test_pos.x);
+        int ceil_x  = ceil_f32_i32(test_pos.x);
+        int floor_y = floor_f32_i32(test_pos.y);
+        int ceil_y  = ceil_f32_i32(test_pos.y);
+        
+        if (x_min > floor_x) x_min = floor_x;
+        if (y_min > floor_y) y_min = floor_y;
+        if (x_max < ceil_x) x_max = ceil_x;
+        if (y_max < ceil_y) y_max = ceil_y;
+    }
+    
+    if (x_min < 0) x_min = 0;
+    if (y_min < 0) y_min = 0;
+    if (x_max > width_max) x_max = width_max;
+    if (y_max > height_max) y_max = height_max;
+    
+    i32 bytes_per_pixel = BITMAP_BYTES_PER_PIXEL;
+    u8* row = (u8*)buffer->memory + x_min * bytes_per_pixel + y_min * buffer->pitch;
+    
+    for (i32 y = y_min; y < y_max; y++) {
+        u32* pixel = (u32*)row;
+        for (i32 x = x_min; x < x_max; x++) {
+            
+            v2 pixel_pos = v2_i32(x, y);
+            f32 edge0 = inner(pixel_pos - origin, -perpendicular(x_axis));
+            f32 edge1 = inner(pixel_pos - (origin + x_axis), -perpendicular(y_axis));
+            f32 edge2 = inner(pixel_pos - (origin + x_axis + y_axis), perpendicular(x_axis));
+            f32 edge3 = inner(pixel_pos - (origin + y_axis), perpendicular(y_axis));
+            
+            if (edge0 < 0 && 
+                edge1 < 0 &&
+                edge2 < 0 && 
+                edge3 < 0) {
+                *pixel = color_hex;
+            }
+            pixel++;
+        }
+        row += buffer->pitch;
+    }
+}
+
 inline
 void
 draw_rect_outline(Loaded_bmp* buffer, v2 start, v2 end, v4 color, f32 thickness = 2.0f) {
@@ -277,6 +347,10 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
                 
                 v2 pos = entry->origin;
                 v2 dim = v2{2,2};
+                
+                v2 end = entry->origin + entry->x_axis + entry->y_axis;
+                draw_rect_slow(output_target, entry->origin, entry->x_axis, entry->y_axis, entry->color);
+                
                 draw_rect(output_target, pos - dim, pos + dim, entry->color);
                 
                 pos = entry->origin + entry->x_axis;
@@ -285,11 +359,14 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
                 pos = entry->origin + entry->y_axis;
                 draw_rect(output_target, pos - dim, pos + dim, entry->color);
                 
+                draw_rect(output_target, end - dim, end + dim, entry->color);
+#if 0
                 for (u32 i = 0; i < macro_array_count(entry->points); i++) {
                     v2 p = entry->points[i];
                     p = entry->origin + p.x * entry->x_axis + p.y * entry->y_axis;
                     draw_rect(output_target, p - dim, p + dim, entry->color);
                 }
+#endif
             } break;
             
             default: {
