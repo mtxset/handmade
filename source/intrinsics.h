@@ -309,6 +309,12 @@ v3 operator + (v3 a, v3 b) {
     return result;
 }
 
+inline
+v3 operator += (v3 &a, v3 b) {
+    a = a + b;
+    return a;
+}
+
 inline 
 v3 operator - (v3 a, v3 b) {
     v3 result;
@@ -318,12 +324,6 @@ v3 operator - (v3 a, v3 b) {
     result.z = a.z - b.z;
     
     return result;
-}
-
-inline
-v3 operator += (v3 &a, v3 b) {
-    a = a + b;
-    return a;
 }
 
 inline
@@ -458,6 +458,65 @@ unit_vector(v3 a) {
     return result;
 }
 
+inline
+v4 operator + (v4 a, v4 b) {
+    v4 result;
+    
+    result.x = a.x + b.x;
+    result.y = a.y + b.y;
+    result.z = a.z + b.z;
+    result.w = a.w + b.w;
+    
+    return result;
+}
+
+inline
+v4 operator += (v4 &a, v4 b) {
+    a = a + b;
+    return a;
+}
+
+
+inline
+v4 operator * (f32 a, v4 b) {
+    v4 result;
+    
+    result.x = b.x * a;
+    result.y = b.y * a;
+    result.z = b.z * a;
+    result.w = b.w * a;
+    
+    return result;
+}
+
+inline
+v4 
+operator * (v4 a, f32 b) {
+    v4 result;
+    
+    result = b * a;
+    
+    return result;
+}
+
+inline
+v4 
+operator *= (v4 &a, f32 b) {
+    a = b * a;
+    return a;
+}
+
+inline
+v4
+lerp(v4 a, f32 t, v4 b) {
+    v4 result;
+    
+    result = (1.0f - t) * a + t * b;
+    
+    return result;
+}
+
+
 // VECTORS END
 
 
@@ -580,7 +639,6 @@ square(f32 value) {
     
     return result;
 }
-
 
 inline
 f32 

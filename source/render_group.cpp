@@ -107,7 +107,7 @@ draw_rect(Loaded_bmp* buffer, v2 start, v2 end, v4 color) {
 
 internal
 void
-draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color) {
+draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Loaded_bmp* bitmap) {
     
     u32 color_hex = 0;
     
@@ -153,21 +153,121 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color) {
     i32 bytes_per_pixel = BITMAP_BYTES_PER_PIXEL;
     u8* row = (u8*)buffer->memory + x_min * bytes_per_pixel + y_min * buffer->pitch;
     
+    f32 inverse_x_axis_squared = 1.0f / length_squared(x_axis);
+    f32 inverse_y_axis_squared = 1.0f / length_squared(y_axis);
+    
     for (i32 y = y_min; y < y_max; y++) {
         u32* pixel = (u32*)row;
         for (i32 x = x_min; x < x_max; x++) {
             
             v2 pixel_pos = v2_i32(x, y);
-            f32 edge0 = inner(pixel_pos - origin, -perpendicular(x_axis));
-            f32 edge1 = inner(pixel_pos - (origin + x_axis), -perpendicular(y_axis));
-            f32 edge2 = inner(pixel_pos - (origin + x_axis + y_axis), perpendicular(x_axis));
-            f32 edge3 = inner(pixel_pos - (origin + y_axis), perpendicular(y_axis));
+            v2 d = pixel_pos - origin;
+            
+            f32 edge0 = inner(d, -perpendicular(x_axis));
+            f32 edge1 = inner(d - x_axis, -perpendicular(y_axis));
+            f32 edge2 = inner(d - x_axis - y_axis, perpendicular(x_axis));
+            f32 edge3 = inner(d - y_axis, perpendicular(y_axis));
             
             if (edge0 < 0 && 
                 edge1 < 0 &&
                 edge2 < 0 && 
                 edge3 < 0) {
-                *pixel = color_hex;
+                
+                f32 u = inverse_x_axis_squared * inner(d, x_axis);
+                f32 v = inverse_y_axis_squared * inner(d, y_axis);
+                
+                macro_assert(u >= 0.0f && u <= 1.0f);
+                macro_assert(v >= 0.0f && v <= 1.0f);
+                
+                f32 x_f32 = (u * ((f32)(bitmap->width - 2)));
+                f32 y_f32 = (v * ((f32)(bitmap->height - 2)));
+                
+                i32 x_i32 = (i32)x_f32;
+                i32 y_i32 = (i32)y_f32;
+                
+                f32 f_x = x_f32 - (f32)x_i32;
+                f32 f_y = y_f32 - (f32)y_i32;
+                
+                macro_assert(x_i32 >= 0 && x_i32 < bitmap->width);
+                macro_assert(y_i32 >= 0 && y_i32 < bitmap->height);
+                
+                u8* texel_ptr = (u8*)bitmap->memory + y_i32 * bitmap->pitch + x_i32 * sizeof(u32);
+                v4 texel = {};
+                // blending pixels
+                {
+                    u32 texel_ptr_a = *(u32*)texel_ptr;
+                    u32 texel_ptr_b = *(u32*)(texel_ptr + sizeof(u32));
+                    u32 texel_ptr_c = *(u32*)(texel_ptr + bitmap->pitch);
+                    u32 texel_ptr_d = *(u32*)(texel_ptr + bitmap->pitch + sizeof(u32));
+                    
+                    v4 texel_a = {
+                        (f32)((texel_ptr_a >> 16) & 0xff),
+                        (f32)((texel_ptr_a >> 8)  & 0xff),
+                        (f32)((texel_ptr_a >> 0)  & 0xff),
+                        (f32)((texel_ptr_a >> 24) & 0xff)
+                    };
+                    
+                    v4 texel_b = {
+                        (f32)((texel_ptr_b >> 16) & 0xff),
+                        (f32)((texel_ptr_b >> 8)  & 0xff),
+                        (f32)((texel_ptr_b >> 0)  & 0xff),
+                        (f32)((texel_ptr_b >> 24) & 0xff)
+                    };
+                    
+                    v4 texel_c = {
+                        (f32)((texel_ptr_c >> 16) & 0xff),
+                        (f32)((texel_ptr_c >> 8)  & 0xff),
+                        (f32)((texel_ptr_c >> 0)  & 0xff),
+                        (f32)((texel_ptr_c >> 24) & 0xff)
+                    };
+                    
+                    v4 texel_d = {
+                        (f32)((texel_ptr_d >> 16) & 0xff),
+                        (f32)((texel_ptr_d >> 8)  & 0xff),
+                        (f32)((texel_ptr_d >> 0)  & 0xff),
+                        (f32)((texel_ptr_d >> 24) & 0xff)
+                    };
+                    texel = lerp(lerp(texel_a, f_x, texel_b),
+                                 f_y,
+                                 lerp(texel_c, f_x, texel_d));
+                }
+                //alpha
+                {
+                    f32 src_r = texel.r;
+                    f32 src_g = texel.g;
+                    f32 src_b = texel.b;
+                    f32 src_a = texel.a;
+                    
+                    f32 src_r_a = (src_a / 255.0f) * color.a;
+                    
+                    f32 dst_a = (f32)((*pixel >> 24) & 0xff);
+                    f32 dst_r = (f32)((*pixel >> 16) & 0xff);
+                    f32 dst_g = (f32)((*pixel >> 8)  & 0xff);
+                    f32 dst_b = (f32)((*pixel >> 0)  & 0xff);
+                    f32 dst_r_a = (dst_a / 255.0f);
+                    
+                    // (1-t)A + tB 
+                    // alpha (0 - 1);
+                    // color = dst_color + alpha (src_color - dst_color)
+                    // color = (1 - alpha)dst_color + alpha * src_color;
+                    
+                    // blending techniques: http://ycpcs.github.io/cs470-fall2014/labs/lab09.html
+                    
+                    // linear blending
+                    f32 inv_r_src_alpha = 1.0f - src_r_a;
+                    f32 a = 255.0f * (src_r_a + dst_r_a - src_r_a * dst_r_a);
+                    f32 r = inv_r_src_alpha * dst_r + src_r;
+                    f32 g = inv_r_src_alpha * dst_g + src_g;
+                    f32 b = inv_r_src_alpha * dst_b + src_b;
+                    
+                    *pixel = (((u32)(a + 0.5f) << 24)|
+                              ((u32)(r + 0.5f) << 16)|
+                              ((u32)(g + 0.5f) << 8 )|
+                              ((u32)(b + 0.5f) << 0 ));
+                    
+                }
+                
+                //*pixel = texel;
             }
             pixel++;
         }
@@ -349,7 +449,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
                 v2 dim = v2{2,2};
                 
                 v2 end = entry->origin + entry->x_axis + entry->y_axis;
-                draw_rect_slow(output_target, entry->origin, entry->x_axis, entry->y_axis, entry->color);
+                draw_rect_slow(output_target, entry->origin, entry->x_axis, entry->y_axis, entry->color, entry->bitmap);
                 
                 draw_rect(output_target, pos - dim, pos + dim, entry->color);
                 
@@ -407,7 +507,7 @@ push_clear(Render_group* group, v4 color) {
 
 inline
 Render_entry_coord_system*
-push_coord_system(Render_group* group, v2 origin, v2 x_axis, v2 y_axis, v4 color) {
+push_coord_system(Render_group* group, v2 origin, v2 x_axis, v2 y_axis, v4 color, Loaded_bmp* bitmap) {
     Render_entry_coord_system* entry = push_render_element(group, Render_entry_coord_system);
     
     if (!entry)
@@ -417,6 +517,7 @@ push_coord_system(Render_group* group, v2 origin, v2 x_axis, v2 y_axis, v4 color
     entry->x_axis = x_axis;
     entry->y_axis = y_axis;
     entry->color = color;
+    entry->bitmap = bitmap;
     
     return entry;
 }

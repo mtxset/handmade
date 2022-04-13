@@ -1489,11 +1489,18 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     }
     
     game_state->time += input->time_delta;
-    f32 angle = game_state->time;
+    f32 angle = 0.5f * game_state->time;
+    f32 dis = 150.0f * cos(angle);
     v2 origin = screen_center;
-    v2 x_axis = (50.0f + 50.0f * cos(angle)) * v2{cos(angle),sin(angle)};
-    v2 y_axis = (50.0f + 50.0f * cos(angle)) * v2{cos(angle + 1.0f), sin(angle + 1.0f)};
-    //v2 y_axis = perpendicular(x_axis);
+#if 1
+    v2 x_axis = 100.0f * v2{cos(angle), sin(angle)};
+    v2 y_axis = perpendicular(x_axis);
+#else 
+    v2 x_axis = {60.0f, 0.0f};
+    v2 y_axis = {0.0f, 60.0f};
+#endif
+    //v2 x_axis = (50.0f + 50.0f * cos(angle)) * v2{cos(angle),sin(angle)};
+    //v2 y_axis = (50.0f + 50.0f * cos(angle)) * v2{cos(angle + 1.0f), sin(angle + 1.0f)};
     
     v4 color = {
         0.5f + cos(angle),
@@ -1502,7 +1509,8 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         1.0f
     };
     
-    Render_entry_coord_system* c = push_coord_system(render_group, origin, x_axis, y_axis, color);
+    v2 moving = v2{dis, dis} + origin - 0.5f*x_axis - 0.5f*y_axis;
+    Render_entry_coord_system* c =  push_coord_system(render_group, moving, x_axis, y_axis, color, &game_state->tree);
     
     u32 p_index = 0;
     for (f32 y = 0.0f; y < 1.0f; y += 0.25f) {

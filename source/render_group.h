@@ -27,6 +27,7 @@ struct Render_group_entry_header {
 
 struct Render_entry_coord_system {
     Render_group_entry_header header;
+    Loaded_bmp* bitmap;
     v2 origin;
     v2 x_axis;
     v2 y_axis;
