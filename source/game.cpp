@@ -1503,10 +1503,10 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     //v2 y_axis = (50.0f + 50.0f * cos(angle)) * v2{cos(angle + 1.0f), sin(angle + 1.0f)};
     
     v4 color = {
-        0.5f + cos(angle),
-        1.0f,
-        0,
-        1.0f
+        0.5f + 0.5f*sin(angle),
+        0.5f + 0.5f*sin(2.9f*angle),
+        0.5f + 0.5f*cos(10.0f*angle),
+        0.5f + 0.5f*cos(20.0f*angle)
     };
     
     v2 moving = v2{dis, dis} + origin - 0.5f*x_axis - 0.5f*y_axis;

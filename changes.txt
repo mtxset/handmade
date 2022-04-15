@@ -9,8 +9,10 @@ Enter will spawn player
 WASD, arrows moves him
 Space - jumps
 
+day94:
+ 
 day93:
- linear texture filtering:
+ bilinear texture filtering:
  sub pixel drawing: taking samples from 4 closest pixels and blending between them
 
 day90-91:
