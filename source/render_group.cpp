@@ -1,6 +1,37 @@
 #include "main.h"
 #include "color.h"
 
+
+inline
+v4
+srgb255_to_linear1(v4 color) {
+    v4 result;
+    
+    f32 inv_255 = 1.0f / 255.0f;
+    
+    result.a = inv_255 * color.a;
+    result.r = square(inv_255 * color.r);
+    result.g = square(inv_255 * color.g);
+    result.b = square(inv_255 * color.b);
+    
+    return result;
+}
+
+inline
+v4
+linear1_to_srgb255(v4 color) {
+    v4 result;
+    
+    f32 one_255 = 255.0f;
+    
+    result.a = one_255 * color.a;
+    result.r = one_255 * square_root(color.r);
+    result.g = one_255 * square_root(color.g);
+    result.b = one_255 * square_root(color.b);
+    
+    return result;
+}
+
 #define push_render_element(group,type) (type*)push_render_element_(group, sizeof(type), Render_group_entry_type_##type)
 
 inline
@@ -176,8 +207,8 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                 f32 u = inverse_x_axis_squared * inner(d, x_axis);
                 f32 v = inverse_y_axis_squared * inner(d, y_axis);
                 
-                macro_assert(u >= 0.0f && u <= 1.0f);
-                macro_assert(v >= 0.0f && v <= 1.0f);
+                //macro_assert(u >= 0.0f && u <= 1.0f);
+                //macro_assert(v >= 0.0f && v <= 1.0f);
                 
                 f32 x_f32 = (u * ((f32)(bitmap->width - 2)));
                 f32 y_f32 = (v * ((f32)(bitmap->height - 2)));
@@ -227,24 +258,33 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                         (f32)((texel_ptr_d >> 0)  & 0xff),
                         (f32)((texel_ptr_d >> 24) & 0xff)
                     };
+                    
+                    // first step of gamma correction 
+                    texel_a = srgb255_to_linear1(texel_a);
+                    texel_b = srgb255_to_linear1(texel_b);
+                    texel_c = srgb255_to_linear1(texel_c);
+                    texel_d = srgb255_to_linear1(texel_d);
+                    
                     texel = lerp(lerp(texel_a, f_x, texel_b),
                                  f_y,
                                  lerp(texel_c, f_x, texel_d));
                 }
                 //alpha
                 {
-                    f32 src_r = texel.r;
-                    f32 src_g = texel.g;
-                    f32 src_b = texel.b;
-                    f32 src_a = texel.a;
                     
-                    f32 src_r_a = (src_a / 255.0f) * color.a;
+                    f32 src_r_a = texel.a * color.a;
                     
-                    f32 dst_a = (f32)((*pixel >> 24) & 0xff);
-                    f32 dst_r = (f32)((*pixel >> 16) & 0xff);
-                    f32 dst_g = (f32)((*pixel >> 8)  & 0xff);
-                    f32 dst_b = (f32)((*pixel >> 0)  & 0xff);
-                    f32 dst_r_a = (dst_a / 255.0f);
+                    v4 dst = {
+                        (f32)((*pixel >> 16) & 0xff),
+                        (f32)((*pixel >> 8)  & 0xff),
+                        (f32)((*pixel >> 0)  & 0xff),
+                        (f32)((*pixel >> 24) & 0xff),
+                    };
+                    
+                    // converting back
+                    dst = srgb255_to_linear1(dst);
+                    
+                    f32 dst_r_a = dst.a;
                     
                     // (1-t)A + tB 
                     // alpha (0 - 1);
@@ -255,15 +295,20 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                     
                     // linear blending
                     f32 inv_r_src_alpha = 1.0f - src_r_a;
-                    f32 a = 255.0f * (src_r_a + dst_r_a - src_r_a * dst_r_a);
-                    f32 r = inv_r_src_alpha * dst_r + src_r;
-                    f32 g = inv_r_src_alpha * dst_g + src_g;
-                    f32 b = inv_r_src_alpha * dst_b + src_b;
                     
-                    *pixel = (((u32)(a + 0.5f) << 24)|
-                              ((u32)(r + 0.5f) << 16)|
-                              ((u32)(g + 0.5f) << 8 )|
-                              ((u32)(b + 0.5f) << 0 ));
+                    v4 blended = {
+                        inv_r_src_alpha * dst.r + dst.a * color.r * texel.r,
+                        inv_r_src_alpha * dst.g + dst.a * color.g * texel.g,
+                        inv_r_src_alpha * dst.b + dst.a * color.b * texel.b,
+                        src_r_a + dst_r_a - src_r_a * dst_r_a,
+                    };
+                    
+                    v4 blended_255 = linear1_to_srgb255(blended);
+                    
+                    *pixel = (((u32)(blended_255.a + 0.5f) << 24)|
+                              ((u32)(blended_255.r + 0.5f) << 16)|
+                              ((u32)(blended_255.g + 0.5f) << 8 )|
+                              ((u32)(blended_255.b + 0.5f) << 0 ));
                     
                 }
                 
