@@ -35,13 +35,16 @@ linear1_to_srgb255(v4 color) {
 #define push_render_element(group,type) (type*)push_render_element_(group, sizeof(type), Render_group_entry_type_##type)
 
 inline
-Render_group_entry_header*
+void*
 push_render_element_(Render_group* group, u32 size, Render_group_entry_type type) {
-    Render_group_entry_header* result = 0;
+    void* result = 0;
+    
+    size += sizeof(Render_group_entry_header);
     
     if ((group->push_buffer_size + size) < group->max_push_buffer_size) {
-        result = (Render_group_entry_header*)(group->push_buffer_base + group->push_buffer_size);
-        result->type = type;
+        Render_group_entry_header* header = (Render_group_entry_header*)(group->push_buffer_base + group->push_buffer_size);
+        header->type = type;
+        result = (u8*)header + sizeof(*header);
         group->push_buffer_size += size;
     }
     else {
@@ -139,6 +142,8 @@ draw_rect(Loaded_bmp* buffer, v2 start, v2 end, v4 color) {
 internal
 void
 draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Loaded_bmp* bitmap) {
+    
+    color.rgb *= color.a;
     
     u32 color_hex = 0;
     
@@ -272,7 +277,12 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                 //alpha
                 {
                     
-                    f32 src_r_a = texel.a * color.a;
+                    texel = hadamard(texel, color);
+                    
+                    texel.r *= color.r;
+                    texel.g *= color.g;
+                    texel.b *= color.b;
+                    texel.a *= color.a;
                     
                     v4 dst = {
                         (f32)((*pixel >> 16) & 0xff),
@@ -284,8 +294,6 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                     // converting back
                     dst = srgb255_to_linear1(dst);
                     
-                    f32 dst_r_a = dst.a;
-                    
                     // (1-t)A + tB 
                     // alpha (0 - 1);
                     // color = dst_color + alpha (src_color - dst_color)
@@ -294,14 +302,9 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                     // blending techniques: http://ycpcs.github.io/cs470-fall2014/labs/lab09.html
                     
                     // linear blending
-                    f32 inv_r_src_alpha = 1.0f - src_r_a;
+                    f32 inv_r_src_alpha = 1.0f - texel.a;
                     
-                    v4 blended = {
-                        inv_r_src_alpha * dst.r + dst.a * color.r * texel.r,
-                        inv_r_src_alpha * dst.g + dst.a * color.g * texel.g,
-                        inv_r_src_alpha * dst.b + dst.a * color.b * texel.b,
-                        src_r_a + dst_r_a - src_r_a * dst_r_a,
-                    };
+                    v4 blended = inv_r_src_alpha * dst + texel;
                     
                     v4 blended_255 = linear1_to_srgb255(blended);
                     
@@ -376,18 +379,26 @@ draw_bitmap(Loaded_bmp* bitmap_buffer, Loaded_bmp* bitmap, v2 start, f32 c_alpha
         u32* source = (u32*)source_row;   // backbuffer pixel
         
         for (i32 x = min_x; x < max_x; x++) {
-            f32 src_a = (f32)((*source >> 24) & 0xff);
-            f32 src_r_a = (src_a / 255.0f) * c_alpha;
             
-            f32 src_r = c_alpha * (f32)((*source >> 16) & 0xff);
-            f32 src_g = c_alpha * (f32)((*source >> 8)  & 0xff);
-            f32 src_b = c_alpha * (f32)((*source >> 0)  & 0xff);
+            v4 texel = {
+                (f32)((*source >> 16) & 0xff),
+                (f32)((*source >> 8)  & 0xff),
+                (f32)((*source >> 0)  & 0xff),
+                (f32)((*source >> 24) & 0xff),
+            };
             
-            f32 dst_a = (f32)((*dest >> 24) & 0xff);
-            f32 dst_r = (f32)((*dest >> 16) & 0xff);
-            f32 dst_g = (f32)((*dest >> 8)  & 0xff);
-            f32 dst_b = (f32)((*dest >> 0)  & 0xff);
-            f32 dst_r_a = (dst_a / 255.0f);
+            texel = srgb255_to_linear1(texel);
+            texel *= c_alpha;
+            
+            
+            v4 dst = {
+                (f32)((*dest >> 16) & 0xff),
+                (f32)((*dest >> 8)  & 0xff),
+                (f32)((*dest >> 0)  & 0xff),
+                (f32)((*dest >> 24) & 0xff),
+            };
+            
+            dst = srgb255_to_linear1(dst);
             
             // (1-t)A + tB 
             // alpha (0 - 1);
@@ -397,16 +408,21 @@ draw_bitmap(Loaded_bmp* bitmap_buffer, Loaded_bmp* bitmap, v2 start, f32 c_alpha
             // blending techniques: http://ycpcs.github.io/cs470-fall2014/labs/lab09.html
             
             // linear blending
-            f32 inv_r_src_alpha = 1.0f - src_r_a;
-            f32 a = 255.0f * (src_r_a + dst_r_a - src_r_a * dst_r_a);
-            f32 r = inv_r_src_alpha * dst_r + src_r;
-            f32 g = inv_r_src_alpha * dst_g + src_g;
-            f32 b = inv_r_src_alpha * dst_b + src_b;
+            f32 inv_r_src_alpha = 1.0f - texel.a;
             
-            *dest = (((u32)(a + 0.5f) << 24)|
-                     ((u32)(r + 0.5f) << 16)|
-                     ((u32)(g + 0.5f) << 8 )|
-                     ((u32)(b + 0.5f) << 0 ));
+            v4 result = {
+                inv_r_src_alpha * dst.r + texel.r,
+                inv_r_src_alpha * dst.g + texel.g,
+                inv_r_src_alpha * dst.b + texel.b,
+                texel.a + dst.a - texel.a * dst.a
+            };
+            
+            result = linear1_to_srgb255(result);
+            
+            *dest = (((u32)(result.a + 0.5f) << 24)|
+                     ((u32)(result.r + 0.5f) << 16)|
+                     ((u32)(result.g + 0.5f) << 8 )|
+                     ((u32)(result.b + 0.5f) << 0 ));
             
             dest++;
             source++;
@@ -451,10 +467,12 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
     for (u32 base_addr = 0; base_addr < render_group->push_buffer_size;) {
         
         Render_group_entry_header* header = (Render_group_entry_header*)(render_group->push_buffer_base + base_addr);
+        base_addr += sizeof(*header);
         
+        void* data = (u8*)header + sizeof(*header);
         switch (header->type) {
             case Render_group_entry_type_Render_entry_clear: {
-                Render_entry_clear* entry = (Render_entry_clear*)header;
+                Render_entry_clear* entry = (Render_entry_clear*)data;
                 base_addr += sizeof(*entry);
                 
                 v2 end = {
@@ -466,7 +484,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
             } break;
             
             case Render_group_entry_type_Render_entry_bitmap: {
-                Render_entry_bitmap* entry = (Render_entry_bitmap*)header;
+                Render_entry_bitmap* entry = (Render_entry_bitmap*)data;
                 base_addr += sizeof(*entry);
                 
                 v2 pos = get_render_entit_basis_pos(render_group, &entry->entity_basis, screen_center);
@@ -478,7 +496,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
             } break;
             
             case Render_group_entry_type_Render_entry_rect: {
-                Render_entry_rect* entry = (Render_entry_rect*)header;
+                Render_entry_rect* entry = (Render_entry_rect*)data;
                 base_addr += sizeof(*entry);
                 
                 v2 pos = get_render_entit_basis_pos(render_group, &entry->entity_basis, screen_center);
@@ -487,7 +505,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
             } break;
             
             case Render_group_entry_type_Render_entry_coord_system: {
-                Render_entry_coord_system* entry = (Render_entry_coord_system*)header;
+                Render_entry_coord_system* entry = (Render_entry_coord_system*)data;
                 base_addr += sizeof(*entry);
                 
                 v2 pos = entry->origin;

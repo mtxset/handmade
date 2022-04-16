@@ -39,6 +39,12 @@ union v4 {
     struct {
         f32 r, g, b, a;
     };
+    
+    struct {
+        v3 rgb;
+        f32 _discard;
+    };
+    
     f32 e[4];
 };
 
@@ -516,6 +522,15 @@ lerp(v4 a, f32 t, v4 b) {
     return result;
 }
 
+inline
+v4
+hadamard(v4 a, v4 b) {
+    v4 result;
+    
+    result = { a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w};
+    
+    return result;
+}
 
 // VECTORS END
 
