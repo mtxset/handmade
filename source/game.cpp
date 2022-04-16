@@ -357,21 +357,26 @@ debug_load_bmp(char* file_name) {
         for (i32 x = 0; x < header->Width; x++) {
             u32 color = *source_dest;
             
-            f32 r = (f32)((color & mask_red)   >> shift_red_down);
-            f32 g = (f32)((color & mask_green) >> shift_green_down);
-            f32 b = (f32)((color & mask_blue)  >> shift_blue_down);
-            f32 a = (f32)((color & mask_alpha) >> shift_alpha_down);
+            v4 texel = {
+                (f32)((color & mask_red)   >> shift_red_down),
+                (f32)((color & mask_green) >> shift_green_down),
+                (f32)((color & mask_blue)  >> shift_blue_down),
+                (f32)((color & mask_alpha) >> shift_alpha_down),
+            };
             
-            f32 a_norm = a / 255.0f;
+            texel = srgb255_to_linear1(texel);
             
-            r = r * a_norm;
-            g = g * a_norm;
-            b = b * a_norm;
+            bool premultiply_alpha = true;
+            if (premultiply_alpha) {
+                texel.rgb *= texel.a;
+            }
             
-            *source_dest++ = (((u32)(a + 0.5f) << 24) | 
-                              ((u32)(r + 0.5f) << 16) | 
-                              ((u32)(g + 0.5f) << 8 ) | 
-                              ((u32)(b + 0.5f) << 0 ));
+            texel = linear1_to_srgb255(texel);
+            
+            *source_dest++ = (((u32)(texel.a + 0.5f) << 24) | 
+                              ((u32)(texel.r + 0.5f) << 16) | 
+                              ((u32)(texel.g + 0.5f) << 8 ) | 
+                              ((u32)(texel.b + 0.5f) << 0 ));
         }
     }
     

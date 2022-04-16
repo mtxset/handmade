@@ -8,7 +8,7 @@
 :: -wd4668: 'x' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif' (found in win headers)
 set ignore_errors=-wd4100 -wd4189 -wd4201 -wd4459 -wd4505 -wd4668
 set enable_errors=-w44800 
-set common_compiler_flags=-Od -MTd -EHa- -Gm- -GR- -Oi -fp:fast -DAR1610 -DINTERNAL=1 -DDEBUG=1 -WX -W4 %ignore_errors% %enable_errors% -FC -Fm -Z7 -nologo
+set common_compiler_flags=-Zo -O2 -MTd -EHa- -Gm- -GR- -Oi -fp:fast -DAR1610 -DINTERNAL=1 -DDEBUG=1 -WX -W4 %ignore_errors% %enable_errors% -FC -Fm -Z7 -nologo
 set common_linker_flags=-incremental:no -opt:ref user32.lib gdi32.lib winmm.lib
 
 if not exist build mkdir build
@@ -34,6 +34,7 @@ del lock.tmp
 cl.exe %common_compiler_flags% "..\source\main.cpp" /link %common_linker_flags%
 popd
 
+:: -Zo      - enables additional debug info, so you can debug "better" with optimizations on otherwise you won't have vars in watch, because code is different
 :: -Od      - disable all optimizations
 :: -WX      - treat each warning as error
 :: -W4      - warning level 4

@@ -26,7 +26,6 @@ struct Render_group_entry_header {
 };
 
 struct Render_entry_coord_system {
-    Render_group_entry_header header;
     Loaded_bmp* bitmap;
     v2 origin;
     v2 x_axis;
@@ -37,19 +36,16 @@ struct Render_entry_coord_system {
 };
 
 struct Render_entry_clear {
-    Render_group_entry_header header;
     v4 color;
 };
 
 struct Render_entry_rect {
-    Render_group_entry_header header;
     Render_entity_basis entity_basis;
     v2 dim;
     v4 color;
 };
 
 struct Render_entry_bitmap {
-    Render_group_entry_header header;
     Render_entity_basis entity_basis;
     Loaded_bmp* bitmap;
     
