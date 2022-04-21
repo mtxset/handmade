@@ -1227,7 +1227,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     Rect3 camera_bounds_meters = rect_center_dim(v3 {0, 0, 0}, v3{screen_width_meters, screen_height_meters, 0.0f} );
     
     // clear screen
-    push_clear(render_group, pink_v4);
+    push_clear(render_group, grey_v4);
     
     for (u32 ground_buffer_index = 0; ground_buffer_index < tran_state->ground_buffer_count; ground_buffer_index++) {
         Ground_buffer* ground_buffer = tran_state->ground_buffer_list + ground_buffer_index;
@@ -1319,7 +1319,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                                game_state->camera_pos, sim_camera_bounds, input->time_delta);
     }
     
-    // move, group and draw
+    // move, group and push to drawing pipe
     {
         for (u32 entity_index = 0; entity_index < sim_region->entity_count; entity_index++) {
             
@@ -1495,17 +1495,12 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     
     game_state->time += input->time_delta;
     f32 angle = 0.5f * game_state->time;
+    angle = 0.0f;
     f32 dis = 150.0f * cos(angle);
     v2 origin = screen_center;
-#if 1
+#if 0
     v2 x_axis = 100.0f * v2{cos(angle), sin(angle)};
     v2 y_axis = perpendicular(x_axis);
-#else 
-    v2 x_axis = {60.0f, 0.0f};
-    v2 y_axis = {0.0f, 60.0f};
-#endif
-    //v2 x_axis = (50.0f + 50.0f * cos(angle)) * v2{cos(angle),sin(angle)};
-    //v2 y_axis = (50.0f + 50.0f * cos(angle)) * v2{cos(angle + 1.0f), sin(angle + 1.0f)};
     
     v4 color = {
         0.5f + 0.5f*sin(angle),
@@ -1514,8 +1509,17 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         0.5f + 0.5f*cos(20.0f*angle)
     };
     
+#else
+    v2 x_axis = {100.0f, 0.0f};
+    v2 y_axis = {0.0f, 100.0f};
+    
+    v4 color = {1.0f,1.0f,1.0f,1.0f};
+#endif
+    //v2 x_axis = (50.0f + 50.0f * cos(angle)) * v2{cos(angle),sin(angle)};
+    //v2 y_axis = (50.0f + 50.0f * cos(angle)) * v2{cos(angle + 1.0f), sin(angle + 1.0f)};
+    
     v2 moving = v2{dis, dis} + origin - 0.5f*x_axis - 0.5f*y_axis;
-    Render_entry_coord_system* c =  push_coord_system(render_group, moving, x_axis, y_axis, color, &game_state->tree);
+    Render_entry_coord_system* c =  push_coord_system(render_group, origin, x_axis, y_axis, color, &game_state->tree);
     
     u32 p_index = 0;
     for (f32 y = 0.0f; y < 1.0f; y += 0.25f) {
