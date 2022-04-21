@@ -486,12 +486,13 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
             case Render_group_entry_type_Render_entry_bitmap: {
                 Render_entry_bitmap* entry = (Render_entry_bitmap*)data;
                 base_addr += sizeof(*entry);
-                
+#if 0
                 v2 pos = get_render_entit_basis_pos(render_group, &entry->entity_basis, screen_center);
                 
                 macro_assert(entry->bitmap);
                 
                 draw_bitmap(output_target, entry->bitmap, pos, entry->color.a);
+#endif
                 
             } break;
             

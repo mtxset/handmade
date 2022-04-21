@@ -1,4 +1,4 @@
-// https://youtu.be/GKVMOmEGVoQ?t=3025
+// https://youtu.be/QtepVbq6_pw?t=4247
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include <stdio.h>
@@ -92,7 +92,7 @@ win32_init_direct_sound(HWND window, i32 samples_per_second, i32 buffer_size) {
     
     if (DSoundLibrary) {
         // NOTE: Get a DirectSound Object
-        direct_sound_create* DirectSoundCreate = (direct_sound_create *) GetProcAddress(DSoundLibrary, "DirectSoundCreate");
+        direct_sound_create* DirectSoundCreate = (direct_sound_create *)GetProcAddress(DSoundLibrary, "DirectSoundCreate");
         
         // TODO: Double-check that this works on XP - DirectSound or 7??
         LPDIRECTSOUND DirectSound;
