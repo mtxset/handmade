@@ -45,6 +45,11 @@ union v4 {
         f32 _discard;
     };
     
+    struct {
+        v3 xyz;
+        f32 _discard;
+    };
+    
     f32 e[4];
 };
 
@@ -454,12 +459,34 @@ length(v3 a) {
     return result;
 }
 
+
+inline
+v3
+normalize(v3 a) {
+    v3 result;
+    
+    result = a * (1.0f / length(a));
+    
+    return result;
+}
+
+
 inline
 v3 
 unit_vector(v3 a) {
     v3 result;
     
     result = a / length(a);
+    
+    return result;
+}
+
+inline
+v3
+lerp(v3 a, f32 t, v3 b) {
+    v3 result;
+    
+    result = (1.0f - t) * a + t * b;
     
     return result;
 }

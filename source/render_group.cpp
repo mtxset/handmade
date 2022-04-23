@@ -139,9 +139,32 @@ draw_rect(Loaded_bmp* buffer, v2 start, v2 end, v4 color) {
     }
 }
 
+inline
+v4
+unpack_4x8(u32 packed) {
+    v4 result; 
+    
+    result = {
+        (f32)((packed >> 16) & 0xff),
+        (f32)((packed >> 8)  & 0xff),
+        (f32)((packed >> 0)  & 0xff),
+        (f32)((packed >> 24) & 0xff)
+    };
+    
+    return result;
+}
+
+inline
+v3
+sample_env_map(v2 screen_space_uv, v3 normal, f32 roughness, Env_map* map) {
+    v3 result;
+    result = normal;
+    return normal;
+}
+
 internal
 void
-draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Loaded_bmp* bitmap) {
+draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Loaded_bmp* bitmap, Loaded_bmp* normal_map, Env_map* top, Env_map* middle, Env_map* bottom) {
     
     color.rgb *= color.a;
     
@@ -161,6 +184,9 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
     
     i32 width_max = buffer->width - 1;
     i32 height_max = buffer->height - 1;
+    
+    f32 inv_width_max = 1.0f / (f32)width_max;
+    f32 inv_height_max = 1.0f / (f32)height_max;
     
     i32 y_min = height_max;
     i32 y_max = 0;
@@ -209,6 +235,11 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                 edge2 < 0 && 
                 edge3 < 0) {
                 
+                v2 screen_space_uv = {
+                    inv_width_max * (f32)x, 
+                    inv_height_max * (f32)y
+                };
+                
                 f32 u = inverse_x_axis_squared * inner(d, x_axis);
                 f32 v = inverse_y_axis_squared * inner(d, y_axis);
                 
@@ -227,42 +258,19 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                 macro_assert(x_i32 >= 0 && x_i32 < bitmap->width);
                 macro_assert(y_i32 >= 0 && y_i32 < bitmap->height);
                 
-                u8* texel_ptr = (u8*)bitmap->memory + y_i32 * bitmap->pitch + x_i32 * sizeof(u32);
                 v4 texel = {};
                 // blending pixels
                 {
+                    u8* texel_ptr = (u8*)bitmap->memory + y_i32 * bitmap->pitch + x_i32 * sizeof(u32);
                     u32 texel_ptr_a = *(u32*)texel_ptr;
                     u32 texel_ptr_b = *(u32*)(texel_ptr + sizeof(u32));
                     u32 texel_ptr_c = *(u32*)(texel_ptr + bitmap->pitch);
                     u32 texel_ptr_d = *(u32*)(texel_ptr + bitmap->pitch + sizeof(u32));
                     
-                    v4 texel_a = {
-                        (f32)((texel_ptr_a >> 16) & 0xff),
-                        (f32)((texel_ptr_a >> 8)  & 0xff),
-                        (f32)((texel_ptr_a >> 0)  & 0xff),
-                        (f32)((texel_ptr_a >> 24) & 0xff)
-                    };
-                    
-                    v4 texel_b = {
-                        (f32)((texel_ptr_b >> 16) & 0xff),
-                        (f32)((texel_ptr_b >> 8)  & 0xff),
-                        (f32)((texel_ptr_b >> 0)  & 0xff),
-                        (f32)((texel_ptr_b >> 24) & 0xff)
-                    };
-                    
-                    v4 texel_c = {
-                        (f32)((texel_ptr_c >> 16) & 0xff),
-                        (f32)((texel_ptr_c >> 8)  & 0xff),
-                        (f32)((texel_ptr_c >> 0)  & 0xff),
-                        (f32)((texel_ptr_c >> 24) & 0xff)
-                    };
-                    
-                    v4 texel_d = {
-                        (f32)((texel_ptr_d >> 16) & 0xff),
-                        (f32)((texel_ptr_d >> 8)  & 0xff),
-                        (f32)((texel_ptr_d >> 0)  & 0xff),
-                        (f32)((texel_ptr_d >> 24) & 0xff)
-                    };
+                    v4 texel_a = unpack_4x8(texel_ptr_a);
+                    v4 texel_b = unpack_4x8(texel_ptr_b);
+                    v4 texel_c = unpack_4x8(texel_ptr_c);
+                    v4 texel_d = unpack_4x8(texel_ptr_d);
                     
                     // first step of gamma correction 
                     texel_a = srgb255_to_linear1(texel_a);
@@ -273,10 +281,51 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                     texel = lerp(lerp(texel_a, f_x, texel_b),
                                  f_y,
                                  lerp(texel_c, f_x, texel_d));
-                }
-                //alpha
-                {
                     
+                    v4 normal = {};
+                    // normal maps
+                    if (normal_map) {
+                        u8* normal_ptr = (u8*)bitmap->memory + y_i32 * bitmap->pitch + x_i32 * sizeof(u32);
+                        u32 normal_ptr_a = *(u32*)normal_ptr;
+                        u32 normal_ptr_b = *(u32*)(normal_ptr + sizeof(u32));
+                        u32 normal_ptr_c = *(u32*)(normal_ptr + normal_map->pitch);
+                        u32 normal_ptr_d = *(u32*)(normal_ptr + normal_map->pitch + sizeof(u32));
+                        
+                        v4 normal_a = unpack_4x8(normal_ptr_a);
+                        v4 normal_b = unpack_4x8(normal_ptr_b);
+                        v4 normal_c = unpack_4x8(normal_ptr_c);
+                        v4 normal_d = unpack_4x8(normal_ptr_d);
+                        
+                        normal = lerp(lerp(normal_a, f_x, normal_b),
+                                      f_y,
+                                      lerp(normal_c, f_x, normal_d));
+                        
+                        Env_map* far_map = 0;
+                        f32 t_env_map = normal.z;
+                        f32 t_far_map = 0.0f;
+                        
+                        if (t_env_map < 0.25f) {
+                            far_map = bottom;
+                            t_far_map = 1.0f - (t_env_map / 0.25f);
+                        }
+                        else if (t_env_map > 0.75) {
+                            far_map = top;
+                            t_far_map = (1.0f - t_env_map) / 0.25f;
+                        }
+                        
+                        v3 light_color = sample_env_map(screen_space_uv, normal.xyz, normal.w, middle);
+                        
+                        if (far_map) {
+                            v3 far_map_color = sample_env_map(screen_space_uv, normal.xyz, normal.w, middle); 
+                            light_color = lerp(light_color, t_far_map, far_map_color);
+                        }
+                        
+                        texel.rgb = hadamard(texel.rgb, light_color);
+                    }
+                    
+                }
+                
+                {
                     texel = hadamard(texel, color);
                     
                     texel.r *= color.r;
@@ -513,7 +562,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
                 v2 dim = v2{2,2};
                 
                 v2 end = entry->origin + entry->x_axis + entry->y_axis;
-                draw_rect_slow(output_target, entry->origin, entry->x_axis, entry->y_axis, entry->color, entry->bitmap);
+                draw_rect_slow(output_target, entry->origin, entry->x_axis, entry->y_axis, entry->color, entry->bitmap, entry->normal_map, entry->top, entry->middle, entry->bottom);
                 
                 draw_rect(output_target, pos - dim, pos + dim, entry->color);
                 
@@ -571,7 +620,7 @@ push_clear(Render_group* group, v4 color) {
 
 inline
 Render_entry_coord_system*
-push_coord_system(Render_group* group, v2 origin, v2 x_axis, v2 y_axis, v4 color, Loaded_bmp* bitmap) {
+push_coord_system(Render_group* group, v2 origin, v2 x_axis, v2 y_axis, v4 color, Loaded_bmp* bitmap, Loaded_bmp* normal_map, Env_map* top, Env_map* middle, Env_map* bottom) {
     Render_entry_coord_system* entry = push_render_element(group, Render_entry_coord_system);
     
     if (!entry)
@@ -582,6 +631,10 @@ push_coord_system(Render_group* group, v2 origin, v2 x_axis, v2 y_axis, v4 color
     entry->y_axis = y_axis;
     entry->color = color;
     entry->bitmap = bitmap;
+    entry->normal_map = normal_map;
+    entry->top = top;
+    entry->middle = middle;
+    entry->bottom = bottom;
     
     return entry;
 }

@@ -3,6 +3,12 @@
 #ifndef RENDER_GROUP_H
 #define RENDER_GROUP_H
 
+struct Env_map {
+    u32 width_pow2; // has to be power of 2
+    u32 height_pow2;
+    Loaded_bmp* lod[4];
+};
+
 struct Render_basis {
     v3 position;
 };
@@ -26,13 +32,16 @@ struct Render_group_entry_header {
 };
 
 struct Render_entry_coord_system {
-    Loaded_bmp* bitmap;
     v2 origin;
     v2 x_axis;
     v2 y_axis;
     v4 color;
     
-    v2 points[16];
+    Loaded_bmp* bitmap;
+    Loaded_bmp* normal_map;
+    Env_map* top;
+    Env_map* middle;
+    Env_map* bottom;
 };
 
 struct Render_entry_clear {
