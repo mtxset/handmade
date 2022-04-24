@@ -231,8 +231,9 @@ struct Game_state {
     Loaded_bmp stone[4];
     Loaded_bmp tuft[3];
     
-    Loaded_bmp background;
     Loaded_bmp tree;
+    Loaded_bmp tree_normal;
+    Loaded_bmp background;
     Loaded_bmp monster;
     Loaded_bmp familiar;
     Loaded_bmp sword;
