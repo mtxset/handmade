@@ -1,6 +1,20 @@
 #include "main.h"
 #include "color.h"
 
+inline
+v4
+unpack_4x8(u32 packed) {
+    v4 result; 
+    
+    result = {
+        (f32)((packed >> 16) & 0xff),
+        (f32)((packed >> 8)  & 0xff),
+        (f32)((packed >> 0)  & 0xff),
+        (f32)((packed >> 24) & 0xff)
+    };
+    
+    return result;
+}
 
 inline
 v4
@@ -31,6 +45,23 @@ linear1_to_srgb255(v4 color) {
     
     return result;
 }
+
+inline
+v4
+unscale_bias_normal(v4 normal) {
+    v4 result;
+    
+    f32 inv_255 = 1.0f / 255.0f;
+    
+    result.x = -1.0f + 2.0f * (inv_255 * normal.x);
+    result.y = -1.0f + 2.0f * (inv_255 * normal.y);
+    result.z = -1.0f + 2.0f * (inv_255 * normal.z);
+    
+    result.w = inv_255 * normal.w;
+    
+    return result;
+}
+
 
 #define push_render_element(group,type) (type*)push_render_element_(group, sizeof(type), Render_group_entry_type_##type)
 
@@ -139,17 +170,39 @@ draw_rect(Loaded_bmp* buffer, v2 start, v2 end, v4 color) {
     }
 }
 
+struct Bilinear_sample {
+    u32 a, b, c, d;
+};
+
 inline
-v4
-unpack_4x8(u32 packed) {
-    v4 result; 
+Bilinear_sample
+bilinear_sample(Loaded_bmp* bitmap, i32 x, i32 y) {
+    Bilinear_sample result;
     
-    result = {
-        (f32)((packed >> 16) & 0xff),
-        (f32)((packed >> 8)  & 0xff),
-        (f32)((packed >> 0)  & 0xff),
-        (f32)((packed >> 24) & 0xff)
-    };
+    u8* texel_ptr = ((u8*)bitmap->memory) + y * bitmap->pitch + x * sizeof(u32);
+    result.a = *(u32*)texel_ptr;
+    result.b = *(u32*)(texel_ptr + sizeof(u32));
+    result.c = *(u32*)(texel_ptr + bitmap->pitch);
+    result.d = *(u32*)(texel_ptr + bitmap->pitch + sizeof(u32));
+    return result;
+}
+
+inline 
+v4
+srgb_bilinear_blend(Bilinear_sample texel_sample, f32 f_x, f32 f_y) {
+    v4 texel_a = unpack_4x8(texel_sample.a);
+    v4 texel_b = unpack_4x8(texel_sample.b);
+    v4 texel_c = unpack_4x8(texel_sample.c);
+    v4 texel_d = unpack_4x8(texel_sample.d);
+    
+    texel_a = srgb255_to_linear1(texel_a);
+    texel_b = srgb255_to_linear1(texel_b);
+    texel_c = srgb255_to_linear1(texel_c);
+    texel_d = srgb255_to_linear1(texel_d);
+    
+    v4 result = lerp(lerp(texel_a, f_x, texel_b),
+                     f_y,
+                     lerp(texel_c, f_x, texel_d));
     
     return result;
 }
@@ -157,9 +210,27 @@ unpack_4x8(u32 packed) {
 inline
 v3
 sample_env_map(v2 screen_space_uv, v3 normal, f32 roughness, Env_map* map) {
-    v3 result;
-    result = normal;
-    return normal;
+    u32 lod_index = (u32)(roughness * (f32)(macro_array_count(map->lod) - 1) + 0.05f);
+    macro_assert(lod_index < macro_array_count(map->lod));
+    
+    Loaded_bmp* lod = map->lod[lod_index];
+    
+    f32 t_x = 0.0f;
+    f32 t_y = 0.0f;
+    
+    i32 x = 0;
+    i32 y = 0;
+    
+    f32 f_x = t_x -(f32)x;
+    f32 f_y = t_y -(f32)y;
+    
+    macro_assert(x > 0 && x < lod->width);
+    macro_assert(y > 0 && y < lod->height);
+    
+    Bilinear_sample sample = bilinear_sample(lod, x, y);
+    v3 result = srgb_bilinear_blend(sample, f_x, f_y).xyz;
+    
+    return result;
 }
 
 internal
@@ -261,66 +332,47 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                 v4 texel = {};
                 // blending pixels
                 {
-                    u8* texel_ptr = (u8*)bitmap->memory + y_i32 * bitmap->pitch + x_i32 * sizeof(u32);
-                    u32 texel_ptr_a = *(u32*)texel_ptr;
-                    u32 texel_ptr_b = *(u32*)(texel_ptr + sizeof(u32));
-                    u32 texel_ptr_c = *(u32*)(texel_ptr + bitmap->pitch);
-                    u32 texel_ptr_d = *(u32*)(texel_ptr + bitmap->pitch + sizeof(u32));
+                    Bilinear_sample texel_sample = bilinear_sample(bitmap, x_i32, y_i32);
+                    texel = srgb_bilinear_blend(texel_sample, f_x, f_y);
                     
-                    v4 texel_a = unpack_4x8(texel_ptr_a);
-                    v4 texel_b = unpack_4x8(texel_ptr_b);
-                    v4 texel_c = unpack_4x8(texel_ptr_c);
-                    v4 texel_d = unpack_4x8(texel_ptr_d);
-                    
-                    // first step of gamma correction 
-                    texel_a = srgb255_to_linear1(texel_a);
-                    texel_b = srgb255_to_linear1(texel_b);
-                    texel_c = srgb255_to_linear1(texel_c);
-                    texel_d = srgb255_to_linear1(texel_d);
-                    
-                    texel = lerp(lerp(texel_a, f_x, texel_b),
-                                 f_y,
-                                 lerp(texel_c, f_x, texel_d));
-                    
-                    v4 normal = {};
                     // normal maps
                     if (normal_map) {
-                        u8* normal_ptr = (u8*)bitmap->memory + y_i32 * bitmap->pitch + x_i32 * sizeof(u32);
-                        u32 normal_ptr_a = *(u32*)normal_ptr;
-                        u32 normal_ptr_b = *(u32*)(normal_ptr + sizeof(u32));
-                        u32 normal_ptr_c = *(u32*)(normal_ptr + normal_map->pitch);
-                        u32 normal_ptr_d = *(u32*)(normal_ptr + normal_map->pitch + sizeof(u32));
                         
-                        v4 normal_a = unpack_4x8(normal_ptr_a);
-                        v4 normal_b = unpack_4x8(normal_ptr_b);
-                        v4 normal_c = unpack_4x8(normal_ptr_c);
-                        v4 normal_d = unpack_4x8(normal_ptr_d);
+                        Bilinear_sample normal_sample = bilinear_sample(normal_map, x_i32, y_i32);
                         
-                        normal = lerp(lerp(normal_a, f_x, normal_b),
-                                      f_y,
-                                      lerp(normal_c, f_x, normal_d));
+                        v4 normal_a = unpack_4x8(normal_sample.a);
+                        v4 normal_b = unpack_4x8(normal_sample.b);
+                        v4 normal_c = unpack_4x8(normal_sample.c);
+                        v4 normal_d = unpack_4x8(normal_sample.d);
+                        
+                        v4 normal = lerp(lerp(normal_a, f_x, normal_b),
+                                         f_y,
+                                         lerp(normal_c, f_x, normal_d));
+                        
+                        normal = unscale_bias_normal(normal);
+                        normal.xyz = normalize(normal.xyz);
                         
                         Env_map* far_map = 0;
-                        f32 t_env_map = normal.z;
+                        f32 t_env_map = normal.y;
                         f32 t_far_map = 0.0f;
                         
-                        if (t_env_map < 0.25f) {
+                        if (t_env_map < -0.5f) {
                             far_map = bottom;
-                            t_far_map = 1.0f - (t_env_map / 0.25f);
+                            t_far_map = 2.0f * (t_env_map + 1.0f);
                         }
-                        else if (t_env_map > 0.75) {
+                        else if (t_env_map > 0.5) {
                             far_map = top;
-                            t_far_map = (1.0f - t_env_map) / 0.25f;
+                            t_far_map = 2.0f * (t_env_map - 0.5f);
                         }
                         
-                        v3 light_color = sample_env_map(screen_space_uv, normal.xyz, normal.w, middle);
+                        v3 light_color = {0,0,0}; // sample_env_map(screen_space_uv, normal.xyz, normal.w, middle);
                         
                         if (far_map) {
-                            v3 far_map_color = sample_env_map(screen_space_uv, normal.xyz, normal.w, middle); 
+                            v3 far_map_color = sample_env_map(screen_space_uv, normal.xyz, normal.w, far_map); 
                             light_color = lerp(light_color, t_far_map, far_map_color);
                         }
                         
-                        texel.rgb = hadamard(texel.rgb, light_color);
+                        texel.rgb = texel.rgb + texel.a * light_color;
                     }
                     
                 }
@@ -328,10 +380,9 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                 {
                     texel = hadamard(texel, color);
                     
-                    texel.r *= color.r;
-                    texel.g *= color.g;
-                    texel.b *= color.b;
-                    texel.a *= color.a;
+                    texel.r = clamp01(texel.r);
+                    texel.g = clamp01(texel.g);
+                    texel.b = clamp01(texel.b);
                     
                     v4 dst = {
                         (f32)((*pixel >> 16) & 0xff),
@@ -351,9 +402,7 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                     // blending techniques: http://ycpcs.github.io/cs470-fall2014/labs/lab09.html
                     
                     // linear blending
-                    f32 inv_r_src_alpha = 1.0f - texel.a;
-                    
-                    v4 blended = inv_r_src_alpha * dst + texel;
+                    v4 blended = (1.0f - texel.a) * dst + texel;
                     
                     v4 blended_255 = linear1_to_srgb255(blended);
                     

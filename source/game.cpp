@@ -815,32 +815,36 @@ make_sphere_normal_map(Loaded_bmp* bitmap, f32 roughness) {
     for (i32 y = 0; y < bitmap->height; y++) {
         u32* pixel = (u32*)row;
         for (i32 x = 0; x < bitmap->width; x++) {
+            
             v2 bitmap_uv = {
                 inv_width * (f32)x,
                 inv_height * (f32)y,
             };
             
-            v3 normal = {
-                2.0f * bitmap_uv.x - 1.0f,
-                2.0f * bitmap_uv.y - 1.0f,
-                0.0f
-            };
+            f32 nx = 2.0f * bitmap_uv.x - 1.0f;
+            f32 ny = 2.0f * bitmap_uv.y - 1.0f;
             
-            normal.z = square_root(1.0f - min(1.0f, square(normal.x) + square(normal.y)));
+            f32 root_term = 1.0f - nx*nx - ny*ny;
+            v3 normal = {0,0,1};
+            f32 nz = 0.0f;
+            
+            if (root_term >= 0.0f) {
+                nz = square_root(root_term);
+                normal = { nx, ny, nz };
+            }
             
             v4 color = {
                 255.0f * (0.5f * (normal.x + 1.0f)),
                 255.0f * (0.5f * (normal.y + 1.0f)),
-                128.0f * normal.z,
+                255.0f * (0.5f * (normal.z + 1.0f)),
                 255.0f * roughness
             };
             
-            u32 color_hex = ((u32)(color.a * 255.0f) << 24 | 
-                             (u32)(color.r * 255.0f) << 16 | 
-                             (u32)(color.g * 255.0f) << 8  |
-                             (u32)(color.b * 255.0f) << 0);
+            *pixel++ = ((u32)(color.a * 255.0f) << 24 | 
+                        (u32)(color.r * 255.0f) << 16 | 
+                        (u32)(color.g * 255.0f) << 8  |
+                        (u32)(color.b * 255.0f) << 0);
             
-            *pixel++ = color_hex;
         }
         row += bitmap->pitch;
     }
@@ -975,6 +979,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
             game_state->familiar   = debug_load_bmp("../data/ship.bmp");
             game_state->sword      = debug_load_bmp("../data/sword.bmp");
             game_state->stairwell  = debug_load_bmp("../data/george-back-0.bmp");
+            
 #if 0
             // load george
             {
@@ -1166,6 +1171,10 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                                                       false);
             ground_buffer->position = null_position();
         }
+        
+        game_state->tree_normal = make_empty_bitmap(&tran_state->tran_arena, 
+                                                    game_state->tree.width, game_state->tree.height, false);
+        make_sphere_normal_map(&game_state->tree_normal, 0.0f);
         
         tran_state->is_initialized = true;
     }
@@ -1562,7 +1571,8 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     //v2 y_axis = (50.0f + 50.0f * cos(angle)) * v2{cos(angle + 1.0f), sin(angle + 1.0f)};
     
     v2 moving = v2{dis, dis} + origin - 0.5f*x_axis - 0.5f*y_axis;
-    Render_entry_coord_system* c =  push_coord_system(render_group, origin, x_axis, y_axis, color, &game_state->tree, 0,0,0,0);
+    Render_entry_coord_system* c =  push_coord_system(render_group, origin, x_axis, y_axis, color, 
+                                                      &game_state->tree, &game_state->tree_normal, 0,0,0);
     
     // actually draw
     render_group_to_output(render_group, draw_buffer);
