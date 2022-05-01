@@ -3,10 +3,15 @@
 #ifndef RENDER_GROUP_H
 #define RENDER_GROUP_H
 
+struct Loaded_bmp {
+    i32 height;
+    i32 width;
+    i32 pitch;
+    void* memory;
+};
+
 struct Env_map {
-    u32 width_pow2; // has to be power of 2
-    u32 height_pow2;
-    Loaded_bmp* lod[4];
+    Loaded_bmp lod[4];
 };
 
 struct Render_basis {
@@ -25,6 +30,7 @@ enum Render_group_entry_type {
     Render_group_entry_type_Render_entry_bitmap,
     Render_group_entry_type_Render_entry_rect,
     Render_group_entry_type_Render_entry_coord_system,
+    Render_group_entry_type_Render_entry_saturation,
 };
 
 struct Render_group_entry_header {
@@ -39,6 +45,7 @@ struct Render_entry_coord_system {
     
     Loaded_bmp* bitmap;
     Loaded_bmp* normal_map;
+    
     Env_map* top;
     Env_map* middle;
     Env_map* bottom;
@@ -46,6 +53,10 @@ struct Render_entry_coord_system {
 
 struct Render_entry_clear {
     v4 color;
+};
+
+struct Render_entry_saturation {
+    f32 level;
 };
 
 struct Render_entry_rect {

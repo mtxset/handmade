@@ -7,6 +7,7 @@
 #include "world.h"
 #include "sim_region.h"
 #include "entity.h"
+#include "render_group.h"
 
 #define BITMAP_BYTES_PER_PIXEL 4
 
@@ -139,13 +140,6 @@ struct Subpixel_test {
     bool direction;
 };
 
-struct Loaded_bmp {
-    i32 height;
-    i32 width;
-    i32 pitch;
-    void* memory;
-};
-
 // struct is from: https://www.fileformat.info/format/bmp/egff.htm
 // preventing compiler padding this struct
 #pragma pack(push, 1)
@@ -232,7 +226,6 @@ struct Game_state {
     Loaded_bmp tuft[3];
     
     Loaded_bmp tree;
-    Loaded_bmp tree_normal;
     Loaded_bmp background;
     Loaded_bmp monster;
     Loaded_bmp familiar;
@@ -254,6 +247,9 @@ struct Game_state {
     
     f32 time;
     
+    Loaded_bmp test_diffuse;
+    Loaded_bmp test_normal;
+    
     Hero_bitmaps hero_bitmaps[4];
 #if 0
     Pacman_state pacman_state;
@@ -272,6 +268,10 @@ struct Transient_state {
     Memory_arena tran_arena;
     u32 ground_buffer_count;
     Ground_buffer* ground_buffer_list;
+    
+    u32 env_map_width;
+    u32 env_map_height;
+    Env_map env_map_list[3]; // 0 bottom, 1 middle, 2 is top
 };
 
 Game_controller_input* 

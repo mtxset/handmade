@@ -23,10 +23,10 @@ srgb255_to_linear1(v4 color) {
     
     f32 inv_255 = 1.0f / 255.0f;
     
-    result.a = inv_255 * color.a;
     result.r = square(inv_255 * color.r);
     result.g = square(inv_255 * color.g);
     result.b = square(inv_255 * color.b);
+    result.a = inv_255 * color.a;
     
     return result;
 }
@@ -180,10 +180,11 @@ bilinear_sample(Loaded_bmp* bitmap, i32 x, i32 y) {
     Bilinear_sample result;
     
     u8* texel_ptr = ((u8*)bitmap->memory) + y * bitmap->pitch + x * sizeof(u32);
-    result.a = *(u32*)texel_ptr;
+    result.a = *(u32*) texel_ptr;
     result.b = *(u32*)(texel_ptr + sizeof(u32));
     result.c = *(u32*)(texel_ptr + bitmap->pitch);
     result.d = *(u32*)(texel_ptr + bitmap->pitch + sizeof(u32));
+    
     return result;
 }
 
@@ -213,19 +214,19 @@ sample_env_map(v2 screen_space_uv, v3 normal, f32 roughness, Env_map* map) {
     u32 lod_index = (u32)(roughness * (f32)(macro_array_count(map->lod) - 1) + 0.05f);
     macro_assert(lod_index < macro_array_count(map->lod));
     
-    Loaded_bmp* lod = map->lod[lod_index];
+    Loaded_bmp* lod = &map->lod[lod_index];
     
-    f32 t_x = 0.0f;
-    f32 t_y = 0.0f;
+    f32 t_x = lod->width  / 2 + normal.x * (f32)(lod->width  / 2);
+    f32 t_y = lod->height / 2 + normal.y * (f32)(lod->height / 2);
     
-    i32 x = 0;
-    i32 y = 0;
+    i32 x = (i32)t_x;
+    i32 y = (i32)t_y;
     
     f32 f_x = t_x -(f32)x;
     f32 f_y = t_y -(f32)y;
     
-    macro_assert(x > 0 && x < lod->width);
-    macro_assert(y > 0 && y < lod->height);
+    macro_assert(x >= 0 && x < lod->width);
+    macro_assert(y >= 0 && y < lod->height);
     
     Bilinear_sample sample = bilinear_sample(lod, x, y);
     v3 result = srgb_bilinear_blend(sample, f_x, f_y).xyz;
@@ -239,31 +240,31 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
     
     color.rgb *= color.a;
     
-    u32 color_hex = 0;
+    f32 inverse_x_axis_squared = 1.0f / length_squared(x_axis);
+    f32 inverse_y_axis_squared = 1.0f / length_squared(y_axis);
     
-    color_hex = (round_f32_u32(color.a * 255.0f) << 24 | 
-                 round_f32_u32(color.r * 255.0f) << 16 | 
-                 round_f32_u32(color.g * 255.0f) << 8  |
-                 round_f32_u32(color.b * 255.0f) << 0);
+    u32 color_hex = (round_f32_u32(color.a * 255.0f) << 24 | 
+                     round_f32_u32(color.r * 255.0f) << 16 | 
+                     round_f32_u32(color.g * 255.0f) << 8  |
+                     round_f32_u32(color.b * 255.0f) << 0);
+    
+    i32 width_max  = buffer->width - 1;
+    i32 height_max = buffer->height - 1;
+    
+    f32 inv_width_max  = 1.0f / (f32)width_max;
+    f32 inv_height_max = 1.0f / (f32)height_max;
+    
+    i32 x_min = width_max;
+    i32 x_max = 0;
+    i32 y_min = height_max;
+    i32 y_max = 0;
     
     v2 p[4] = {
         origin,
         origin + x_axis,
-        origin + x_axis + y_axis,
+        origin + x_axis + y_axis, 
         origin + y_axis
     };
-    
-    i32 width_max = buffer->width - 1;
-    i32 height_max = buffer->height - 1;
-    
-    f32 inv_width_max = 1.0f / (f32)width_max;
-    f32 inv_height_max = 1.0f / (f32)height_max;
-    
-    i32 y_min = height_max;
-    i32 y_max = 0;
-    i32 x_min = width_max;
-    i32 x_max = 0;
-    
     for (i32 i = 0; i < macro_array_count(p); i++) {
         v2 test_pos = p[i];
         
@@ -286,12 +287,9 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
     i32 bytes_per_pixel = BITMAP_BYTES_PER_PIXEL;
     u8* row = (u8*)buffer->memory + x_min * bytes_per_pixel + y_min * buffer->pitch;
     
-    f32 inverse_x_axis_squared = 1.0f / length_squared(x_axis);
-    f32 inverse_y_axis_squared = 1.0f / length_squared(y_axis);
-    
-    for (i32 y = y_min; y < y_max; y++) {
+    for (i32 y = y_min; y <= y_max; y++) {
         u32* pixel = (u32*)row;
-        for (i32 x = x_min; x < x_max; x++) {
+        for (i32 x = x_min; x <= x_max; x++) {
             
             v2 pixel_pos = v2_i32(x, y);
             v2 d = pixel_pos - origin;
@@ -307,7 +305,7 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                 edge3 < 0) {
                 
                 v2 screen_space_uv = {
-                    inv_width_max * (f32)x, 
+                    inv_width_max  * (f32)x, 
                     inv_height_max * (f32)y
                 };
                 
@@ -317,66 +315,62 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                 //macro_assert(u >= 0.0f && u <= 1.0f);
                 //macro_assert(v >= 0.0f && v <= 1.0f);
                 
-                f32 x_f32 = (u * ((f32)(bitmap->width - 2)));
-                f32 y_f32 = (v * ((f32)(bitmap->height - 2)));
+                f32 t_x = (u * ((f32)(bitmap->width - 2)));
+                f32 t_y = (v * ((f32)(bitmap->height - 2)));
                 
-                i32 x_i32 = (i32)x_f32;
-                i32 y_i32 = (i32)y_f32;
+                i32 x_i32 = (i32)t_x;
+                i32 y_i32 = (i32)t_y;
                 
-                f32 f_x = x_f32 - (f32)x_i32;
-                f32 f_y = y_f32 - (f32)y_i32;
+                f32 f_x = t_x - (f32)x_i32;
+                f32 f_y = t_y - (f32)y_i32;
                 
                 macro_assert(x_i32 >= 0 && x_i32 < bitmap->width);
                 macro_assert(y_i32 >= 0 && y_i32 < bitmap->height);
                 
-                v4 texel = {};
-                // blending pixels
-                {
-                    Bilinear_sample texel_sample = bilinear_sample(bitmap, x_i32, y_i32);
-                    texel = srgb_bilinear_blend(texel_sample, f_x, f_y);
+                Bilinear_sample texel_sample = bilinear_sample(bitmap, x_i32, y_i32);
+                v4 texel = srgb_bilinear_blend(texel_sample, f_x, f_y);
+                
+                // normal maps and lighting
+                if (normal_map) {
                     
-                    // normal maps
-                    if (normal_map) {
-                        
-                        Bilinear_sample normal_sample = bilinear_sample(normal_map, x_i32, y_i32);
-                        
-                        v4 normal_a = unpack_4x8(normal_sample.a);
-                        v4 normal_b = unpack_4x8(normal_sample.b);
-                        v4 normal_c = unpack_4x8(normal_sample.c);
-                        v4 normal_d = unpack_4x8(normal_sample.d);
-                        
-                        v4 normal = lerp(lerp(normal_a, f_x, normal_b),
-                                         f_y,
-                                         lerp(normal_c, f_x, normal_d));
-                        
-                        normal = unscale_bias_normal(normal);
-                        normal.xyz = normalize(normal.xyz);
-                        
-                        Env_map* far_map = 0;
-                        f32 t_env_map = normal.y;
-                        f32 t_far_map = 0.0f;
-                        
-                        if (t_env_map < -0.5f) {
-                            far_map = bottom;
-                            t_far_map = 2.0f * (t_env_map + 1.0f);
-                        }
-                        else if (t_env_map > 0.5) {
-                            far_map = top;
-                            t_far_map = 2.0f * (t_env_map - 0.5f);
-                        }
-                        
-                        v3 light_color = {0,0,0}; // sample_env_map(screen_space_uv, normal.xyz, normal.w, middle);
-                        
-                        if (far_map) {
-                            v3 far_map_color = sample_env_map(screen_space_uv, normal.xyz, normal.w, far_map); 
-                            light_color = lerp(light_color, t_far_map, far_map_color);
-                        }
-                        
-                        texel.rgb = texel.rgb + texel.a * light_color;
+                    Bilinear_sample normal_sample = bilinear_sample(normal_map, x_i32, y_i32);
+                    
+                    v4 normal_a = unpack_4x8(normal_sample.a);
+                    v4 normal_b = unpack_4x8(normal_sample.b);
+                    v4 normal_c = unpack_4x8(normal_sample.c);
+                    v4 normal_d = unpack_4x8(normal_sample.d);
+                    
+                    v4 normal = lerp(lerp(normal_a, f_x, normal_b),
+                                     f_y,
+                                     lerp(normal_c, f_x, normal_d));
+                    
+                    normal = unscale_bias_normal(normal);
+                    normal.xyz = normalize(normal.xyz);
+                    
+                    Env_map* far_map = 0;
+                    f32 t_env_map = normal.y;
+                    f32 t_far_map = 0.0f;
+                    
+                    if (t_env_map < -0.5f) {
+                        far_map = bottom;
+                        t_far_map = -1.0f - 2.0f * t_env_map;
+                    }
+                    else if (t_env_map > 0.5) {
+                        far_map = top;
+                        t_far_map = 2.0f * (t_env_map - 0.5f);
                     }
                     
+                    v3 light_color = {0,0,0}; // sample_env_map(screen_space_uv, normal.xyz, normal.w, middle);
+                    
+                    if (far_map) {
+                        v3 far_map_color = sample_env_map(screen_space_uv, normal.xyz, normal.w, far_map); 
+                        light_color = lerp(light_color, t_far_map, far_map_color);
+                    }
+                    
+                    texel.rgb = texel.rgb + texel.a * light_color;
                 }
                 
+                // blending
                 {
                     texel = hadamard(texel, color);
                     
@@ -431,6 +425,49 @@ draw_rect_outline(Loaded_bmp* buffer, v2 start, v2 end, v4 color, f32 thickness 
     draw_rect(buffer, v2{start.x - thickness, start.y - thickness}, v2{start.x + thickness, end.y + thickness}, color);
     draw_rect(buffer, v2{end.x   - thickness, start.y - thickness}, v2{end.x   + thickness, end.y + thickness}, color);
 }
+
+internal
+void
+change_saturation(Loaded_bmp* bitmap_buffer, f32 level) {
+    
+    u8* dest_row = (u8*)bitmap_buffer->memory;
+    
+    for (i32 y = 0; y < bitmap_buffer->height; y++) {
+        u32* dest = (u32*)dest_row; // incoming pixel
+        
+        for (i32 x = 0; x < bitmap_buffer->width; x++) {
+            
+            v4 dst = {
+                (f32)((*dest >> 16) & 0xff),
+                (f32)((*dest >> 8)  & 0xff),
+                (f32)((*dest >> 0)  & 0xff),
+                (f32)((*dest >> 24) & 0xff),
+            };
+            
+            dst = srgb255_to_linear1(dst);
+            
+            f32 avg = (1.0f / 3.0f) * (dst.r + dst.g + dst.b);
+            v3 delta = {
+                dst.r - avg,
+                dst.g - avg,
+                dst.b - avg
+            };
+            
+            v4 result = to_v4(v3{avg, avg, avg} + level * delta, dst.a);
+            result = linear1_to_srgb255(result);
+            
+            *dest = (((u32)(result.a + 0.5f) << 24)|
+                     ((u32)(result.r + 0.5f) << 16)|
+                     ((u32)(result.g + 0.5f) << 8 )|
+                     ((u32)(result.b + 0.5f) << 0 ));
+            
+            dest++;
+        }
+        
+        dest_row += bitmap_buffer->pitch;
+    }
+}
+
 
 internal
 void
@@ -581,6 +618,14 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
                 
             } break;
             
+            case Render_group_entry_type_Render_entry_saturation: {
+                Render_entry_saturation* entry = (Render_entry_saturation*)data;
+                base_addr += sizeof(*entry);
+                
+                change_saturation(output_target, entry->level);
+                
+            } break;
+            
             case Render_group_entry_type_Render_entry_bitmap: {
                 Render_entry_bitmap* entry = (Render_entry_bitmap*)data;
                 base_addr += sizeof(*entry);
@@ -613,20 +658,21 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
                 v2 end = entry->origin + entry->x_axis + entry->y_axis;
                 draw_rect_slow(output_target, entry->origin, entry->x_axis, entry->y_axis, entry->color, entry->bitmap, entry->normal_map, entry->top, entry->middle, entry->bottom);
                 
-                draw_rect(output_target, pos - dim, pos + dim, entry->color);
+                v4 corner_color = yellow_v4;
+                draw_rect(output_target, pos - dim, pos + dim, corner_color);
                 
                 pos = entry->origin + entry->x_axis;
-                draw_rect(output_target, pos - dim, pos + dim, entry->color);
+                draw_rect(output_target, pos - dim, pos + dim, corner_color);
                 
                 pos = entry->origin + entry->y_axis;
-                draw_rect(output_target, pos - dim, pos + dim, entry->color);
+                draw_rect(output_target, pos - dim, pos + dim, corner_color);
                 
-                draw_rect(output_target, end - dim, end + dim, entry->color);
+                draw_rect(output_target, end - dim, end + dim, corner_color);
 #if 0
                 for (u32 i = 0; i < macro_array_count(entry->points); i++) {
                     v2 p = entry->points[i];
                     p = entry->origin + p.x * entry->x_axis + p.y * entry->y_axis;
-                    draw_rect(output_target, p - dim, p + dim, entry->color);
+                    draw_rect(output_target, p - dim, p + dim, corner_color);
                 }
 #endif
             } break;
@@ -666,6 +712,16 @@ push_clear(Render_group* group, v4 color) {
     entry->color = color;
 }
 
+inline
+void
+push_saturation(Render_group* group, f32 level) {
+    Render_entry_saturation* entry = push_render_element(group, Render_entry_saturation);
+    
+    if (!entry)
+        return;
+    
+    entry->level = level;
+}
 
 inline
 Render_entry_coord_system*
