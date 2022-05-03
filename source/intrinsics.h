@@ -559,6 +559,17 @@ hadamard(v4 a, v4 b) {
     return result;
 }
 
+inline
+v4
+to_v4(v3 xyz, f32 w) {
+    v4 result;
+    
+    result.xyz = xyz;
+    result.w = w;
+    
+    return result;
+}
+
 // VECTORS END
 
 

@@ -798,14 +798,15 @@ make_empty_bitmap(Memory_arena* arena, i32 width, i32 height, bool clear_to_zero
     result.memory = mem_push_size(arena, total_bitmap_size);
     
     if (clear_to_zero)
-        mem_zero_size_(total_bitmap_size, result.memory);
+        clear_bitmap(&result);
     
     return result;
 }
 
+
 internal
 void
-make_sphere_normal_map(Loaded_bmp* bitmap, f32 roughness) {
+make_pyramid_normal_map(Loaded_bmp* bitmap, f32 roughness) {
     
     f32 inv_width  = 1.0f / (f32)(bitmap->width  - 1);
     f32 inv_height = 1.0f / (f32)(bitmap->height - 1);
@@ -817,15 +818,72 @@ make_sphere_normal_map(Loaded_bmp* bitmap, f32 roughness) {
         for (i32 x = 0; x < bitmap->width; x++) {
             
             v2 bitmap_uv = {
-                inv_width * (f32)x,
+                inv_width  * (f32)x,
                 inv_height * (f32)y,
             };
             
-            f32 nx = 2.0f * bitmap_uv.x - 1.0f;
-            f32 ny = 2.0f * bitmap_uv.y - 1.0f;
+            i32 inv_x = bitmap->width - 1 - x;
+            f32 normalized = 1.0f / sqrtf(1 + 1);
+            v3 normal = {0,0,normalized};
+            if (x < y) {
+                if (inv_x < y) {
+                    normal.x = -normalized;
+                }
+                else  {
+                    normal.y = normalized;
+                }
+            }
+            else {
+                if (inv_x < y) {
+                    normal.y = -normalized;
+                }
+                else {
+                    normal.x = normalized;
+                }
+            }
+            
+            v4 color = {
+                255.0f * (0.5f * (normal.x + 1.0f)),
+                255.0f * (0.5f * (normal.y + 1.0f)),
+                255.0f * (0.5f * (normal.z + 1.0f)),
+                255.0f * roughness
+            };
+            
+            *pixel++ = ((u32)(color.a + 0.5f) << 24 | 
+                        (u32)(color.r + 0.5f) << 16 | 
+                        (u32)(color.g + 0.5f) << 8  |
+                        (u32)(color.b + 0.5f) << 0);
+            
+        }
+        row += bitmap->pitch;
+    }
+}
+
+
+internal
+void
+make_sphere_normal_map(Loaded_bmp* bitmap, f32 roughness, f32 cx = 1.0f, f32 cy = 1.0f) {
+    
+    f32 inv_width  = 1.0f / (f32)(bitmap->width  - 1);
+    f32 inv_height = 1.0f / (f32)(bitmap->height - 1);
+    
+    u8* row = (u8*)bitmap->memory;
+    
+    for (i32 y = 0; y < bitmap->height; y++) {
+        u32* pixel = (u32*)row;
+        for (i32 x = 0; x < bitmap->width; x++) {
+            
+            v2 bitmap_uv = {
+                inv_width  * (f32)x,
+                inv_height * (f32)y,
+            };
+            
+            f32 nx = cx * (2.0f * bitmap_uv.x - 1.0f);
+            f32 ny = cy * (2.0f * bitmap_uv.y - 1.0f);
             
             f32 root_term = 1.0f - nx*nx - ny*ny;
-            v3 normal = {0,0,1};
+            f32 normalized = 1.0f / sqrtf(1 + 1);
+            v3 normal = {0,normalized,normalized};
             f32 nz = 0.0f;
             
             if (root_term >= 0.0f) {
@@ -840,10 +898,58 @@ make_sphere_normal_map(Loaded_bmp* bitmap, f32 roughness) {
                 255.0f * roughness
             };
             
-            *pixel++ = ((u32)(color.a * 255.0f) << 24 | 
-                        (u32)(color.r * 255.0f) << 16 | 
-                        (u32)(color.g * 255.0f) << 8  |
-                        (u32)(color.b * 255.0f) << 0);
+            *pixel++ = ((u32)(color.a + 0.5f) << 24 | 
+                        (u32)(color.r + 0.5f) << 16 | 
+                        (u32)(color.g + 0.5f) << 8  |
+                        (u32)(color.b + 0.5f) << 0);
+            
+        }
+        row += bitmap->pitch;
+    }
+}
+
+internal
+void
+make_cylinder_normal_map_x(Loaded_bmp* bitmap, f32 roughness) {
+    
+    f32 inv_width  = 1.0f / (f32)(bitmap->width  - 1);
+    f32 inv_height = 1.0f / (f32)(bitmap->height - 1);
+    
+    u8* row = (u8*)bitmap->memory;
+    
+    for (i32 y = 0; y < bitmap->height; y++) {
+        u32* pixel = (u32*)row;
+        for (i32 x = 0; x < bitmap->width; x++) {
+            
+            v2 bitmap_uv = {
+                inv_width  * (f32)x,
+                inv_height * (f32)y,
+            };
+            
+            f32 nx = 2.0f * bitmap_uv.x - 1.0f;
+            f32 ny = 2.0f * bitmap_uv.y - 1.0f;
+            
+            f32 root_term = 1.0f - nx*nx;
+            f32 normalized = 1.0f / sqrtf(1 + 1);
+            v3 normal = {0,normalized,normalized};
+            f32 nz = 0.0f;
+            
+            macro_assert(root_term >= 0.0f);
+            
+            nz = square_root(root_term);
+            normal = { nx, ny, nz };
+            
+            v4 color = {
+                255.0f * (0.5f * (normal.x + 1.0f)),
+                255.0f * (0.5f * (normal.y + 1.0f)),
+                255.0f * (0.5f * (normal.z + 1.0f)),
+                255.0f * roughness
+            };
+            
+            *pixel++ = ((u32)(color.a + 0.5f) << 24 | 
+                        (u32)(color.r + 0.5f) << 16 | 
+                        (u32)(color.g + 0.5f) << 8  |
+                        (u32)(color.b + 0.5f) << 0);
             
         }
         row += bitmap->pitch;
@@ -1172,19 +1278,40 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
             ground_buffer->position = null_position();
         }
         
-        game_state->tree_normal = make_empty_bitmap(&tran_state->tran_arena, 
-                                                    game_state->tree.width, game_state->tree.height, false);
-        make_sphere_normal_map(&game_state->tree_normal, 0.0f);
+        game_state->test_diffuse = make_empty_bitmap(&tran_state->tran_arena, 256, 256, false);
+        draw_rect(&game_state->test_diffuse, v2{0,0}, v2_i32(game_state->test_diffuse.width, game_state->test_diffuse.height), v4{0.5f, 0.5f, 0.5f, 1.0f});
+        
+        game_state->test_normal = make_empty_bitmap(&tran_state->tran_arena, 
+                                                    game_state->test_diffuse.width, game_state->test_diffuse.height, false);
+        make_sphere_normal_map(&game_state->test_normal, 0.0f, 0.1f, 1.0f);
+        //make_pyramid_normal_map(&game_state->test_normal, 0.0f);
+        
+        tran_state->env_map_width = 512;
+        tran_state->env_map_height = 256;
+        
+        for (u32 map_index = 0; map_index < macro_array_count(tran_state->env_map_list); map_index += 1) {
+            Env_map* map = tran_state->env_map_list + map_index;
+            u32 width = tran_state->env_map_width;
+            u32 height = tran_state->env_map_height;
+            for (u32 lod_index = 0; lod_index < macro_array_count(map->lod); lod_index++) {
+                map->lod[lod_index] = make_empty_bitmap(&tran_state->tran_arena, width, height, false);
+                
+                width >>= 1;
+                height >>= 1;
+            }
+        }
         
         tran_state->is_initialized = true;
     }
     
+#if 0
     if (input->executable_reloaded) {
         for (u32 ground_buffer_index = 0; ground_buffer_index < tran_state->ground_buffer_count; ground_buffer_index++) {
             Ground_buffer* ground_buffer = tran_state->ground_buffer_list + ground_buffer_index;
             ground_buffer->position = null_position();
         }
     }
+#endif
     
     World* world = game_state->world;
     
@@ -1545,12 +1672,40 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         }
     }
     
+    // prepare maps
+    {
+        v3 map_color[] = {
+            {1,0,0},
+            {0,1,0},
+            {0,0,1},
+        };
+        
+        for (u32 map_index = 0; map_index < macro_array_count(tran_state->env_map_list); map_index++) {
+            Env_map* map = tran_state->env_map_list + map_index;
+            Loaded_bmp* lod = map->lod + 0;
+            bool row_checker_on = false;
+            i32 checker_width = 16;
+            i32 checker_height = 16;
+            
+            for (i32 y = 0; y < lod->height; y += checker_height) {
+                bool checker_on = row_checker_on;
+                for (i32 x = 0; x < lod->width; x += checker_width) {
+                    v4 color = checker_on ? to_v4(map_color[map_index], 1.0f) : v4{0,0,0,1};
+                    v2 min_pos = v2_i32(x, y);
+                    v2 max_pos = min_pos + v2_i32(checker_width, checker_height);
+                    draw_rect(lod, min_pos, max_pos, color);
+                    checker_on = !checker_on;
+                }
+                row_checker_on = !row_checker_on;
+            }
+        }
+    }
+    
     game_state->time += input->time_delta;
     f32 angle = 0.5f * game_state->time;
-    angle = 0.0f;
     f32 dis = 150.0f * cos(angle);
     v2 origin = screen_center;
-#if 0
+#if 1
     v2 x_axis = 100.0f * v2{cos(angle), sin(angle)};
     v2 y_axis = perpendicular(x_axis);
     
@@ -1564,17 +1719,40 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
 #else
     v2 x_axis = {100.0f, 0.0f};
     v2 y_axis = {0.0f, 100.0f};
-    
     v4 color = {1.0f,1.0f,1.0f,1.0f};
+    
 #endif
+    color = {1.0f,1.0f,1.0f,1.0f};
     //v2 x_axis = (50.0f + 50.0f * cos(angle)) * v2{cos(angle),sin(angle)};
     //v2 y_axis = (50.0f + 50.0f * cos(angle)) * v2{cos(angle + 1.0f), sin(angle + 1.0f)};
     
-    v2 moving = v2{dis, dis} + origin - 0.5f*x_axis - 0.5f*y_axis;
-    Render_entry_coord_system* c =  push_coord_system(render_group, origin, x_axis, y_axis, color, 
-                                                      &game_state->tree, &game_state->tree_normal, 0,0,0);
+    v2 pos = v2{dis, 0} + origin - 0.5f*x_axis - 0.5f*y_axis;
+    push_coord_system(render_group, pos, x_axis, y_axis, color, 
+                      &game_state->test_diffuse, 
+                      &game_state->test_normal, 
+                      tran_state->env_map_list + 2,
+                      tran_state->env_map_list + 1,
+                      tran_state->env_map_list + 0);
     
-    // actually draw
+    v2 map_pos = {0.0f, 0.0f};
+    for (u32 map_index = 0; map_index < macro_array_count(tran_state->env_map_list); map_index++) {
+        
+        Env_map* map = tran_state->env_map_list + map_index;
+        Loaded_bmp* lod = &map->lod[0];
+        
+        x_axis = 0.5f * v2{(f32)lod->width, 0.0f };
+        y_axis = 0.5f * v2{ 0.0f, (f32)lod->height };
+        
+        v4 full_color = { 1.0f, 1.0f, 1.0f, 1.0f };
+        push_coord_system(render_group, map_pos, x_axis, y_axis, full_color, lod, 0, 0, 0, 0);
+        map_pos += y_axis + v2{0.0f, 5.0f};
+    }
+    
+#if 0
+    push_saturation(render_group, 0.5f + 0.5f * sin(10.0f * game_state->time));
+#endif 
+    
+    // output buffers to bitmap
     render_group_to_output(render_group, draw_buffer);
     
     end_sim(sim_region, game_state);

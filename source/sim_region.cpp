@@ -507,8 +507,6 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
     if (!is_set(entity, Entity_flag_zsupported))
         player_acceleration_dd += v3 {0, 0, -9.8f};
     
-    v3 old_player_pos = entity->position;
-    
     // p' = (1/2) * at^2 + vt + ..
     v3 player_delta = 0.5f * player_acceleration_dd * square(time_delta) + entity->velocity_d * time_delta;
     
@@ -520,7 +518,6 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
 #endif
     
     // p' = ... + p
-    v3 new_player_pos = old_player_pos + player_delta;
     
     f32 distance_remaining = entity->distance_limit;
     if (distance_remaining == 0.0f) {
