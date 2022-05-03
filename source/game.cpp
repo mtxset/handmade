@@ -803,9 +803,114 @@ make_empty_bitmap(Memory_arena* arena, i32 width, i32 height, bool clear_to_zero
     return result;
 }
 
+
 internal
 void
-make_sphere_normal_map(Loaded_bmp* bitmap, f32 roughness) {
+make_pyramid_normal_map(Loaded_bmp* bitmap, f32 roughness) {
+    
+    f32 inv_width  = 1.0f / (f32)(bitmap->width  - 1);
+    f32 inv_height = 1.0f / (f32)(bitmap->height - 1);
+    
+    u8* row = (u8*)bitmap->memory;
+    
+    for (i32 y = 0; y < bitmap->height; y++) {
+        u32* pixel = (u32*)row;
+        for (i32 x = 0; x < bitmap->width; x++) {
+            
+            v2 bitmap_uv = {
+                inv_width  * (f32)x,
+                inv_height * (f32)y,
+            };
+            
+            i32 inv_x = bitmap->width - 1 - x;
+            f32 normalized = 1.0f / sqrtf(1 + 1);
+            v3 normal = {0,0,normalized};
+            if (x < y) {
+                if (inv_x < y) {
+                    normal.x = -normalized;
+                }
+                else  {
+                    normal.y = normalized;
+                }
+            }
+            else {
+                if (inv_x < y) {
+                    normal.y = -normalized;
+                }
+                else {
+                    normal.x = normalized;
+                }
+            }
+            
+            v4 color = {
+                255.0f * (0.5f * (normal.x + 1.0f)),
+                255.0f * (0.5f * (normal.y + 1.0f)),
+                255.0f * (0.5f * (normal.z + 1.0f)),
+                255.0f * roughness
+            };
+            
+            *pixel++ = ((u32)(color.a + 0.5f) << 24 | 
+                        (u32)(color.r + 0.5f) << 16 | 
+                        (u32)(color.g + 0.5f) << 8  |
+                        (u32)(color.b + 0.5f) << 0);
+            
+        }
+        row += bitmap->pitch;
+    }
+}
+
+
+internal
+void
+make_sphere_normal_map(Loaded_bmp* bitmap, f32 roughness, f32 cx = 1.0f, f32 cy = 1.0f) {
+    
+    f32 inv_width  = 1.0f / (f32)(bitmap->width  - 1);
+    f32 inv_height = 1.0f / (f32)(bitmap->height - 1);
+    
+    u8* row = (u8*)bitmap->memory;
+    
+    for (i32 y = 0; y < bitmap->height; y++) {
+        u32* pixel = (u32*)row;
+        for (i32 x = 0; x < bitmap->width; x++) {
+            
+            v2 bitmap_uv = {
+                inv_width  * (f32)x,
+                inv_height * (f32)y,
+            };
+            
+            f32 nx = cx * (2.0f * bitmap_uv.x - 1.0f);
+            f32 ny = cy * (2.0f * bitmap_uv.y - 1.0f);
+            
+            f32 root_term = 1.0f - nx*nx - ny*ny;
+            f32 normalized = 1.0f / sqrtf(1 + 1);
+            v3 normal = {0,normalized,normalized};
+            f32 nz = 0.0f;
+            
+            if (root_term >= 0.0f) {
+                nz = square_root(root_term);
+                normal = { nx, ny, nz };
+            }
+            
+            v4 color = {
+                255.0f * (0.5f * (normal.x + 1.0f)),
+                255.0f * (0.5f * (normal.y + 1.0f)),
+                255.0f * (0.5f * (normal.z + 1.0f)),
+                255.0f * roughness
+            };
+            
+            *pixel++ = ((u32)(color.a + 0.5f) << 24 | 
+                        (u32)(color.r + 0.5f) << 16 | 
+                        (u32)(color.g + 0.5f) << 8  |
+                        (u32)(color.b + 0.5f) << 0);
+            
+        }
+        row += bitmap->pitch;
+    }
+}
+
+internal
+void
+make_cylinder_normal_map_x(Loaded_bmp* bitmap, f32 roughness) {
     
     f32 inv_width  = 1.0f / (f32)(bitmap->width  - 1);
     f32 inv_height = 1.0f / (f32)(bitmap->height - 1);
@@ -824,14 +929,15 @@ make_sphere_normal_map(Loaded_bmp* bitmap, f32 roughness) {
             f32 nx = 2.0f * bitmap_uv.x - 1.0f;
             f32 ny = 2.0f * bitmap_uv.y - 1.0f;
             
-            f32 root_term = 1.0f - nx*nx - ny*ny;
-            v3 normal = {0,0,1};
+            f32 root_term = 1.0f - nx*nx;
+            f32 normalized = 1.0f / sqrtf(1 + 1);
+            v3 normal = {0,normalized,normalized};
             f32 nz = 0.0f;
             
-            if (root_term >= 0.0f) {
-                nz = square_root(root_term);
-                normal = { nx, ny, nz };
-            }
+            macro_assert(root_term >= 0.0f);
+            
+            nz = square_root(root_term);
+            normal = { nx, ny, nz };
             
             v4 color = {
                 255.0f * (0.5f * (normal.x + 1.0f)),
@@ -1177,7 +1283,8 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         
         game_state->test_normal = make_empty_bitmap(&tran_state->tran_arena, 
                                                     game_state->test_diffuse.width, game_state->test_diffuse.height, false);
-        make_sphere_normal_map(&game_state->test_normal, 0.0f);
+        make_sphere_normal_map(&game_state->test_normal, 0.0f, 0.1f, 1.0f);
+        //make_pyramid_normal_map(&game_state->test_normal, 0.0f);
         
         tran_state->env_map_width = 512;
         tran_state->env_map_height = 256;
@@ -1596,10 +1703,9 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     
     game_state->time += input->time_delta;
     f32 angle = 0.5f * game_state->time;
-    angle = 0.0f;
     f32 dis = 150.0f * cos(angle);
     v2 origin = screen_center;
-#if 0
+#if 1
     v2 x_axis = 100.0f * v2{cos(angle), sin(angle)};
     v2 y_axis = perpendicular(x_axis);
     
@@ -1613,13 +1719,14 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
 #else
     v2 x_axis = {100.0f, 0.0f};
     v2 y_axis = {0.0f, 100.0f};
-    
     v4 color = {1.0f,1.0f,1.0f,1.0f};
+    
 #endif
+    color = {1.0f,1.0f,1.0f,1.0f};
     //v2 x_axis = (50.0f + 50.0f * cos(angle)) * v2{cos(angle),sin(angle)};
     //v2 y_axis = (50.0f + 50.0f * cos(angle)) * v2{cos(angle + 1.0f), sin(angle + 1.0f)};
     
-    v2 pos = origin - 0.5f*x_axis - 0.5f*y_axis;
+    v2 pos = v2{dis, 0} + origin - 0.5f*x_axis - 0.5f*y_axis;
     push_coord_system(render_group, pos, x_axis, y_axis, color, 
                       &game_state->test_diffuse, 
                       &game_state->test_normal, 

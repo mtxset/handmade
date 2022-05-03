@@ -210,14 +210,25 @@ srgb_bilinear_blend(Bilinear_sample texel_sample, f32 f_x, f32 f_y) {
 
 inline
 v3
-sample_env_map(v2 screen_space_uv, v3 normal, f32 roughness, Env_map* map) {
+sample_env_map(v2 screen_space_uv, v3 sample_direction, f32 roughness, Env_map* map) {
     u32 lod_index = (u32)(roughness * (f32)(macro_array_count(map->lod) - 1) + 0.05f);
     macro_assert(lod_index < macro_array_count(map->lod));
     
     Loaded_bmp* lod = &map->lod[lod_index];
     
-    f32 t_x = lod->width  / 2 + normal.x * (f32)(lod->width  / 2);
-    f32 t_y = lod->height / 2 + normal.y * (f32)(lod->height / 2);
+    macro_assert(sample_direction.y > 0.0f);
+    f32 distance_from_map_z = 1.0f;
+    f32 uv_per_meter = 0.01f;
+    f32 c = (uv_per_meter * distance_from_map_z) / sample_direction.y;
+    
+    v2 offset = c * v2{sample_direction.x, sample_direction.z};
+    v2 uv = screen_space_uv + offset;
+    
+    uv.x = clamp01(uv.x);
+    uv.y = clamp01(uv.y);
+    
+    f32 t_x = uv.x * (f32)(lod->width - 2);
+    f32 t_y = uv.y * (f32)(lod->height - 2);
     
     i32 x = (i32)t_x;
     i32 y = (i32)t_y;
@@ -347,13 +358,19 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                     normal = unscale_bias_normal(normal);
                     normal.xyz = normalize(normal.xyz);
                     
+                    // eye vectors is always -> v3 eye_vector = {0,0,1} = e;
+                    // simplified version of reflection -e + 2e^T N N 
+                    v3 bounce_direction = 2.0f * normal.z * normal.xyz;
+                    bounce_direction.z -= 1.0f;
+                    
                     Env_map* far_map = 0;
-                    f32 t_env_map = normal.y;
+                    f32 t_env_map = bounce_direction.y;
                     f32 t_far_map = 0.0f;
                     
                     if (t_env_map < -0.5f) {
                         far_map = bottom;
                         t_far_map = -1.0f - 2.0f * t_env_map;
+                        bounce_direction.y = -bounce_direction.y;
                     }
                     else if (t_env_map > 0.5) {
                         far_map = top;
@@ -363,7 +380,7 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                     v3 light_color = {0,0,0}; // sample_env_map(screen_space_uv, normal.xyz, normal.w, middle);
                     
                     if (far_map) {
-                        v3 far_map_color = sample_env_map(screen_space_uv, normal.xyz, normal.w, far_map); 
+                        v3 far_map_color = sample_env_map(screen_space_uv, bounce_direction, normal.w, far_map); 
                         light_color = lerp(light_color, t_far_map, far_map_color);
                     }
                     
