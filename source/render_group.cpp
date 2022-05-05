@@ -358,6 +358,11 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                     normal = unscale_bias_normal(normal);
                     normal.xyz = normalize(normal.xyz);
                     
+                    // rotate normals
+                    {
+                        
+                    }
+                    
                     // eye vectors is always -> v3 eye_vector = {0,0,1} = e;
                     // simplified version of reflection -e + 2e^T N N 
                     v3 bounce_direction = 2.0f * normal.z * normal.xyz;
