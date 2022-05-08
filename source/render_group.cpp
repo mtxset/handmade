@@ -210,24 +210,38 @@ srgb_bilinear_blend(Bilinear_sample texel_sample, f32 f_x, f32 f_y) {
 
 inline
 v3
-sample_env_map(v2 screen_space_uv, v3 sample_direction, f32 roughness, Env_map* map) {
+sample_env_map(v2 screen_space_uv, v3 sample_direction, f32 roughness, Env_map* map, f32 distance_from_map_z) {
+    
+    /*
+screen_space_uv - says where ray is being casted from in normalized screen coords.
+
+sample_direction - what direction cast is goind - not normalized
+
+roughness - which LODs of map we sample from 
+
+distance_from_map_z - how far the map is from sample point in z, in meters
+*/
+    
+    // pick LOD
     u32 lod_index = (u32)(roughness * (f32)(macro_array_count(map->lod) - 1) + 0.05f);
     macro_assert(lod_index < macro_array_count(map->lod));
     
     Loaded_bmp* lod = &map->lod[lod_index];
     
-    macro_assert(sample_direction.y > 0.0f);
-    f32 distance_from_map_z = 1.0f;
+    // compute distance to the map and the scaling factor for meters-to-uv
     f32 uv_per_meter = 0.01f;
     f32 c = (uv_per_meter * distance_from_map_z) / sample_direction.y;
-    
     v2 offset = c * v2{sample_direction.x, sample_direction.z};
+    
+    // find the intersection point
     v2 uv = screen_space_uv + offset;
     
+    // clamp it to valid range
     uv.x = clamp01(uv.x);
     uv.y = clamp01(uv.y);
     
-    f32 t_x = uv.x * (f32)(lod->width - 2);
+    // bilinear sample 
+    f32 t_x = uv.x * (f32)(lod->width  - 2);
     f32 t_y = uv.y * (f32)(lod->height - 2);
     
     i32 x = (i32)t_x;
@@ -238,6 +252,9 @@ sample_env_map(v2 screen_space_uv, v3 sample_direction, f32 roughness, Env_map* 
     
     macro_assert(x >= 0 && x < lod->width);
     macro_assert(y >= 0 && y < lod->height);
+    
+    u8* texel_ptr = ((u8*)lod->memory) + y * lod->pitch + x * sizeof(u32);
+    *(u32*)texel_ptr = 0xffffffff;
     
     Bilinear_sample sample = bilinear_sample(lod, x, y);
     v3 result = srgb_bilinear_blend(sample, f_x, f_y).xyz;
@@ -356,6 +373,21 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                                      lerp(normal_c, f_x, normal_d));
                     
                     normal = unscale_bias_normal(normal);
+                    
+                    // rotate normals
+                    // day 102
+                    {
+                        f32 x_axis_length = length(x_axis);
+                        f32 y_axis_length = length(y_axis);
+                        
+                        v2 normal_x_axis = (y_axis_length / x_axis_length) * x_axis;
+                        v2 normal_y_axis = (x_axis_length / y_axis_length) * y_axis;
+                        
+                        f32 z_scale = 0.5f * (x_axis_length + y_axis_length);
+                        normal.xy = normal.x * normal_x_axis + normal.y * normal_y_axis;
+                        normal.z *= z_scale;
+                    }
+                    
                     normal.xyz = normalize(normal.xyz);
                     
                     // rotate normals
@@ -368,14 +400,17 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                     v3 bounce_direction = 2.0f * normal.z * normal.xyz;
                     bounce_direction.z -= 1.0f;
                     
+                    bounce_direction.z = -bounce_direction.z;
+#if 1
                     Env_map* far_map = 0;
+                    f32 distance_from_map_z = 2.0f;
                     f32 t_env_map = bounce_direction.y;
                     f32 t_far_map = 0.0f;
                     
                     if (t_env_map < -0.5f) {
                         far_map = bottom;
                         t_far_map = -1.0f - 2.0f * t_env_map;
-                        bounce_direction.y = -bounce_direction.y;
+                        distance_from_map_z = -distance_from_map_z;
                     }
                     else if (t_env_map > 0.5) {
                         far_map = top;
@@ -385,11 +420,13 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                     v3 light_color = {0,0,0}; // sample_env_map(screen_space_uv, normal.xyz, normal.w, middle);
                     
                     if (far_map) {
-                        v3 far_map_color = sample_env_map(screen_space_uv, bounce_direction, normal.w, far_map); 
+                        v3 far_map_color = sample_env_map(screen_space_uv, bounce_direction, normal.w, far_map, distance_from_map_z);
                         light_color = lerp(light_color, t_far_map, far_map_color);
                     }
-                    
                     texel.rgb = texel.rgb + texel.a * light_color;
+#else
+                    texel.rgb = v3{0.5f, 0.5f, 0.5f} + 0.5f * bounce_direction;
+#endif 
                 }
                 
                 // blending

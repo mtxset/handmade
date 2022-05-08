@@ -50,6 +50,24 @@ union v4 {
         f32 _discard;
     };
     
+    struct {
+        v2 xy;
+        f32 _discard0;
+        f32 _discard1;
+    };
+    
+    struct {
+        f32 _discard0;
+        v2 yz;
+        f32 _discard1;
+    };
+    
+    struct {
+        f32 _discard0;
+        f32 _discard1;
+        v2 zw;
+    };
+    
     f32 e[4];
 };
 
@@ -255,15 +273,6 @@ clamp01(v3 value) {
     result.x = clamp01(value.x);
     result.y = clamp01(value.y);
     result.z = clamp01(value.z);
-    
-    return result;
-}
-
-inline
-v2 perpendicular_v2(v2 a) {
-    v2 result;
-    
-    result = { -a.y, a.x };
     
     return result;
 }
