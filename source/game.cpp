@@ -217,7 +217,7 @@ vectors_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) 
     draw_pixel(bitmap_buffer, { -x, 0 }, red_v4);
     
     draw_line(bitmap_buffer, { 0, 0 }, vec, green_v4);
-    draw_line(bitmap_buffer, { 0, 0 }, perpendicular_v2(vec), green_v4);
+    draw_line(bitmap_buffer, { 0, 0 }, perpendicular(vec), green_v4);
 }
 
 internal
@@ -1283,7 +1283,9 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         
         game_state->test_normal = make_empty_bitmap(&tran_state->tran_arena, 
                                                     game_state->test_diffuse.width, game_state->test_diffuse.height, false);
-        make_sphere_normal_map(&game_state->test_normal, 0.0f, 0.1f, 1.0f);
+        
+        make_sphere_normal_map(&game_state->test_normal, 0.0f);
+        //make_sphere_normal_map(&game_state->test_normal, 0.0f, 0.1f, 1.0f); // cylinder
         //make_pyramid_normal_map(&game_state->test_normal, 0.0f);
         
         tran_state->env_map_width = 512;
@@ -1703,7 +1705,11 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     
     game_state->time += input->time_delta;
     f32 angle = 0.5f * game_state->time;
-    f32 dis = 150.0f * cos(angle);
+    v2 dis = { 
+        150.0f * cos(angle),
+        150.0f * sin(angle),
+    };
+    
     v2 origin = screen_center;
 #if 1
     v2 x_axis = 100.0f * v2{cos(angle), sin(angle)};
@@ -1726,7 +1732,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     //v2 x_axis = (50.0f + 50.0f * cos(angle)) * v2{cos(angle),sin(angle)};
     //v2 y_axis = (50.0f + 50.0f * cos(angle)) * v2{cos(angle + 1.0f), sin(angle + 1.0f)};
     
-    v2 pos = v2{dis, 0} + origin - 0.5f*x_axis - 0.5f*y_axis;
+    v2 pos = dis + origin - 0.5f*x_axis - 0.5f*y_axis;
     push_coord_system(render_group, pos, x_axis, y_axis, color, 
                       &game_state->test_diffuse, 
                       &game_state->test_normal, 
