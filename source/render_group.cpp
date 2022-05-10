@@ -229,7 +229,7 @@ distance_from_map_z - how far the map is from sample point in z, in meters
     Loaded_bmp* lod = &map->lod[lod_index];
     
     // compute distance to the map and the scaling factor for meters-to-uv
-    f32 uv_per_meter = 0.01f;
+    f32 uv_per_meter = 0.1f;
     f32 c = (uv_per_meter * distance_from_map_z) / sample_direction.y;
     v2 offset = c * v2{sample_direction.x, sample_direction.z};
     
@@ -253,8 +253,12 @@ distance_from_map_z - how far the map is from sample point in z, in meters
     macro_assert(x >= 0 && x < lod->width);
     macro_assert(y >= 0 && y < lod->height);
     
-    u8* texel_ptr = ((u8*)lod->memory) + y * lod->pitch + x * sizeof(u32);
-    *(u32*)texel_ptr = 0xffffffff;
+    bool show_where_sampling_is_coming_from = false;
+    
+    if (show_where_sampling_is_coming_from) {
+        u8* texel_ptr = ((u8*)lod->memory) + y * lod->pitch + x * sizeof(u32);
+        *(u32*)texel_ptr = 0xffffffff;
+    }
     
     Bilinear_sample sample = bilinear_sample(lod, x, y);
     v3 result = srgb_bilinear_blend(sample, f_x, f_y).xyz;
@@ -264,7 +268,7 @@ distance_from_map_z - how far the map is from sample point in z, in meters
 
 internal
 void
-draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Loaded_bmp* bitmap, Loaded_bmp* normal_map, Env_map* top, Env_map* middle, Env_map* bottom) {
+draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Loaded_bmp* bitmap, Loaded_bmp* normal_map, Env_map* top, Env_map* middle, Env_map* bottom, f32 pixel_to_meter) {
     
     color.rgb *= color.a;
     
@@ -293,6 +297,7 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
         origin + x_axis + y_axis, 
         origin + y_axis
     };
+    
     for (i32 i = 0; i < macro_array_count(p); i++) {
         v2 test_pos = p[i];
         
@@ -315,6 +320,10 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
     i32 bytes_per_pixel = BITMAP_BYTES_PER_PIXEL;
     u8* row = (u8*)buffer->memory + x_min * bytes_per_pixel + y_min * buffer->pitch;
     
+    f32 origin_z = 0.0;
+    f32 origin_y = (origin + 0.5f * x_axis + 0.5f * y_axis).y;
+    f32 fixed_cast_y = inv_height_max * origin_y;
+    
     for (i32 y = y_min; y <= y_max; y++) {
         u32* pixel = (u32*)row;
         for (i32 x = x_min; x <= x_max; x++) {
@@ -334,8 +343,10 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                 
                 v2 screen_space_uv = {
                     inv_width_max  * (f32)x, 
-                    inv_height_max * (f32)y
+                    fixed_cast_y
                 };
+                
+                f32 z_diff = pixel_to_meter * ((f32)y - origin_y);
                 
                 f32 u = inverse_x_axis_squared * inner(d, x_axis);
                 f32 v = inverse_y_axis_squared * inner(d, y_axis);
@@ -390,46 +401,50 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                     
                     normal.xyz = normalize(normal.xyz);
                     
-                    // rotate normals
-                    {
-                        
-                    }
-                    
                     // eye vectors is always -> v3 eye_vector = {0,0,1} = e;
                     // simplified version of reflection -e + 2e^T N N 
                     v3 bounce_direction = 2.0f * normal.z * normal.xyz;
                     bounce_direction.z -= 1.0f;
                     
                     bounce_direction.z = -bounce_direction.z;
-#if 1
+                    
                     Env_map* far_map = 0;
-                    f32 distance_from_map_z = 2.0f;
+                    f32 pos_z = origin_z + z_diff;
+                    f32 map_z = 2.0f;
                     f32 t_env_map = bounce_direction.y;
                     f32 t_far_map = 0.0f;
                     
                     if (t_env_map < -0.5f) {
                         far_map = bottom;
                         t_far_map = -1.0f - 2.0f * t_env_map;
-                        distance_from_map_z = -distance_from_map_z;
                     }
                     else if (t_env_map > 0.5) {
                         far_map = top;
                         t_far_map = 2.0f * (t_env_map - 0.5f);
                     }
                     
+                    t_far_map *= t_far_map;
+                    t_far_map *= t_far_map;
+                    
                     v3 light_color = {0,0,0}; // sample_env_map(screen_space_uv, normal.xyz, normal.w, middle);
                     
                     if (far_map) {
+                        f32 distance_from_map_z = far_map->pos_z - pos_z;
+                        
                         v3 far_map_color = sample_env_map(screen_space_uv, bounce_direction, normal.w, far_map, distance_from_map_z);
                         light_color = lerp(light_color, t_far_map, far_map_color);
                     }
                     texel.rgb = texel.rgb + texel.a * light_color;
-#else
-                    texel.rgb = v3{0.5f, 0.5f, 0.5f} + 0.5f * bounce_direction;
-#endif 
+                    
+                    bool draw_bounce_direction = false;
+                    
+                    if (draw_bounce_direction) {
+                        texel.rgb = v3{0.5f, 0.5f, 0.5f} + 0.5f * bounce_direction;
+                        texel.rgb *= texel.a;
+                    }
                 }
                 
-                // blending
+                // color blending
                 {
                     texel = hadamard(texel, color);
                     
@@ -715,7 +730,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
                 v2 dim = v2{2,2};
                 
                 v2 end = entry->origin + entry->x_axis + entry->y_axis;
-                draw_rect_slow(output_target, entry->origin, entry->x_axis, entry->y_axis, entry->color, entry->bitmap, entry->normal_map, entry->top, entry->middle, entry->bottom);
+                draw_rect_slow(output_target, entry->origin, entry->x_axis, entry->y_axis, entry->color, entry->bitmap, entry->normal_map, entry->top, entry->middle, entry->bottom, 1.0f / render_group->meters_to_pixels);
                 
                 v4 corner_color = yellow_v4;
                 draw_rect(output_target, pos - dim, pos + dim, corner_color);
