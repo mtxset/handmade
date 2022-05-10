@@ -12,6 +12,7 @@ struct Loaded_bmp {
 
 struct Env_map {
     Loaded_bmp lod[4];
+    f32 pos_z;
 };
 
 struct Render_basis {

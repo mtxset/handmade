@@ -859,6 +859,53 @@ make_pyramid_normal_map(Loaded_bmp* bitmap, f32 roughness) {
     }
 }
 
+internal
+void
+make_sphere_diffuse_map(Loaded_bmp* bitmap, f32 cx = 1.0f, f32 cy = 1.0f) {
+    
+    f32 inv_width  = 1.0f / (f32)(bitmap->width  - 1);
+    f32 inv_height = 1.0f / (f32)(bitmap->height - 1);
+    
+    u8* row = (u8*)bitmap->memory;
+    
+    for (i32 y = 0; y < bitmap->height; y++) {
+        u32* pixel = (u32*)row;
+        for (i32 x = 0; x < bitmap->width; x++) {
+            
+            v2 bitmap_uv = {
+                inv_width  * (f32)x,
+                inv_height * (f32)y,
+            };
+            
+            f32 nx = cx * (2.0f * bitmap_uv.x - 1.0f);
+            f32 ny = cy * (2.0f * bitmap_uv.y - 1.0f);
+            
+            f32 alpha = 0.0f;
+            f32 root_term = 1.0f - nx*nx - ny*ny;
+            
+            if (root_term >= 0.0f) {
+                alpha = 1.0f;
+            }
+            
+            v3 base_color = black_v3;
+            alpha *= 255.0f;
+            v4 color = {
+                alpha * base_color.x,
+                alpha * base_color.y,
+                alpha * base_color.z,
+                alpha
+            };
+            
+            *pixel++ = ((u32)(color.a + 0.5f) << 24 | 
+                        (u32)(color.r + 0.5f) << 16 | 
+                        (u32)(color.g + 0.5f) << 8  |
+                        (u32)(color.b + 0.5f) << 0);
+            
+        }
+        row += bitmap->pitch;
+    }
+}
+
 
 internal
 void
@@ -1285,6 +1332,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                                                     game_state->test_diffuse.width, game_state->test_diffuse.height, false);
         
         make_sphere_normal_map(&game_state->test_normal, 0.0f);
+        make_sphere_diffuse_map(&game_state->test_diffuse);
         //make_sphere_normal_map(&game_state->test_normal, 0.0f, 0.1f, 1.0f); // cylinder
         //make_pyramid_normal_map(&game_state->test_normal, 0.0f);
         
@@ -1703,12 +1751,22 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         }
     }
     
+    f32 zoom_in_on_maps = 1.5f;
+    tran_state->env_map_list[0].pos_z = -zoom_in_on_maps;
+    tran_state->env_map_list[1].pos_z = 0.0f;
+    tran_state->env_map_list[2].pos_z = zoom_in_on_maps;
+    
     game_state->time += input->time_delta;
     f32 angle = 0.5f * game_state->time;
+    bool move_around = true;
+    
     v2 dis = { 
         150.0f * cos(angle),
         150.0f * sin(angle),
     };
+    
+    if (!move_around) 
+        dis = {0,0};
     
     v2 origin = screen_center;
 #if 1
