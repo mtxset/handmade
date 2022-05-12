@@ -97,7 +97,7 @@ push_piece(Render_group* group, Loaded_bmp* bitmap,
     
     piece->entity_basis.basis     = group->default_basis;
     piece->bitmap                 = bitmap;
-    piece->entity_basis.offset    = group->meters_to_pixels * v2 { offset.x, -offset.y } - align;
+    piece->entity_basis.offset    = group->meters_to_pixels * v2 { offset.x, offset.y } - align;
     piece->entity_basis.offset_z  = offset_z;
     piece->entity_basis.entity_zc = entity_zc;
     piece->color                  = color;
@@ -122,7 +122,7 @@ push_rect(Render_group* group, v2 offset, f32 offset_z, v2 dim, v4 color, f32 en
     
     piece->entity_basis.basis     = group->default_basis;
     piece->entity_basis.offset    = group->meters_to_pixels
-        * v2 { offset.x, -offset.y } - half_dim;// v2 {-half_dim.x, half_dim.y};
+        * v2 { offset.x, offset.y } - half_dim;// v2 {-half_dim.x, half_dim.y};
     
     piece->entity_basis.offset_z  = offset_z;
     piece->entity_basis.entity_zc = entity_zc;
@@ -648,19 +648,13 @@ get_render_entit_basis_pos(Render_group* render_group, Render_entity_basis* basi
     
     v3 entity_base_point = basis->basis->position;
     f32 z_fudge = 1.0f + 0.1f * (entity_base_point.z + basis->offset_z);
-    
     f32 meters_to_pixels = render_group->meters_to_pixels;
     
-    v2 entity_ground_point = { 
-        screen_center.x + entity_base_point.x * z_fudge * meters_to_pixels,
-        screen_center.y - entity_base_point.y * z_fudge * meters_to_pixels
-    };
-    f32 entity_z = -meters_to_pixels * entity_base_point.z;
+    v2 entity_ground_point = screen_center + meters_to_pixels * z_fudge * entity_base_point.xy;
     
-    v2 center = { 
-        entity_ground_point.x + basis->offset.x, 
-        entity_ground_point.y + basis->offset.y + basis->entity_zc * entity_z
-    };
+    f32 entity_z = meters_to_pixels * entity_base_point.z;
+    
+    v2 center = entity_ground_point + basis->offset + v2{0, entity_z};
     
     return center;
 }
@@ -703,13 +697,12 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
             case Render_group_entry_type_Render_entry_bitmap: {
                 Render_entry_bitmap* entry = (Render_entry_bitmap*)data;
                 base_addr += sizeof(*entry);
-#if 0
+                
                 v2 pos = get_render_entit_basis_pos(render_group, &entry->entity_basis, screen_center);
                 
                 macro_assert(entry->bitmap);
                 
                 draw_bitmap(output_target, entry->bitmap, pos, entry->color.a);
-#endif
                 
             } break;
             
