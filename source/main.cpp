@@ -1,4 +1,4 @@
-// https://youtu.be/-LWk-TVfGTk?t=2033
+// https://youtu.be/CfjMu8DwOnY?t=2529
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include <stdio.h>
@@ -345,7 +345,7 @@ win32_resize_dib_section(Win32_bitmap_buffer* bitmap_buffer, i32 width, i32 heig
     
     bitmap_buffer->info.bmiHeader.biSize = sizeof(bitmap_buffer->info.bmiHeader);
     bitmap_buffer->info.bmiHeader.biWidth = width;
-    bitmap_buffer->info.bmiHeader.biHeight = -height; // draw left-to-right, top-to-bottom
+    bitmap_buffer->info.bmiHeader.biHeight = height; // draw left-to-right, bottom-to-top
     bitmap_buffer->info.bmiHeader.biPlanes = 1;
     bitmap_buffer->info.bmiHeader.biBitCount = 32;
     bitmap_buffer->info.bmiHeader.biCompression = BI_RGB;

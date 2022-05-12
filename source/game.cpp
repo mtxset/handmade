@@ -23,6 +23,13 @@
 #endif
 
 internal
+v2
+top_down_align(Loaded_bmp* bitmap, v2 align) {
+    align.y = (f32)(bitmap->height - 1) - align.y;
+    return align;
+}
+
+internal
 void
 clear_screen(Loaded_bmp* bitmap_buffer, u32 color) {
     // 8 bit pointer to the beginning of the memory
@@ -325,6 +332,7 @@ debug_load_bmp(char* file_name) {
     
     Bitmap_header* header = (Bitmap_header*)file_result.content;
     
+    macro_assert(result.height >= 0);
     macro_assert(header->Compression == 3);
     
     result.memory = (u32*)((u8*)file_result.content + header->BitmapOffset);
@@ -381,8 +389,16 @@ debug_load_bmp(char* file_name) {
     }
     
     i32 bytes_per_pixel = BITMAP_BYTES_PER_PIXEL;
+    // top-to-bottom
+#if 0
     result.pitch = -result.width * bytes_per_pixel;
     result.memory = (u8*)result.memory - result.pitch * (result.height - 1);
+#else
+    // bottom-to-top
+    result.pitch = result.width * bytes_per_pixel;
+#endif
+    
+    
     
     return result;
 }
@@ -707,7 +723,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
             
             Random_series series = random_seed(139 * chunk_x + 593 * chunk_y + 329 * chunk_z);
             
-            v2 center = v2 {chunk_offset_x * width, -chunk_offset_y * height};
+            v2 center = v2 {chunk_offset_x * width, chunk_offset_y * height};
             
             for (u32 grass_index = 0; grass_index < 100; grass_index++) {
                 macro_assert(random_number_index < macro_array_count(random_number_table));
@@ -747,7 +763,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
             
             Random_series series = random_seed(139 * chunk_x + 593 * chunk_y + 329 * chunk_z);
             
-            v2 center = v2 {chunk_offset_x * width, -chunk_offset_y * height};
+            v2 center = v2 {chunk_offset_x * width, chunk_offset_y * height};
             
             for (u32 grass_index = 0; grass_index < 30; grass_index++) {
                 macro_assert(random_number_index < macro_array_count(random_number_table));
@@ -1152,16 +1168,23 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
             // load blender guy
             {
                 game_state->hero_bitmaps[0].hero_body = debug_load_bmp("../data/right.bmp");
-                game_state->hero_bitmaps[0].align = v2 { 38, 119 };
+                game_state->hero_bitmaps[0].align = top_down_align(&game_state->hero_bitmaps[0].hero_body, 
+                                                                   v2 { 38, 119 });
                 
                 game_state->hero_bitmaps[1].hero_body = debug_load_bmp("../data/back.bmp");
-                game_state->hero_bitmaps[1].align = v2 { 40, 112 };
+                game_state->hero_bitmaps[1].align = 
+                    top_down_align(&game_state->hero_bitmaps[0].hero_body, 
+                                   v2 { 40, 112 });
                 
                 game_state->hero_bitmaps[2].hero_body = debug_load_bmp("../data/left.bmp");
-                game_state->hero_bitmaps[2].align = v2 { 40, 119 };
+                game_state->hero_bitmaps[2].align = 
+                    top_down_align(&game_state->hero_bitmaps[0].hero_body, 
+                                   v2 { 40, 119 });
                 
                 game_state->hero_bitmaps[3].hero_body = debug_load_bmp("../data/front.bmp");
-                game_state->hero_bitmaps[3].align = v2 { 39, 115 };
+                game_state->hero_bitmaps[3].align = 
+                    top_down_align(&game_state->hero_bitmaps[0].hero_body, 
+                                   v2 { 39, 115 });
             }
 #endif
         }
@@ -1470,8 +1493,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                                 &ground_buffer->position, 
                                 &game_state->camera_pos);
         
-        push_bitmap(render_group, bitmap, delta.xy, delta.z,
-                    0.5f * v2_i32(bitmap->width, bitmap->height));
+        push_bitmap(render_group, bitmap, delta.xy, delta.z, 0.5f * v2_i32(bitmap->width, bitmap->height));
     }
     
     // draw ground
@@ -1521,7 +1543,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                         fill_ground_chunk(tran_state, game_state, furthest_buffer, &chunk_center_pos);
                     }
                     
-                    bool show_chunk_outlines = true;
+                    bool show_chunk_outlines = false;
                     
                     if (show_chunk_outlines) {
                         push_rect_outline(render_group,
@@ -1654,7 +1676,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                     move_spec.drag = 8.0f;
                     move_spec.boost = 1.0f;
                     
-                    v2 align = {34, 72};
+                    v2 align = top_down_align(&game_state->familiar, {34, 72});
                     entity->t_bob += time_delta;
                     if (entity->t_bob > 2.0f * PI) {
                         entity->t_bob -= 2.0f * PI;
@@ -1663,7 +1685,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                 } break;
                 
                 case Entity_type_monster: {
-                    v2 align = {25, 42};
+                    v2 align = top_down_align(&game_state->monster, {25, 42});
                     push_bitmap(render_group, &game_state->monster, v2{0, 0}, 0, align);
                     draw_hitpoints(render_group, entity);
                 } break;
@@ -1679,14 +1701,14 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                         clear_collision_rule(game_state, entity->storage_index);
                         make_entity_non_spatial(entity);
                     }
-                    v2 align = {33, 29};
+                    v2 align = top_down_align(&game_state->sword, {33, 29});
                     
                     push_bitmap(render_group, &game_state->sword, v2{0, 0}, 0, align);
                 } break;
                 
                 case Entity_type_wall: {
                     //draw_rect(draw_buffer, player_start, player_end, color_player);
-                    v2 align = {50, 115};
+                    v2 align = top_down_align(&game_state->tree, {50, 115});
                     push_bitmap(render_group, &game_state->tree, v2{0, 0}, 0, align);
                 } break;
                 
@@ -1722,6 +1744,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         }
     }
     
+#if 1
     // prepare maps
     {
         v3 map_color[] = {
@@ -1811,6 +1834,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         push_coord_system(render_group, map_pos, x_axis, y_axis, full_color, lod, 0, 0, 0, 0);
         map_pos += y_axis + v2{0.0f, 5.0f};
     }
+#endif
     
 #if 0
     push_saturation(render_group, 0.5f + 0.5f * sin(10.0f * game_state->time));

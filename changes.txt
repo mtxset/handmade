@@ -9,7 +9,10 @@ Enter will spawn player
 WASD, arrows moves him
 Space - jumps
 
-day94:
+day103:
+ working on lightning
+ 3 - layers of reflection - sky, middle, ground (sky and ground kinda done)
+ middle will probably have only lightning
  
 day93:
  bilinear texture filtering:
