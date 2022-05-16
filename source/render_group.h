@@ -4,6 +4,7 @@
 #define RENDER_GROUP_H
 
 struct Loaded_bmp {
+    v2 align;
     i32 height;
     i32 width;
     i32 pitch;
@@ -21,9 +22,7 @@ struct Render_basis {
 
 struct Render_entity_basis {
     Render_basis* basis;
-    v2 offset;
-    f32 offset_z;
-    f32 entity_zc;
+    v3 offset;
 };
 
 enum Render_group_entry_type {
