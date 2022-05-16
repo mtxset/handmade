@@ -13,6 +13,13 @@ union v2 {
     f32 e[2];
 };
 
+union v2i32 {
+    struct {
+        i32 x, y;
+    };
+    i32 e[2];
+};
+
 union v3 {
     struct {
         f32 x, y, z;
@@ -120,6 +127,16 @@ clamp01(f32 value) {
 }
 
 // VECTORS START
+
+inline
+v2
+v2_i32(v2i32 a) {
+    v2 result;
+    
+    result = {(f32)a.x, (f32)a.y};
+    
+    return result;
+}
 
 inline
 v2

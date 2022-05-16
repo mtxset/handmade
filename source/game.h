@@ -169,7 +169,6 @@ struct Bitmap_header {
 #pragma pack(pop)
 
 struct Hero_bitmaps {
-    v2 align; // starting pointx for drawing that bitmap
     Loaded_bmp hero_body;
 };
 

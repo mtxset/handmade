@@ -87,59 +87,45 @@ push_render_element_(Render_group* group, u32 size, Render_group_entry_type type
 
 inline
 void
-push_piece(Render_group* group, Loaded_bmp* bitmap, 
-           v2 offset, f32 offset_z, v2 align, v2 dim, v4 color, f32 entity_zc) {
+push_bitmap(Render_group* group, Loaded_bmp* bitmap, v3 offset, v4 color = white_v4) {
     
-    Render_entry_bitmap* piece = push_render_element(group, Render_entry_bitmap);
+    Render_entry_bitmap* entry = push_render_element(group, Render_entry_bitmap);
     
-    if (!piece)
+    if (!entry)
         return;
     
-    piece->entity_basis.basis     = group->default_basis;
-    piece->bitmap                 = bitmap;
-    piece->entity_basis.offset    = group->meters_to_pixels * v2 { offset.x, offset.y } - align;
-    piece->entity_basis.offset_z  = offset_z;
-    piece->entity_basis.entity_zc = entity_zc;
-    piece->color                  = color;
+    entry->entity_basis.basis     = group->default_basis;
+    entry->bitmap                 = bitmap;
+    entry->entity_basis.offset    = group->meters_to_pixels * offset - v2_to_v3(bitmap->align,0);
+    entry->color                  = color;
 }
 
 inline
 void
-push_bitmap(Render_group* group, Loaded_bmp* bitmap, 
-            v2 offset, f32 offset_z, v2 align, f32 alpha = 1.0f, f32 entity_zc = 1.0f) {
-    push_piece(group, bitmap, offset, offset_z, align, v2 {0, 0}, v4 {1.0f, 1.0f, 1.0f, alpha }, entity_zc);
-}
-
-inline
-void
-push_rect(Render_group* group, v2 offset, f32 offset_z, v2 dim, v4 color, f32 entity_zc = 1.0f) {
+push_rect(Render_group* group, v3 offset, v2 dim, v4 color = white_v4) {
     Render_entry_rect* piece = push_render_element(group, Render_entry_rect);
     
     if (!piece)
         return;
     
-    v2 half_dim = 0.5f * group->meters_to_pixels * dim;
+    v2 half_dim = 0.5f * dim;
     
     piece->entity_basis.basis     = group->default_basis;
-    piece->entity_basis.offset    = group->meters_to_pixels
-        * v2 { offset.x, offset.y } - half_dim;// v2 {-half_dim.x, half_dim.y};
-    
-    piece->entity_basis.offset_z  = offset_z;
-    piece->entity_basis.entity_zc = entity_zc;
+    piece->entity_basis.offset    = group->meters_to_pixels * (offset - v2_to_v3(half_dim, 0));
     piece->color                  = color;
     piece->dim                    = group->meters_to_pixels * dim;;
 }
 
 inline
 void
-push_rect_outline(Render_group* group, v2 offset, f32 offset_z, v2 dim, v4 color, f32 entity_zc = 1.0f) {
+push_rect_outline(Render_group* group, v3 offset, v2 dim, v4 color = white_v4) {
     
     f32 thickness = 0.1f;
-    push_rect(group, offset - v2{0, dim.y/2}, offset_z, v2{dim.x, thickness}, color, entity_zc);
-    push_rect(group, offset + v2{0, dim.y/2}, offset_z, v2{dim.x, thickness}, color, entity_zc);
+    push_rect(group, offset - v3{0, dim.y/2, 0}, v2{dim.x, thickness}, color);
+    push_rect(group, offset + v3{0, dim.y/2, 0} ,v2{dim.x, thickness}, color);
     
-    push_rect(group, offset - v2{dim.x/2, 0}, offset_z, v2{thickness, dim.y}, color, entity_zc);
-    push_rect(group, offset + v2{dim.x/2, 0}, offset_z, v2{thickness, dim.y}, color, entity_zc);
+    push_rect(group, offset - v3{dim.x/2, 0, 0}, v2{thickness, dim.y}, color);
+    push_rect(group, offset + v3{dim.x/2, 0, 0}, v2{thickness, dim.y}, color);
 }
 
 internal
@@ -644,17 +630,16 @@ draw_bitmap(Loaded_bmp* bitmap_buffer, Loaded_bmp* bitmap, v2 start, f32 c_alpha
 
 inline
 v2
-get_render_entit_basis_pos(Render_group* render_group, Render_entity_basis* basis, v2 screen_center) {
+get_render_entity_basis_pos(Render_group* render_group, Render_entity_basis* basis, v2 screen_center) {
     
-    v3 entity_base_point = basis->basis->position;
-    f32 z_fudge = 1.0f + 0.1f * (entity_base_point.z + basis->offset_z);
     f32 meters_to_pixels = render_group->meters_to_pixels;
     
-    v2 entity_ground_point = screen_center + meters_to_pixels * z_fudge * entity_base_point.xy;
+    v3 entity_base_point = meters_to_pixels * basis->basis->position;
+    f32 z_fudge = 1.0f + 0.1f * entity_base_point.z;
     
-    f32 entity_z = meters_to_pixels * entity_base_point.z;
+    v2 entity_ground_point = screen_center + z_fudge * entity_base_point.xy + basis->offset.xy;
     
-    v2 center = entity_ground_point + basis->offset + v2{0, entity_z};
+    v2 center = entity_ground_point + v2{0, entity_base_point.z + basis->offset.z};
     
     return center;
 }
@@ -698,7 +683,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
                 Render_entry_bitmap* entry = (Render_entry_bitmap*)data;
                 base_addr += sizeof(*entry);
                 
-                v2 pos = get_render_entit_basis_pos(render_group, &entry->entity_basis, screen_center);
+                v2 pos = get_render_entity_basis_pos(render_group, &entry->entity_basis, screen_center);
                 
                 macro_assert(entry->bitmap);
                 
@@ -710,7 +695,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
                 Render_entry_rect* entry = (Render_entry_rect*)data;
                 base_addr += sizeof(*entry);
                 
-                v2 pos = get_render_entit_basis_pos(render_group, &entry->entity_basis, screen_center);
+                v2 pos = get_render_entity_basis_pos(render_group, &entry->entity_basis, screen_center);
                 
                 draw_rect(output_target, pos, pos + entry->dim, entry->color);
             } break;
