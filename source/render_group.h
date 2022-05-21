@@ -73,6 +73,9 @@ struct Render_entry_bitmap {
 };
 
 struct Render_group {
+    
+    f32 global_alpha;
+    
     Render_basis* default_basis;
     f32 meters_to_pixels;
     

@@ -1,4 +1,4 @@
-// https://youtu.be/Jklm_p_qrKU?t=2787
+// https://youtu.be/UCTcu8vJ92c?t=3300
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include <stdio.h>
@@ -468,7 +468,7 @@ win32_handle_messages(Win32_state* win_state, Game_controller_input* keyboard_in
                 bool is_down        = (message.lParam & (1 << 31)) == 0; // parenthesis required because == has precedence over &
                 bool alt_is_down    = (message.lParam & (1 << 29)) != 0; // will return 0 or bit 29; if I get 29 alt is down - if 0 it's not so I compare it to 0
                 
-                if        (vk_key == 'W') {
+                if      (vk_key == 'W') {
                     win32_process_keyboard_input(&keyboard_input->up, is_down);
                 } 
                 else if (vk_key == 'S') {

@@ -1149,21 +1149,6 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
             game_state->stairwell  = debug_load_bmp("../data/george-back-0.bmp");
             
 #if 0
-            // load george
-            {
-                game_state->hero_bitmaps[0].hero_body = debug_load_bmp("../data/george-right-0.bmp");
-                game_state->hero_bitmaps[0].align = v2 { 24, 41 };
-                
-                game_state->hero_bitmaps[1].hero_body = debug_load_bmp("../data/george-back-0.bmp");
-                game_state->hero_bitmaps[1].align = v2 { 24, 41 };
-                
-                game_state->hero_bitmaps[2].hero_body = debug_load_bmp("../data/george-left-0.bmp");
-                game_state->hero_bitmaps[2].align = v2 { 24, 41 };
-                
-                game_state->hero_bitmaps[3].hero_body = debug_load_bmp("../data/george-front-0.bmp");
-                game_state->hero_bitmaps[3].align = v2 { 24, 41 };
-            }
-#else
             // load blender guy
             {
                 game_state->hero_bitmaps[0].hero_body = debug_load_bmp("../data/right.bmp", 38, 119);
@@ -1174,6 +1159,27 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                 
                 game_state->hero_bitmaps[3].hero_body = debug_load_bmp("../data/front.bmp", 39, 115);
             }
+#else
+            Hero_bitmaps* bitmap = &game_state->hero_bitmaps[0];
+            bitmap->head  = debug_load_bmp("../data/test_hero_right_head.bmp", 72, 182);
+            bitmap->cape  = debug_load_bmp("../data/test_hero_right_cape.bmp", 72, 182);
+            bitmap->torso = debug_load_bmp("../data/test_hero_right_torso.bmp", 72, 182);
+            
+            bitmap++;
+            bitmap->head  = debug_load_bmp("../data/test_hero_back_head.bmp", 72, 182);
+            bitmap->cape  = debug_load_bmp("../data/test_hero_back_cape.bmp", 72, 182);
+            bitmap->torso = debug_load_bmp("../data/test_hero_back_torso.bmp", 72, 182);
+            
+            bitmap = &game_state->hero_bitmaps[2];
+            bitmap->head  = debug_load_bmp("../data/test_hero_left_head.bmp", 72, 182);
+            bitmap->cape  = debug_load_bmp("../data/test_hero_left_cape.bmp", 72, 182);
+            bitmap->torso = debug_load_bmp("../data/test_hero_left_torso.bmp", 72, 182);
+            
+            bitmap++;
+            bitmap->head  = debug_load_bmp("../data/test_hero_front_head.bmp", 72, 182);
+            bitmap->cape  = debug_load_bmp("../data/test_hero_front_cape.bmp", 72, 182);
+            bitmap->torso = debug_load_bmp("../data/test_hero_front_torso.bmp", 72, 182);
+            
 #endif
         }
         
@@ -1204,8 +1210,11 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
             const u32 max_screens = 2000;
             
             for (u32 screen_index = 0; screen_index < max_screens; screen_index++) {
-                //u32 door_direction = random_choise(&series, (door_up || door_down) ? 2 : 3);
+#if 1
+                u32 door_direction = random_choise(&series, (door_up || door_down) ? 2 : 3);
+#else
                 u32 door_direction = random_choise(&series, 2);
+#endif
                 
                 bool created_z_door = false;
                 if (door_direction == room_has_stairs) {
@@ -1426,6 +1435,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                     controlled->boost = 10.0f;
                 
                 // sword input check
+#if 0
                 {
                     if (input_state->action_up.ended_down) {
                         controlled->d_sword = { 0.0f, 1.0f };
@@ -1440,12 +1450,24 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                         controlled->d_sword = { 1.0f, 0.0f };
                     }
                 }
+#else
+                f32 zoom_rate = 0;
+                if (input_state->action_up.ended_down) {
+                    zoom_rate = 1.0f;
+                }
+                if (input_state->action_down.ended_down) {
+                    zoom_rate = -1.0f;
+                }
+                game_state->z_offset += zoom_rate * input->time_delta;
+#endif
             }
         }
     }
     
     Temp_memory render_memory = begin_temp_memory(&tran_state->tran_arena);
     Render_group* render_group = allocate_render_group(&tran_state->tran_arena, macro_megabytes(4), game_state->meters_to_pixels);
+    
+    render_group->global_alpha = 1.0f;//clamp01(1.0f - game_state->z_offset);
     
     Loaded_bmp _draw_buffer = {};
     Loaded_bmp* draw_buffer = &_draw_buffer;
@@ -1469,6 +1491,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     // clear screen
     push_clear(render_group, grey_v4);
     
+    // push ground
     for (u32 ground_buffer_index = 0; ground_buffer_index < tran_state->ground_buffer_count; ground_buffer_index++) {
         Ground_buffer* ground_buffer = tran_state->ground_buffer_list + ground_buffer_index;
         
@@ -1480,16 +1503,20 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         v3 delta = subtract_pos(game_state->world, 
                                 &ground_buffer->position, 
                                 &game_state->camera_pos);
+        
         bitmap->align = {
             (f32)(bitmap->width/2),
             (f32)(bitmap->height/2)
         };
         
-        push_bitmap(render_group, bitmap, delta);
+        Render_basis* basis = mem_push_struct(&tran_state->tran_arena, Render_basis);
+        render_group->default_basis = basis;
+        basis->position = delta + v3{0,0,game_state->z_offset};
+        push_bitmap(render_group, bitmap, v3{0,0,0});
     }
     
     // draw ground
-    if (1)
+    if (0)
     {
         World_position min_chunk_pos = map_into_chunk_space(world, game_state->camera_pos, camera_bounds_meters.min);
         World_position max_chunk_pos = map_into_chunk_space(world, game_state->camera_pos, camera_bounds_meters.max);
@@ -1628,7 +1655,9 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                         jump_z = -entity->z;
                     }
                     */
-                    push_bitmap(render_group, &hero_bitmap->hero_body, v3{0, 0, 0});
+                    push_bitmap(render_group, &hero_bitmap->torso, v3{0, 0, 0});
+                    push_bitmap(render_group, &hero_bitmap->cape, v3{0, 0, 0});
+                    push_bitmap(render_group, &hero_bitmap->head, v3{0, 0, 0});
                     
                     draw_hitpoints(render_group, entity);
                 } break;
@@ -1728,11 +1757,12 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                 move_entity(game_state, sim_region, entity, input->time_delta, &move_spec, ddp);
             }
             
-            basis->position = get_entity_ground_point(entity);
+            basis->position = get_entity_ground_point(entity) + v3{0,0,game_state->z_offset};
         }
     }
     
-#if 1
+    // lightning mapping test
+#if 0
     // prepare maps
     {
         v3 map_color[] = {
