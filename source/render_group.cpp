@@ -94,10 +94,10 @@ push_bitmap(Render_group* group, Loaded_bmp* bitmap, v3 offset, v4 color = white
     if (!entry)
         return;
     
-    entry->entity_basis.basis     = group->default_basis;
-    entry->bitmap                 = bitmap;
-    entry->entity_basis.offset    = group->meters_to_pixels * offset - v2_to_v3(bitmap->align,0);
-    entry->color                  = color;
+    entry->entity_basis.basis  = group->default_basis;
+    entry->bitmap              = bitmap;
+    entry->entity_basis.offset = group->meters_to_pixels * offset - v2_to_v3(bitmap->align,0);
+    entry->color               = group->global_alpha * color;
 }
 
 inline
@@ -628,20 +628,30 @@ draw_bitmap(Loaded_bmp* bitmap_buffer, Loaded_bmp* bitmap, v2 start, f32 c_alpha
     }
 }
 
+struct Entity_basis_result {
+    v2 pos;
+    f32 scale;
+};
+
 inline
-v2
+Entity_basis_result
 get_render_entity_basis_pos(Render_group* render_group, Render_entity_basis* basis, v2 screen_center) {
+    
+    Entity_basis_result result = {};
     
     f32 meters_to_pixels = render_group->meters_to_pixels;
     
     v3 entity_base_point = meters_to_pixels * basis->basis->position;
-    f32 z_fudge = 1.0f + 0.1f * entity_base_point.z;
+    f32 z_fudge = 1.0f + 0.002f * entity_base_point.z;
     
-    v2 entity_ground_point = screen_center + z_fudge * entity_base_point.xy + basis->offset.xy;
+    v2 entity_ground_point = screen_center + z_fudge * (entity_base_point.xy + basis->offset.xy);
     
     v2 center = entity_ground_point + v2{0, entity_base_point.z + basis->offset.z};
     
-    return center;
+    result.pos = center;
+    result.scale = z_fudge;
+    
+    return result;
 }
 
 internal
@@ -651,6 +661,8 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
         (f32)output_target->width  * 0.5f,
         (f32)output_target->height * 0.5f
     };
+    
+    f32 pixel_to_meter = 1.0f / render_group->meters_to_pixels;
     
     for (u32 base_addr = 0; base_addr < render_group->push_buffer_size;) {
         
@@ -683,11 +695,16 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
                 Render_entry_bitmap* entry = (Render_entry_bitmap*)data;
                 base_addr += sizeof(*entry);
                 
-                v2 pos = get_render_entity_basis_pos(render_group, &entry->entity_basis, screen_center);
-                
+                Entity_basis_result basis = get_render_entity_basis_pos(render_group, &entry->entity_basis, screen_center);
                 macro_assert(entry->bitmap);
-                
+#if 0
                 draw_bitmap(output_target, entry->bitmap, pos, entry->color.a);
+#else
+                draw_rect_slow(output_target, basis.pos, 
+                               basis.scale * v2_i32(entry->bitmap->width,0), basis.scale * v2_i32(0,entry->bitmap->height), 
+                               entry->color,
+                               entry->bitmap, 0, 0, 0, 0, pixel_to_meter);
+#endif
                 
             } break;
             
@@ -695,9 +712,9 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
                 Render_entry_rect* entry = (Render_entry_rect*)data;
                 base_addr += sizeof(*entry);
                 
-                v2 pos = get_render_entity_basis_pos(render_group, &entry->entity_basis, screen_center);
+                Entity_basis_result basis = get_render_entity_basis_pos(render_group, &entry->entity_basis, screen_center);
                 
-                draw_rect(output_target, pos, pos + entry->dim, entry->color);
+                draw_rect(output_target, basis.pos, basis.pos + basis.scale * entry->dim, entry->color);
             } break;
             
             case Render_group_entry_type_Render_entry_coord_system: {
@@ -749,6 +766,8 @@ allocate_render_group(Memory_arena* arena, u32 max_push_buffer_size, f32 meters_
     
     result->max_push_buffer_size = max_push_buffer_size;
     result->push_buffer_size = 0;
+    
+    result->global_alpha = 1.0f;
     
     return result;
 }

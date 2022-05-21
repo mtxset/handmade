@@ -169,7 +169,9 @@ struct Bitmap_header {
 #pragma pack(pop)
 
 struct Hero_bitmaps {
-    Loaded_bmp hero_body;
+    Loaded_bmp head;
+    Loaded_bmp cape;
+    Loaded_bmp torso;
 };
 
 struct Low_entity {
@@ -250,6 +252,9 @@ struct Game_state {
     Loaded_bmp test_normal;
     
     Hero_bitmaps hero_bitmaps[4];
+    
+    f32 z_offset;
+    
 #if 0
     Pacman_state pacman_state;
 #endif
