@@ -164,7 +164,8 @@ begin_sim(Memory_arena* sim_arena, Game_state* game_state, World* world, World_p
     
     sim_region->world  = world;
     sim_region->origin = origin;
-    sim_region->updatable_bounds = add_radius_to(bounds, v3{sim_region->max_entity_radius, sim_region->max_entity_radius, sim_region->max_entity_radius});
+    sim_region->updatable_bounds = add_radius_to(bounds, v3{
+                                                     sim_region->max_entity_radius, sim_region->max_entity_radius, 0.0f });
     sim_region->bounds = add_radius_to(sim_region->updatable_bounds, update_safety_margin);
     
     sim_region->max_entity_count = 4096;
@@ -240,10 +241,9 @@ end_sim(Sim_region* region, Game_state* game_state) {
                 new_camera_pos.absolute_tile_y -= 9;
 #else
             // smooth follow
-            f32 cam_z_offset = new_camera_pos._offset.z;
+            //f32 cam_z_offset = new_camera_pos._offset.z;
             new_camera_pos = stored->position;
-            new_camera_pos._offset.z = cam_z_offset;
-            
+            //new_camera_pos._offset.z = cam_z_offset;
 #endif
             
             // win32_debug_msg("offset: %f chunk: %i\n", new_camera_pos._offset.y, new_camera_pos.chunk_y);
@@ -455,19 +455,20 @@ entities_overlap(Sim_entity* entity, Sim_entity* test_entity, v3 epsilon = v3{0,
     bool overlapped = false;
     
     for (u32 entity_volume_index = 0;
-         !overlapped &&
-         entity_volume_index < entity->collision->volume_count; entity_volume_index++) 
+         !overlapped && entity_volume_index < entity->collision->volume_count; 
+         entity_volume_index++) 
     {
         
         Sim_entity_collision_volume* volume = entity->collision->volume_list + entity_volume_index;
         
         for (u32 test_volume_index = 0; 
-             !overlapped && 
-             test_volume_index < test_entity->collision->volume_count; test_volume_index++) 
+             !overlapped && test_volume_index < test_entity->collision->volume_count; 
+             test_volume_index++) 
         {
             Sim_entity_collision_volume* test_volume = test_entity->collision->volume_list + test_volume_index;
             
-            Rect3 entity_rect = rect_center_dim(entity->position      + volume->offset_pos,      volume->dim + epsilon);
+            Rect3 entity_rect = rect_center_dim(entity->position  + volume->offset_pos, volume->dim + epsilon);
+            
             Rect3 test_rect   = rect_center_dim(test_entity->position + test_volume->offset_pos, test_volume->dim);
             
             overlapped = rects_intersects(entity_rect, test_rect);
@@ -557,8 +558,8 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
                 
                 if ((is_set(test_entity, Entity_flag_traversable) &&
                      entities_overlap(entity, test_entity, overlap_epsilon * v3{1,1,1})) ||
-                    can_collide(game_state, entity, test_entity)) {
-                    
+                    can_collide(game_state, entity, test_entity)) 
+                {
                     for (u32 entity_volume_index = 0; entity_volume_index < entity->collision->volume_count; entity_volume_index++) {
                         Sim_entity_collision_volume* volume = entity->collision->volume_list + entity_volume_index;
                         
@@ -620,10 +621,11 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
                                     
                                     v3 test_wall_normal = {};
                                     
-                                    for (u32 wall_index = 0; wall_index < sizeof(wall_list) / sizeof(wall_list[0]); wall_index++) {
+                                    for (u32 wall_index = 0; wall_index < macro_array_count(wall_list); wall_index++) 
+                                    {
                                         Test_wall* wall = wall_list + wall_index;
                                         
-                                        f32 t_epsilon = 0.0001f;
+                                        f32 t_epsilon = 0.001f;
                                         
                                         if (wall->delta_x != 0.0f) {
                                             f32 t_result = (wall->x - wall->rel_x) / wall->delta_x;

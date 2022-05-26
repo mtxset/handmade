@@ -253,8 +253,6 @@ struct Game_state {
     
     Hero_bitmaps hero_bitmaps[4];
     
-    f32 z_offset;
-    
 #if 0
     Pacman_state pacman_state;
 #endif
