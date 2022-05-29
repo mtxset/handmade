@@ -631,6 +631,7 @@ draw_bitmap(Loaded_bmp* bitmap_buffer, Loaded_bmp* bitmap, v2 start, f32 c_alpha
 struct Entity_basis_result {
     v2 pos;
     f32 scale;
+    bool valid;
 };
 
 inline
@@ -640,16 +641,22 @@ get_render_entity_basis_pos(Render_group* render_group, Render_entity_basis* bas
     Entity_basis_result result = {};
     
     f32 meters_to_pixels = render_group->meters_to_pixels;
+    v3 entity_base_pos = meters_to_pixels * basis->basis->position;
     
-    v3 entity_base_point = meters_to_pixels * basis->basis->position;
-    f32 z_fudge = 1.0f + 0.002f * entity_base_point.z;
+    f32 focal_length = meters_to_pixels * 20.0f;
+    f32 cam_dist_above_target = meters_to_pixels * 20.0f;
+    f32 dist_to_p = cam_dist_above_target - entity_base_pos.z;
+    f32 near_clip_plane = meters_to_pixels * 0.2f;
     
-    v2 entity_ground_point = screen_center + z_fudge * (entity_base_point.xy + basis->offset.xy);
+    v3 raw_xy = v2_to_v3(entity_base_pos.xy + basis->offset.xy, 1.0f);
     
-    v2 center = entity_ground_point + v2{0, entity_base_point.z + basis->offset.z};
-    
-    result.pos = center;
-    result.scale = z_fudge;
+    if (dist_to_p > near_clip_plane) {
+        v3 projected_xy = (1.0f / dist_to_p) * focal_length * raw_xy;
+        
+        result.pos = screen_center + projected_xy.xy;
+        result.scale = projected_xy.z;
+        result.valid = true;
+    }
     
     return result;
 }
