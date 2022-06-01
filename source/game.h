@@ -214,9 +214,6 @@ struct Game_state {
     World_position camera_pos;
     f32 t_sine;
     
-    f32 meters_to_pixels;
-    f32 pixels_to_meters;
-    
     Controlled_hero controlled_hero_list[macro_array_count(((Game_input*)0)->gamepad)]; // @disgusting
     
     u32 low_entity_count;
