@@ -87,7 +87,7 @@ push_render_element_(Render_group* group, u32 size, Render_group_entry_type type
 
 inline
 void
-push_bitmap(Render_group* group, Loaded_bmp* bitmap, v3 offset, v4 color = white_v4) {
+push_bitmap(Render_group* group, Loaded_bmp* bitmap, f32 height, v3 offset, v4 color = white_v4) {
     
     Render_entry_bitmap* entry = push_render_element(group, Render_entry_bitmap);
     
@@ -96,7 +96,15 @@ push_bitmap(Render_group* group, Loaded_bmp* bitmap, v3 offset, v4 color = white
     
     entry->entity_basis.basis  = group->default_basis;
     entry->bitmap              = bitmap;
-    entry->entity_basis.offset = group->meters_to_pixels * offset - v2_to_v3(bitmap->align,0);
+    
+    v2 size = { 
+        height * bitmap->width_over_height, 
+        height
+    };
+    entry->size = size;
+    
+    v2 align = hadamard(bitmap->align_pcent, size);
+    entry->entity_basis.offset = offset - v2_to_v3(align,0);
     entry->color               = group->global_alpha * color;
 }
 
@@ -111,9 +119,9 @@ push_rect(Render_group* group, v3 offset, v2 dim, v4 color = white_v4) {
     v2 half_dim = 0.5f * dim;
     
     piece->entity_basis.basis     = group->default_basis;
-    piece->entity_basis.offset    = group->meters_to_pixels * (offset - v2_to_v3(half_dim, 0));
+    piece->entity_basis.offset    = offset - v2_to_v3(half_dim, 0);
     piece->color                  = color;
-    piece->dim                    = group->meters_to_pixels * dim;;
+    piece->dim                    = dim;
 }
 
 inline
@@ -636,25 +644,25 @@ struct Entity_basis_result {
 
 inline
 Entity_basis_result
-get_render_entity_basis_pos(Render_group* render_group, Render_entity_basis* basis, v2 screen_center) {
+get_render_entity_basis_pos(Render_group* render_group, Render_entity_basis* basis, v2 screen_dim, f32 meters_to_pixels) {
+    v2 screen_center = 0.5 * screen_dim;
     
     Entity_basis_result result = {};
     
-    f32 meters_to_pixels = render_group->meters_to_pixels;
-    v3 entity_base_pos = meters_to_pixels * basis->basis->position;
+    v3 entity_base_pos = basis->basis->position;
     
-    f32 focal_length = meters_to_pixels * 20.0f;
-    f32 cam_dist_above_target = meters_to_pixels * 20.0f;
+    f32 focal_length = 6.0f;
+    f32 cam_dist_above_target = 5.0f;
     f32 dist_to_p = cam_dist_above_target - entity_base_pos.z;
-    f32 near_clip_plane = meters_to_pixels * 0.2f;
+    f32 near_clip_plane = 0.2f;
     
     v3 raw_xy = v2_to_v3(entity_base_pos.xy + basis->offset.xy, 1.0f);
     
     if (dist_to_p > near_clip_plane) {
         v3 projected_xy = (1.0f / dist_to_p) * focal_length * raw_xy;
         
-        result.pos = screen_center + projected_xy.xy;
-        result.scale = projected_xy.z;
+        result.pos = screen_center + meters_to_pixels * projected_xy.xy;
+        result.scale = meters_to_pixels * projected_xy.z;
         result.valid = true;
     }
     
@@ -664,12 +672,13 @@ get_render_entity_basis_pos(Render_group* render_group, Render_entity_basis* bas
 internal
 void
 render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
-    v2 screen_center = { 
-        (f32)output_target->width  * 0.5f,
-        (f32)output_target->height * 0.5f
+    v2 screen_dim = { 
+        (f32)output_target->width,
+        (f32)output_target->height
     };
     
-    f32 pixel_to_meter = 1.0f / render_group->meters_to_pixels;
+    f32 meters_to_pixels = screen_dim.x / 20.0f;
+    f32 pixel_to_meter = 1.0f / 42.0f;
     
     for (u32 base_addr = 0; base_addr < render_group->push_buffer_size;) {
         
@@ -702,13 +711,14 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
                 Render_entry_bitmap* entry = (Render_entry_bitmap*)data;
                 base_addr += sizeof(*entry);
                 
-                Entity_basis_result basis = get_render_entity_basis_pos(render_group, &entry->entity_basis, screen_center);
+                Entity_basis_result basis = get_render_entity_basis_pos(render_group, &entry->entity_basis, screen_dim, meters_to_pixels);
                 macro_assert(entry->bitmap);
 #if 0
                 draw_bitmap(output_target, entry->bitmap, pos, entry->color.a);
 #else
                 draw_rect_slow(output_target, basis.pos, 
-                               basis.scale * v2_i32(entry->bitmap->width,0), basis.scale * v2_i32(0,entry->bitmap->height), 
+                               basis.scale * v2{entry->size.x, 0},
+                               basis.scale * v2{0, entry->size.y},
                                entry->color,
                                entry->bitmap, 0, 0, 0, 0, pixel_to_meter);
 #endif
@@ -719,7 +729,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
                 Render_entry_rect* entry = (Render_entry_rect*)data;
                 base_addr += sizeof(*entry);
                 
-                Entity_basis_result basis = get_render_entity_basis_pos(render_group, &entry->entity_basis, screen_center);
+                Entity_basis_result basis = get_render_entity_basis_pos(render_group, &entry->entity_basis, screen_dim, meters_to_pixels);
                 
                 draw_rect(output_target, basis.pos, basis.pos + basis.scale * entry->dim, entry->color);
             } break;
@@ -732,7 +742,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
                 v2 dim = v2{2,2};
                 
                 v2 end = entry->origin + entry->x_axis + entry->y_axis;
-                draw_rect_slow(output_target, entry->origin, entry->x_axis, entry->y_axis, entry->color, entry->bitmap, entry->normal_map, entry->top, entry->middle, entry->bottom, 1.0f / render_group->meters_to_pixels);
+                draw_rect_slow(output_target, entry->origin, entry->x_axis, entry->y_axis, entry->color, entry->bitmap, entry->normal_map, entry->top, entry->middle, entry->bottom, pixel_to_meter);
                 
                 v4 corner_color = yellow_v4;
                 draw_rect(output_target, pos - dim, pos + dim, corner_color);
@@ -763,13 +773,12 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
 
 internal
 Render_group*
-allocate_render_group(Memory_arena* arena, u32 max_push_buffer_size, f32 meters_to_pixels) {
+allocate_render_group(Memory_arena* arena, u32 max_push_buffer_size) {
     Render_group* result = mem_push_struct(arena, Render_group);
     result->push_buffer_base = (u8*)mem_push_size(arena, max_push_buffer_size);
     
     result->default_basis = mem_push_struct(arena, Render_basis);
     result->default_basis->position = v3{0,0,0};
-    result->meters_to_pixels = meters_to_pixels;
     
     result->max_push_buffer_size = max_push_buffer_size;
     result->push_buffer_size = 0;

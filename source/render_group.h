@@ -4,9 +4,14 @@
 #define RENDER_GROUP_H
 
 struct Loaded_bmp {
-    v2 align;
+    v2 align_pcent;
+    
+    f32 width_over_height;
+    f32 native_height;
+    
     i32 height;
     i32 width;
+    
     i32 pitch;
     void* memory;
 };
@@ -69,6 +74,7 @@ struct Render_entry_bitmap {
     Render_entity_basis entity_basis;
     Loaded_bmp* bitmap;
     
+    v2 size;
     v4 color;
 };
 
@@ -77,7 +83,6 @@ struct Render_group {
     f32 global_alpha;
     
     Render_basis* default_basis;
-    f32 meters_to_pixels;
     
     u32 max_push_buffer_size;
     u32 push_buffer_size;
