@@ -644,22 +644,22 @@ struct Entity_basis_result {
 
 inline
 Entity_basis_result
-get_render_entity_basis_pos(Render_group* render_group, Render_entity_basis* basis, v2 screen_dim, f32 meters_to_pixels) {
-    v2 screen_center = 0.5 * screen_dim;
-    
+get_render_entity_basis_pos(Render_group* render_group, Render_entity_basis* basis, v2 screen_dim) {
     Entity_basis_result result = {};
+    
+    f32 meters_to_pixels = render_group->meters_to_pixels;
+    
+    v2 screen_center = 0.5 * screen_dim;
     
     v3 entity_base_pos = basis->basis->position;
     
-    f32 focal_length = 6.0f;
-    f32 cam_dist_above_target = 5.0f;
-    f32 dist_to_p = cam_dist_above_target - entity_base_pos.z;
+    f32 dist_to_p = render_group->render_camera.dist_above_target - entity_base_pos.z;
     f32 near_clip_plane = 0.2f;
     
     v3 raw_xy = v2_to_v3(entity_base_pos.xy + basis->offset.xy, 1.0f);
     
     if (dist_to_p > near_clip_plane) {
-        v3 projected_xy = (1.0f / dist_to_p) * focal_length * raw_xy;
+        v3 projected_xy = (1.0f / dist_to_p) * render_group->render_camera.focal_length * raw_xy;
         
         result.pos = screen_center + meters_to_pixels * projected_xy.xy;
         result.scale = meters_to_pixels * projected_xy.z;
@@ -677,8 +677,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
         (f32)output_target->height
     };
     
-    f32 meters_to_pixels = screen_dim.x / 20.0f;
-    f32 pixel_to_meter = 1.0f / 42.0f;
+    f32 pixel_to_meter = 1.0f / render_group->meters_to_pixels;
     
     for (u32 base_addr = 0; base_addr < render_group->push_buffer_size;) {
         
@@ -687,6 +686,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
         
         void* data = (u8*)header + sizeof(*header);
         switch (header->type) {
+            
             case Render_group_entry_type_Render_entry_clear: {
                 Render_entry_clear* entry = (Render_entry_clear*)data;
                 base_addr += sizeof(*entry);
@@ -711,7 +711,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
                 Render_entry_bitmap* entry = (Render_entry_bitmap*)data;
                 base_addr += sizeof(*entry);
                 
-                Entity_basis_result basis = get_render_entity_basis_pos(render_group, &entry->entity_basis, screen_dim, meters_to_pixels);
+                Entity_basis_result basis = get_render_entity_basis_pos(render_group, &entry->entity_basis, screen_dim);
                 macro_assert(entry->bitmap);
 #if 0
                 draw_bitmap(output_target, entry->bitmap, pos, entry->color.a);
@@ -729,7 +729,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
                 Render_entry_rect* entry = (Render_entry_rect*)data;
                 base_addr += sizeof(*entry);
                 
-                Entity_basis_result basis = get_render_entity_basis_pos(render_group, &entry->entity_basis, screen_dim, meters_to_pixels);
+                Entity_basis_result basis = get_render_entity_basis_pos(render_group, &entry->entity_basis, screen_dim);
                 
                 draw_rect(output_target, basis.pos, basis.pos + basis.scale * entry->dim, entry->color);
             } break;
@@ -773,7 +773,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
 
 internal
 Render_group*
-allocate_render_group(Memory_arena* arena, u32 max_push_buffer_size) {
+allocate_render_group(Memory_arena* arena, u32 max_push_buffer_size, u32 resolution_pixels_x, u32 resolution_pixels_y) {
     Render_group* result = mem_push_struct(arena, Render_group);
     result->push_buffer_base = (u8*)mem_push_size(arena, max_push_buffer_size);
     
@@ -783,8 +783,22 @@ allocate_render_group(Memory_arena* arena, u32 max_push_buffer_size) {
     result->max_push_buffer_size = max_push_buffer_size;
     result->push_buffer_size = 0;
     
+    result->game_camera.focal_length = 0.6f; // actual meters eye is from the monitor
+    result->game_camera.dist_above_target = 9.0f;
+    
+    result->render_camera = result->game_camera;
+    result->render_camera.dist_above_target = 30.0f;
+    
     result->global_alpha = 1.0f;
     
+    f32 width_of_monitor = 0.635f;
+    result->meters_to_pixels = (f32)resolution_pixels_x * width_of_monitor;
+    
+    f32 pixel_to_meter = 1.0f / result->meters_to_pixels;
+    result->monitor_half_dim_meters = {
+        0.5f * resolution_pixels_x * pixel_to_meter,
+        0.5f * resolution_pixels_y * pixel_to_meter
+    };
     return result;
 }
 
@@ -829,4 +843,35 @@ push_coord_system(Render_group* group, v2 origin, v2 x_axis, v2 y_axis, v4 color
     entry->bottom = bottom;
     
     return entry;
+}
+
+inline
+v2
+unproject(Render_group* render_group, v2 projected_xy, f32 at_dist_from_cam) {
+    v2 raw_xy = (at_dist_from_cam / render_group->game_camera.focal_length) * projected_xy;
+    
+    return raw_xy;
+}
+
+inline
+Rect2 
+get_cam_rect_at_z(Render_group* group, f32 dist_from_cam) {
+    
+    Rect2 result;
+    
+    v2 raw_xy = unproject(group, group->monitor_half_dim_meters, dist_from_cam);
+    
+    result = rect_center_half_dim(v2{0,0}, raw_xy);
+    
+    return result;
+}
+
+inline
+Rect2
+get_cam_rect_at_target(Render_group* group) {
+    Rect2 result;
+    
+    result = get_cam_rect_at_z(group, group->game_camera.dist_above_target);
+    
+    return result;
 }

@@ -707,7 +707,7 @@ void
 fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_buffer* ground_buffer, World_position* chunk_pos) {
     
     Temp_memory ground_memory = begin_temp_memory(&tran_state->tran_arena);
-    Render_group* render_group = allocate_render_group(&tran_state->tran_arena, macro_megabytes(4));
+    Render_group* render_group = allocate_render_group(&tran_state->tran_arena, macro_megabytes(4), 1920, 1080);
     
     push_clear(render_group, yellow_v4);
     
@@ -1053,7 +1053,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     Game_state* game_state = (Game_state*)memory->permanent_storage;
     
     const f32 floor_height = 3.0f;
-    const f32 pixels_to_meters = 1.0f / 42.0f;
+    
     // init game state
     if (!memory->is_initialized) {
         const u32 tiles_per_width  = 17;
@@ -1072,6 +1072,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         
         game_state->typical_floor_height = 3.0f;
         
+        const f32 pixels_to_meters = 1.0f / 42.0f;
         v3 world_chunk_dim_meters = {
             (f32)ground_buffer_width * pixels_to_meters,
             (f32)ground_buffer_height * pixels_to_meters,
@@ -1224,7 +1225,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
 #else
                 u32 door_direction = random_choise(&series, 2);
 #endif
-                door_direction = 3;
+                // door_direction = 3;
                 
                 bool created_z_door = false;
                 
@@ -1469,9 +1470,6 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         }
     }
     
-    Temp_memory render_memory = begin_temp_memory(&tran_state->tran_arena);
-    Render_group* render_group = allocate_render_group(&tran_state->tran_arena, macro_megabytes(4));
-    
     Loaded_bmp _draw_buffer = {};
     Loaded_bmp* draw_buffer = &_draw_buffer;
     draw_buffer->width  = bitmap_buffer->width;
@@ -1479,32 +1477,30 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     draw_buffer->pitch  = bitmap_buffer->pitch;
     draw_buffer->memory = bitmap_buffer->memory;
     
+    Temp_memory render_memory = begin_temp_memory(&tran_state->tran_arena);
+    Render_group* render_group = allocate_render_group(&tran_state->tran_arena, macro_megabytes(4), draw_buffer->width, draw_buffer->height);
+    
+    // clear screen
+    push_clear(render_group, grey_v4);
+    
     v2 screen_center = { 
         (f32)draw_buffer->width  * 0.5f,
         (f32)draw_buffer->height * 0.5f
     };
     
-    f32 screen_width_meters  = draw_buffer->width  * pixels_to_meters;
-    f32 screen_height_meters = draw_buffer->height * pixels_to_meters;
+    Rect2 screen_bounds = get_cam_rect_at_target(render_group);
     
     // camera bounds - sim bounds
     Rect3 camera_bounds_meters;
     {
-        v3 center = { 0, 0, 0 };
-        v3 dim = { 
-            screen_width_meters, 
-            screen_height_meters, 
-            0.0f
-        };
+        v3 center = v2_to_v3(screen_bounds.min, 0.0f);
+        v3 dim = v2_to_v3(screen_bounds.max, 0.0f);;
         
-        camera_bounds_meters = rect_center_dim(center, dim);
+        camera_bounds_meters = rect_min_max(center, dim);
         
         camera_bounds_meters.min.z = -3.0f * game_state->typical_floor_height;
         camera_bounds_meters.max.z =  1.0f * game_state->typical_floor_height;
     }
-    
-    // clear screen
-    push_clear(render_group, grey_v4);
     
 #if 0
     // push ground
@@ -1594,14 +1590,24 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     // sim
     Sim_region* sim_region = {};
     Temp_memory sim_memory = {};
+    Rect3 sim_camera_bounds = {};
     {
         v3 sim_bound_expansion = {15.0f, 15.0f, 0};
-        Rect3 sim_camera_bounds = add_radius_to(camera_bounds_meters, sim_bound_expansion);
+        sim_camera_bounds = add_radius_to(camera_bounds_meters, sim_bound_expansion);
         
         sim_memory = begin_temp_memory(&tran_state->tran_arena);
         sim_region = begin_sim(&tran_state->tran_arena, 
                                game_state, game_state->world, 
                                game_state->camera_pos, sim_camera_bounds, input->time_delta);
+    }
+    
+    
+    // debug bounds
+    {
+        push_rect_outline(render_group, v3{0,0,0}, get_dim(screen_bounds), yellow_v4);
+        //push_rect_outline(render_group, v3{0,0,0}, get_dim(camera_bounds_meters).xy, white_v4);
+        push_rect_outline(render_group, v3{0,0,0}, get_dim(sim_camera_bounds).xy, cyan_v4);
+        push_rect_outline(render_group, v3{0,0,0}, get_dim(sim_region->bounds).xy, purple_v4);
     }
     
     // move, group and push to drawing pipe
