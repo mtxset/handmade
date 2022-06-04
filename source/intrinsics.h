@@ -10,6 +10,9 @@ union v2 {
     struct {
         f32 x, y;
     };
+    struct {
+        f32 u, v;
+    };
     f32 e[2];
 };
 
@@ -28,6 +31,10 @@ union v3 {
         f32 r, g, b;
     };
     struct {
+        f32 u, v, w;
+    };
+    
+    struct {
         v2 xy;
         f32 _discard;
     };
@@ -35,6 +42,16 @@ union v3 {
         f32 _discard;
         v2 yz;
     };
+    
+    struct {
+        v2 uv;
+        f32 _discard;
+    };
+    struct {
+        f32 _discard;
+        v2 vw;
+    };
+    
     f32 e[3];
 };
 
@@ -826,6 +843,15 @@ get_min_corner(Rect2 rect) {
 }
 
 inline
+v2 get_dim(Rect2 rect) {
+    v2 result;
+    
+    result = rect.max - rect.min;
+    
+    return result;
+}
+
+inline
 v2 get_max_corner(Rect2 rect) {
     v2 result;
     
@@ -956,6 +982,15 @@ v3 get_max_corner(Rect3 rect) {
     v3 result;
     
     result = rect.max;
+    
+    return result;
+}
+
+inline
+v3 get_dim(Rect3 rect) {
+    v3 result;
+    
+    result = rect.max - rect.min;
     
     return result;
 }

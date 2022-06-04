@@ -78,7 +78,18 @@ struct Render_entry_bitmap {
     v4 color;
 };
 
+struct Render_group_camera {
+    f32 focal_length;
+    f32 dist_above_target;
+};
+
 struct Render_group {
+    
+    Render_group_camera game_camera;
+    Render_group_camera render_camera;
+    
+    f32 meters_to_pixels;
+    v2 monitor_half_dim_meters;
     
     f32 global_alpha;
     

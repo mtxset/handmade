@@ -34,6 +34,8 @@ global_var const v4 yellow_v4 = { 1.0f, 1.0f, 0.0f, 1.0f };
 global_var const v4 grey_v4   = { 0.1f, 0.1f, 0.1f, 1.0f };
 global_var const v4 pink_v4   = { 1.0f, 0.0f, 1.0f, 1.0f };
 global_var const v4 black_v4  = { 0.0f, 0.0f, 0.0f, 1.0f };
+global_var const v4 purple_v4 = { 1.0f, 0.0f, 1.0f, 1.0f };
+global_var const v4 cyan_v4   = { 0.5f, 1.0f, 1.0f, 1.0f };
 
 inline
 v3 
