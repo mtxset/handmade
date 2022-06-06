@@ -787,7 +787,7 @@ allocate_render_group(Memory_arena* arena, u32 max_push_buffer_size, u32 resolut
     result->game_camera.dist_above_target = 9.0f;
     
     result->render_camera = result->game_camera;
-    result->render_camera.dist_above_target = 30.0f;
+    // result->render_camera.dist_above_target = 30.0f;
     
     result->global_alpha = 1.0f;
     
