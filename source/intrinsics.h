@@ -36,19 +36,19 @@ union v3 {
     
     struct {
         v2 xy;
-        f32 _discard;
+        f32 _discard_z;
     };
     struct {
-        f32 _discard;
+        f32 _discard_xy;
         v2 yz;
     };
     
     struct {
         v2 uv;
-        f32 _discard;
+        f32 _discard_w;
     };
     struct {
-        f32 _discard;
+        f32 _discard_uv;
         v2 vw;
     };
     
