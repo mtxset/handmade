@@ -9,6 +9,24 @@ Enter will spawn player
 WASD, arrows moves him
 Space - jumps
 
+day 112:
+ simd - single instruction multiple data (typical 4 things, but as many 8 or 16 or even 64)
+ intrusctions (L0)                       cache            memory
+ add register0, register1, register2 	L1, L2, L3	   storing values
+ each each is slower than the other (L0 being fastest, L3 being slowest)
+ L1 - let's say 2 to read/write?
+ L2 - let's say 16 to read/write?
+ memory - 300 cycles to read/write?
+ add - 2 cycles
+ cycle - cpu work - so 3.2 ghz -> max 3.2 * 10^9 cycles per second
+ Instruction Cache (our asm code) -> decoded to microcodes -> 1 cycle -> hardware? (???)
+ bandwith - gb/s - speed at which we can get our memory (ram->cache->l1,l2,l3...)
+ latency - how long it will take for our memory to get upon request
+ cache miss - is when an operation before finishing has to grab some memory thus adding latency
+ prefetch - guessing what data we need so cpu can start calculation and query memory at the same time
+ hyperthreading - if cpu thread is waiting for a memory it switches to other thread
+ latency bubbles - cpu waiting for memory 
+
 day 109: 
  resolution independent rendering
 
