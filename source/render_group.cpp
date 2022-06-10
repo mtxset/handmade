@@ -263,6 +263,7 @@ distance_from_map_z - how far the map is from sample point in z, in meters
 internal
 void
 draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Loaded_bmp* bitmap, Loaded_bmp* normal_map, Env_map* top, Env_map* middle, Env_map* bottom, f32 pixel_to_meter) {
+    u64 start_cycle_timer = __rdtsc();
     
     color.rgb *= color.a;
     
@@ -481,6 +482,7 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
         }
         row += buffer->pitch;
     }
+    debug_end_timer(Debug_cycle_counter_type_render_draw_rect_slow, start_cycle_timer);
 }
 
 inline
@@ -672,6 +674,9 @@ get_render_entity_basis_pos(Render_group* render_group, Render_entity_basis* bas
 internal
 void
 render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
+    
+    auto start_cycle_count = __rdtsc();
+    
     v2 screen_dim = { 
         (f32)output_target->width,
         (f32)output_target->height
@@ -769,6 +774,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
         }
     }
     
+    debug_end_timer(Debug_cycle_counter_type_render_group_to_output, start_cycle_count);
 }
 
 internal

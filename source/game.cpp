@@ -1034,9 +1034,17 @@ make_cylinder_normal_map_x(Loaded_bmp* bitmap, f32 roughness) {
     }
 }
 
+#if INTERNAL
+Game_memory* debug_global_memory;
+#endif
+
 extern "C"
 void 
 game_update_render(thread_context* thread, Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer) {
+#if INTERNAL
+    debug_global_memory = memory;
+    auto start_cycle_count = __rdtsc();
+#endif
     
 #if 0
     run_tests();
@@ -1575,7 +1583,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                     }
                     
                     if (furthest_buffer) {
-                        fill_ground_chunk(tran_state, game_state, furthest_buffer, &chunk_center_pos);
+                        //fill_ground_chunk(tran_state, game_state, furthest_buffer, &chunk_center_pos);
                     }
                 }
             }
@@ -1925,6 +1933,10 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     
 #if 0
     each_pixel(draw_buffer, game_state, input->time_delta);
+#endif
+    
+#if INTERNAL
+    debug_end_timer(Debug_cycle_counter_type_game_update_render, start_cycle_count);
 #endif
 }
 

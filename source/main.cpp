@@ -1,4 +1,4 @@
-// https://youtu.be/qin-Eps3U_E?t=3979
+// https://youtu.be/QdTqYhv8tL0?t=1743
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include <stdio.h>
@@ -739,6 +739,31 @@ create_default_window(LRESULT win32_window_processor, HINSTANCE current_instance
     return result;
 }
 
+internal
+void
+handle_debug_cycle_count(Game_memory* memory) {
+#if INTERNAL
+    
+    OutputDebugStringA("Cycles\n");
+    for (u32 counter_index = 0; counter_index < macro_array_count(memory->counter_list); counter_index++) {
+        Debug_cycle_counter* counter = memory->counter_list + counter_index;
+        
+        if (counter->hit_count == 0) 
+            continue;
+        
+        char buffer[256];
+        u64 cycles_per_hit = counter->cycle_count / counter->hit_count;
+        _snprintf_s(buffer, sizeof(buffer),
+                    "%d: %I64u cy %uh %I64ucy/h\n", 
+                    counter_index, counter->cycle_count, counter->hit_count, cycles_per_hit);
+        OutputDebugStringA(buffer);
+        
+        counter->cycle_count = 0;
+        counter->hit_count = 0;
+    }
+#endif
+}
+
 i32
 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
     
@@ -1013,8 +1038,10 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
             if (win_state.playing_input_index)
                 win32_playback_input(&win_state, new_input);
             
-            if (game_code.update_and_render)
+            if (game_code.update_and_render) {
                 game_code.update_and_render(&thread, &memory, new_input, &game_buffer);
+                handle_debug_cycle_count(&memory);
+            }
         }
         
         // sound stuff
@@ -1164,7 +1191,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
             }
 #endif
             
-#if 1
+#if 0
             // output fps
             auto cycles_elapsed = (u32)(end_cycle_count - begin_cycle_count);
             auto counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;

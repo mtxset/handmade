@@ -9,6 +9,13 @@ Enter will spawn player
 WASD, arrows moves him
 Space - jumps
 
+day 111: how to optimize:
+ 1. gather stats/info - where/how is it slow? (how much they are being run in code?)
+ 2. estimate how fast should it run
+ 3. analyze efficiency (algo) and perfromance (code/hardware optimizations)
+  3.1 improve algo by removing pieces (removing unnecessary work)
+ 4. think, solve, code
+
 day 112:
  simd - single instruction multiple data (typical 4 things, but as many 8 or 16 or even 64)
  intrusctions (L0)                       cache            memory

@@ -132,4 +132,15 @@ mem_zero_size_(size_t size, void* pointer) {
         *byte++ = 0;
 }
 
+
+extern struct Game_memory* debug_global_memory;
+#if INTERNAL
+internal
+void
+debug_end_timer(Debug_cycle_counter_type type, u64 start_cycle_count) {
+    debug_global_memory->counter_list[type].cycle_count += __rdtsc() - start_cycle_count;
+    debug_global_memory->counter_list[type].hit_count++;
+}
+#endif
+
 #endif //MAIN_H

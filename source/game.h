@@ -81,6 +81,20 @@ struct Game_input {
     bool executable_reloaded;
 };
 
+#if INTERNAL
+enum Debug_cycle_counter_type {
+    Debug_cycle_counter_type_game_update_render,
+    Debug_cycle_counter_type_render_group_to_output,
+    Debug_cycle_counter_type_render_draw_rect_slow,
+    Debug_cycle_counter_count
+};
+
+typedef struct Debug_cycle_counter {
+    u64 cycle_count;
+    u32 hit_count;
+} Debug_cycle_counter;
+#endif
+
 typedef struct Game_memory {
     bool is_initialized;
     
@@ -89,6 +103,9 @@ typedef struct Game_memory {
     
     u64 transient_storage_size;
     void* transient_storage;
+#if INTERNAL
+    Debug_cycle_counter counter_list[Debug_cycle_counter_count];
+#endif
 } Game_memory;
 
 // https://www.youtube.com/watch?v=es-Bou2dIdY
