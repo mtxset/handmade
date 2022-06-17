@@ -262,8 +262,23 @@ distance_from_map_z - how far the map is from sample point in z, in meters
 
 internal
 void
+debug_simd_example() {
+    // https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
+    __m128 xx = _mm_set1_ps(1.0f);
+    __m128 yy = _mm_set1_ps(2.0f);
+    __m128 sum = _mm_add_ps(xx, yy);
+    
+    __m128 xxxx = _mm_set_ps(1.0f, 2.0f, 30.0f, 40.0f); // will load in reverse
+    __m128 yyyy = _mm_set_ps(1.0f, 2.0f, 30.0f, 40.0f); // 40.0f, 30.0f, 2.0f, 1.0f
+    sum = _mm_add_ps(xxxx, yyyy);
+}
+
+internal
+void
 draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Loaded_bmp* bitmap, f32 pixel_to_meter) {
     u64 start_cycle_timer = __rdtsc();
+    
+    debug_simd_example();
     
     color.rgb *= color.a;
     
@@ -277,6 +292,11 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
     
     i32 width_max  = buffer->width - 1;
     i32 height_max = buffer->height - 1;
+    // hack
+    {
+        width_max -= 4;
+        height_max -= 4;
+    }
     
     f32 inv_width_max  = 1.0f / (f32)width_max;
     f32 inv_height_max = 1.0f / (f32)height_max;
@@ -322,24 +342,43 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
     v2 nx_axis = inverse_x_axis_squared * x_axis;
     v2 ny_axis = inverse_y_axis_squared * y_axis;
     f32 inv_255 = 1.0f / 255.0f;
+    __m128 inv_255_4x = _mm_set1_ps(inv_255);
     f32 one_255 = 255.0f;
     
     for (i32 y = y_min; y <= y_max; y++) {
         u32* pixel = (u32*)row;
-        for (i32 x = x_min; x <= x_max; x++) {
+        for (i32 x = x_min; x <= x_max; x += 4) {
             
             u64 test_pixel_cycle_timer = __rdtsc();
             
-            v2 pixel_pos = v2_i32(x, y);
-            v2 d = pixel_pos - origin;
+            __m128 texel_a_r = {}, texel_a_g = {}, texel_a_b = {}, texel_a_a = {};
+            __m128 texel_b_r = {}, texel_b_g = {}, texel_b_b = {}, texel_b_a = {};
+            __m128 texel_c_r = {}, texel_c_g = {}, texel_c_b = {}, texel_c_a = {};
+            __m128 texel_d_r = {}, texel_d_g = {}, texel_d_b = {}, texel_d_a = {};
             
-            f32 u = inner(d, nx_axis);
-            f32 v = inner(d, ny_axis);
+            f32 dstr[4], dstg[4], dstb[4], dsta[4];
             
-            if (u >= 0.0f && u <= 1.0f &&
-                v >= 0.0f && v <= 1.0f) {
+            f32 blendedr[4], blendedg[4], blendedb[4], blendeda[4];
+            
+            f32 f_x[4], f_y[4];
+            
+            bool should_fill[4];
+            
+            for (i32 i = 0; i < 4; i++) {
                 
-                u64 fill_pixel_cycle_timer = __rdtsc();
+                v2 pixel_pos = v2_i32(x + i, y);
+                v2 d = pixel_pos - origin;
+                
+                f32 u = inner(d, nx_axis);
+                f32 v = inner(d, ny_axis);
+                
+                should_fill[i] = (u >= 0.0f && u <= 1.0f &&
+                                  v >= 0.0f && v <= 1.0f);
+                
+                if (!should_fill[i])
+                    continue;
+                
+                //u64 fill_pixel_cycle_timer = __rdtsc();
                 
                 f32 t_x = (u * ((f32)(bitmap->width - 2)));
                 f32 t_y = (v * ((f32)(bitmap->height - 2)));
@@ -347,8 +386,8 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                 i32 x_i32 = (i32)t_x;
                 i32 y_i32 = (i32)t_y;
                 
-                f32 f_x = t_x - (f32)x_i32;
-                f32 f_y = t_y - (f32)y_i32;
+                f_x[i] = t_x - (f32)x_i32;
+                f_y[i] = t_y - (f32)y_i32;
                 
                 macro_assert(x_i32 >= 0 && x_i32 < bitmap->width);
                 macro_assert(y_i32 >= 0 && y_i32 < bitmap->height);
@@ -360,70 +399,126 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                 u32 sampled = *(u32*)(texel_ptr + bitmap->pitch + sizeof(u32));
                 
                 // unpacking samples
-                f32 texel_a_r, texel_a_g, texel_a_b, texel_a_a;
-                f32 texel_b_r, texel_b_g, texel_b_b, texel_b_a;
-                f32 texel_c_r, texel_c_g, texel_c_b, texel_c_a;
-                f32 texel_d_r, texel_d_g, texel_d_b, texel_d_a;
                 {
-                    texel_a_r = (f32)((samplea >> 16) & 0xff);
-                    texel_a_g = (f32)((samplea >> 8 ) & 0xff);
-                    texel_a_b = (f32)((samplea >> 0 ) & 0xff);
-                    texel_a_a = (f32)((samplea >> 24) & 0xff);
+                    texel_a_r.m128_f32[i] = (f32)((samplea >> 16) & 0xff);
+                    texel_a_g.m128_f32[i] = (f32)((samplea >> 8 ) & 0xff);
+                    texel_a_b.m128_f32[i] = (f32)((samplea >> 0 ) & 0xff);
+                    texel_a_a.m128_f32[i] = (f32)((samplea >> 24) & 0xff);
                     
-                    texel_b_r = (f32)((sampleb >> 16) & 0xff);
-                    texel_b_g = (f32)((sampleb >> 8 ) & 0xff);
-                    texel_b_b = (f32)((sampleb >> 0 ) & 0xff);
-                    texel_b_a = (f32)((sampleb >> 24) & 0xff);
+                    texel_b_r.m128_f32[i] = (f32)((sampleb >> 16) & 0xff);
+                    texel_b_g.m128_f32[i] = (f32)((sampleb >> 8 ) & 0xff);
+                    texel_b_b.m128_f32[i] = (f32)((sampleb >> 0 ) & 0xff);
+                    texel_b_a.m128_f32[i] = (f32)((sampleb >> 24) & 0xff);
                     
-                    texel_c_r = (f32)((samplec >> 16) & 0xff);
-                    texel_c_g = (f32)((samplec >> 8 ) & 0xff);
-                    texel_c_b = (f32)((samplec >> 0 ) & 0xff);
-                    texel_c_a = (f32)((samplec >> 24) & 0xff);
+                    texel_c_r.m128_f32[i] = (f32)((samplec >> 16) & 0xff);
+                    texel_c_g.m128_f32[i] = (f32)((samplec >> 8 ) & 0xff);
+                    texel_c_b.m128_f32[i] = (f32)((samplec >> 0 ) & 0xff);
+                    texel_c_a.m128_f32[i] = (f32)((samplec >> 24) & 0xff);
                     
-                    texel_d_r = (f32)((sampled >> 16) & 0xff);
-                    texel_d_g = (f32)((sampled >> 8 ) & 0xff);
-                    texel_d_b = (f32)((sampled >> 0 ) & 0xff);
-                    texel_d_a = (f32)((sampled >> 24) & 0xff);
+                    texel_d_r.m128_f32[i] = (f32)((sampled >> 16) & 0xff);
+                    texel_d_g.m128_f32[i] = (f32)((sampled >> 8 ) & 0xff);
+                    texel_d_b.m128_f32[i] = (f32)((sampled >> 0 ) & 0xff);
+                    texel_d_a.m128_f32[i] = (f32)((sampled >> 24) & 0xff);
                 }
                 
-                // convert from srgb255_to_linear1
+                // load destination
                 {
-                    texel_a_r = square(inv_255 * texel_a_r);
-                    texel_a_g = square(inv_255 * texel_a_g);
-                    texel_a_b = square(inv_255 * texel_a_b);
-                    texel_a_a =       (inv_255 * texel_a_a);
-                    
-                    texel_b_r = square(inv_255 * texel_b_r);
-                    texel_b_g = square(inv_255 * texel_b_g);
-                    texel_b_b = square(inv_255 * texel_b_b);
-                    texel_b_a =       (inv_255 * texel_b_a);
-                    
-                    texel_c_r = square(inv_255 * texel_c_r);
-                    texel_c_g = square(inv_255 * texel_c_g);
-                    texel_c_b = square(inv_255 * texel_c_b);
-                    texel_c_a =       (inv_255 * texel_c_a);
-                    
-                    texel_d_r = square(inv_255 * texel_d_r);
-                    texel_d_g = square(inv_255 * texel_d_g);
-                    texel_d_b = square(inv_255 * texel_d_b);
-                    texel_d_a =       (inv_255 * texel_d_a);
+                    dstr[i] = (f32)((*(pixel + i) >> 16) & 0xff);
+                    dstg[i] = (f32)((*(pixel + i) >> 8)  & 0xff);
+                    dstb[i] = (f32)((*(pixel + i) >> 0)  & 0xff);
+                    dsta[i] = (f32)((*(pixel + i) >> 24) & 0xff);
                 }
+            }
+            
+            // convert from srgb255_to_linear1 
+            {
+                texel_a_r = mm_square(mm_mul(inv_255_4x, texel_a_r));
+                texel_a_g = mm_square(mm_mul(inv_255_4x, texel_a_g));
+                texel_a_b = mm_square(mm_mul(inv_255_4x, texel_a_b));
+                texel_a_a =           mm_mul(inv_255_4x, texel_a_a);
                 
+                texel_b_r = mm_square(mm_mul(inv_255_4x, texel_b_r));
+                texel_b_g = mm_square(mm_mul(inv_255_4x, texel_b_g));
+                texel_b_b = mm_square(mm_mul(inv_255_4x, texel_b_b));
+                texel_b_a =           mm_mul(inv_255_4x, texel_b_a);
+                
+                texel_c_r = mm_square(mm_mul(inv_255_4x, texel_c_r));
+                texel_c_g = mm_square(mm_mul(inv_255_4x, texel_c_g));
+                texel_c_b = mm_square(mm_mul(inv_255_4x, texel_c_b));
+                texel_c_a =           mm_mul(inv_255_4x, texel_c_a);
+                
+                texel_d_r = mm_square(mm_mul(inv_255_4x, texel_d_r));
+                texel_d_g = mm_square(mm_mul(inv_255_4x, texel_d_g));
+                texel_d_b = mm_square(mm_mul(inv_255_4x, texel_d_b));
+                texel_d_a =           mm_mul(inv_255_4x, texel_d_a);
+            }
+            
+            for(i32 i = 0; i < 4; i++) {
+                /*
+                    // convert from srgb255_to_linear1
+                    {
+                        
+                        //texel_a_r[i] = inv_255 * texel_a_r[i];
+                        //texel_a_r[i] *= texel_a_r[i];
+                        
+                        texel_a_g[i] = inv_255 * texel_a_g[i];
+                        texel_a_g[i] *= texel_a_g[i];
+                        
+                        texel_a_b[i] = inv_255 * texel_a_b[i];
+                        texel_a_b[i] *= texel_a_b[i];
+                        
+                        texel_a_a[i] = (inv_255 * texel_a_a[i]);
+                        
+                        texel_b_r[i] = square(inv_255 * texel_b_r[i]);
+                        texel_b_g[i] = square(inv_255 * texel_b_g[i]);
+                        texel_b_b[i] = square(inv_255 * texel_b_b[i]);
+                        texel_b_a[i] =       (inv_255 * texel_b_a[i]);
+                        
+                        texel_c_r[i] = square(inv_255 * texel_c_r[i]);
+                        texel_c_g[i] = square(inv_255 * texel_c_g[i]);
+                        texel_c_b[i] = square(inv_255 * texel_c_b[i]);
+                        texel_c_a[i] =       (inv_255 * texel_c_a[i]);
+                        
+                        texel_d_r[i] = square(inv_255 * texel_d_r[i]);
+                        texel_d_g[i] = square(inv_255 * texel_d_g[i]);
+                        texel_d_b[i] = square(inv_255 * texel_d_b[i]);
+                        texel_d_a[i] =       (inv_255 * texel_d_a[i]);
+                    }
+                    */
                 // lerp
                 f32 texelr, texelg, texelb, texela;
                 {
-                    f32 if_x = 1.0f - f_x;
-                    f32 if_y = 1.0f - f_y;
+                    f32 if_x = 1.0f - f_x[i];
+                    f32 if_y = 1.0f - f_y[i];
                     
                     f32 l0 = if_y * if_x;
-                    f32 l1 = if_y * f_x;
-                    f32 l2 = f_y  * if_x;
-                    f32 l3 = f_y  * f_x;
+                    f32 l1 = if_y * f_x[i];
+                    f32 l2 = f_y[i]  * if_x;
+                    f32 l3 = f_y[i]  * f_x[i];
                     
-                    texelr = l0 * texel_a_r + l1 * texel_b_r + l2 * texel_c_r + l3 * texel_d_r;
-                    texelg = l0 * texel_a_g + l1 * texel_b_g + l2 * texel_c_g + l3 * texel_d_g;
-                    texelb = l0 * texel_a_b + l1 * texel_b_b + l2 * texel_c_b + l3 * texel_d_b;
-                    texela = l0 * texel_a_a + l1 * texel_b_a + l2 * texel_c_a + l3 * texel_d_a;
+                    texelr = 
+                        l0 * texel_a_r.m128_f32[i] + 
+                        l1 * texel_b_r.m128_f32[i] + 
+                        l2 * texel_c_r.m128_f32[i] + 
+                        l3 * texel_d_r.m128_f32[i];
+                    
+                    texelg = 
+                        l0 * texel_a_g.m128_f32[i] +
+                        l1 * texel_b_g.m128_f32[i] + 
+                        l2 * texel_c_g.m128_f32[i] + 
+                        l3 * texel_d_g.m128_f32[i];
+                    
+                    texelb = 
+                        l0 * texel_a_b.m128_f32[i] +
+                        l1 * texel_b_b.m128_f32[i] +
+                        l2 * texel_c_b.m128_f32[i] +
+                        l3 * texel_d_b.m128_f32[i];
+                    
+                    texela = 
+                        l0 * texel_a_a.m128_f32[i] +
+                        l1 * texel_b_a.m128_f32[i] +
+                        l2 * texel_c_a.m128_f32[i] +
+                        l3 * texel_d_a.m128_f32[i];
                 }
                 
                 // multiple by incoming color
@@ -441,21 +536,12 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                     texelb = clamp01(texelb);
                 }
                 
-                // load destination
-                f32 dstr, dstg, dstb, dsta;
-                {
-                    dstr = (f32)((*pixel >> 16) & 0xff);
-                    dstg = (f32)((*pixel >> 8)  & 0xff);
-                    dstb = (f32)((*pixel >> 0)  & 0xff);
-                    dsta = (f32)((*pixel >> 24) & 0xff);
-                }
-                
                 // converting back from srgb to linear
                 {
-                    dstr = square(inv_255 * dstr);
-                    dstg = square(inv_255 * dstg);
-                    dstb = square(inv_255 * dstb);
-                    dsta =       (inv_255 * dsta);
+                    dstr[i] = square(inv_255 * dstr[i]);
+                    dstg[i] = square(inv_255 * dstg[i]);
+                    dstb[i] = square(inv_255 * dstb[i]);
+                    dsta[i] =       (inv_255 * dsta[i]);
                 }
                 
                 // (1-t)A + tB 
@@ -466,33 +552,34 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                 // blending techniques: http://ycpcs.github.io/cs470-fall2014/labs/lab09.html
                 
                 // linear blending
-                f32 blendedr, blendedg, blendedb, blendeda;
                 {
                     f32 inv_texel_a = 1.0f - texela;
-                    blendedr = inv_texel_a * dstr + texelr;
-                    blendedg = inv_texel_a * dstg + texelg;
-                    blendedb = inv_texel_a * dstb + texelb;
-                    blendeda = inv_texel_a * dsta + texela;
+                    blendedr[i] = inv_texel_a * dstr[i] + texelr;
+                    blendedg[i] = inv_texel_a * dstg[i] + texelg;
+                    blendedb[i] = inv_texel_a * dstb[i] + texelb;
+                    blendeda[i] = inv_texel_a * dsta[i] + texela;
                 }
                 
                 // back to srgb
                 {
-                    blendedr = one_255 * square_root(blendedr);
-                    blendedg = one_255 * square_root(blendedg);
-                    blendedb = one_255 * square_root(blendedb);
-                    blendeda = one_255 * blendeda;
+                    blendedr[i] = one_255 * square_root(blendedr[i]);
+                    blendedg[i] = one_255 * square_root(blendedg[i]);
+                    blendedb[i] = one_255 * square_root(blendedb[i]);
+                    blendeda[i] = one_255 * blendeda[i];
                 }
+            }
+            
+            for (i32 i = 0; i < 4; i++) {
+                if (!should_fill[i])
+                    continue;
                 
                 // repack
-                *pixel = (((u32)(blendeda + 0.5f) << 24)|
-                          ((u32)(blendedr + 0.5f) << 16)|
-                          ((u32)(blendedg + 0.5f) << 8 )|
-                          ((u32)(blendedb + 0.5f) << 0 ));
-                
-                
-                debug_end_timer(Debug_cycle_counter_type_render_fill_pixel, fill_pixel_cycle_timer);
+                *(pixel + i) = (((u32)(blendeda[i] + 0.5f) << 24)|
+                                ((u32)(blendedr[i] + 0.5f) << 16)|
+                                ((u32)(blendedg[i] + 0.5f) << 8 )|
+                                ((u32)(blendedb[i] + 0.5f) << 0 ));
             }
-            pixel++;
+            pixel += 4;
             debug_end_timer(Debug_cycle_counter_type_render_test_pixel, test_pixel_cycle_timer);
         }
         row += buffer->pitch;
