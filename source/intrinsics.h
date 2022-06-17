@@ -1113,5 +1113,39 @@ get_barycentric(Rect3 a, v3 pos) {
 
 // RECT3 END
 
+//
+
+inline
+__m128
+mm_init_f32(f32 value) {
+    __m128 result;
+    result = _mm_set1_ps(value);
+    return result;
+}
+
+inline
+__m128
+mm_square(__m128 a) {
+    __m128 result;
+    result = _mm_mul_ps(a, a);
+    return result;
+}
+
+inline
+__m128
+mm_mul(__m128 a, __m128 b) {
+    __m128 result;
+    result = _mm_mul_ps(a, b);
+    return result;
+}
+
+inline
+__m128
+mm_sub(__m128 a, __m128 b) {
+    __m128 result;
+    result = _mm_sub_ps(a, b);
+    return result;
+}
+//
 
 #endif //INTRINSICS_H
