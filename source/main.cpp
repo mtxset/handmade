@@ -1,4 +1,4 @@
-// https://youtu.be/YnnTb0AQgYM?t=4599
+// https://youtu.be/1CVmlnhgT3g?t=3784
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include <stdio.h>
@@ -739,9 +739,6 @@ create_default_window(LRESULT win32_window_processor, HINSTANCE current_instance
     return result;
 }
 
-#define enum_xstr(x) #x
-#define enum_str(x) enum_xstr(x)
-
 internal
 void
 handle_debug_cycle_count(Game_memory* memory) {
@@ -757,7 +754,7 @@ handle_debug_cycle_count(Game_memory* memory) {
         char buffer[256];
         u64 cycles_per_hit = counter->cycle_count / counter->hit_count;
         _snprintf_s(buffer, sizeof(buffer),
-                    "%d: %I64u cy %uh %I64ucy/h\n", 
+                    "%d: %I64u cy %uh %I64u cy/h\n", 
                     counter_index,
                     counter->cycle_count, counter->hit_count, cycles_per_hit);
         OutputDebugStringA(buffer);
@@ -1195,7 +1192,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
             }
 #endif
             
-#if 0
+#if 1
             // output fps
             auto cycles_elapsed = (u32)(end_cycle_count - begin_cycle_count);
             auto counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;

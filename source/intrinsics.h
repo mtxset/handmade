@@ -1125,6 +1125,14 @@ mm_init_f32(f32 value) {
 
 inline
 __m128
+mm_init_f32(f32 a, f32 b, f32 c, f32 d) {
+    __m128 result;
+    result = _mm_set_ps(a,b,c,d);
+    return result;
+}
+
+inline
+__m128
 mm_square(__m128 a) {
     __m128 result;
     result = _mm_mul_ps(a, a);
@@ -1136,6 +1144,41 @@ __m128
 mm_mul(__m128 a, __m128 b) {
     __m128 result;
     result = _mm_mul_ps(a, b);
+    return result;
+}
+
+inline
+__m128
+mm_min(__m128 a, __m128 b) {
+    __m128 result;
+    result = _mm_min_ps(a, b);
+    return result;
+}
+
+
+inline
+__m128
+mm_max(__m128 a, __m128 b) {
+    __m128 result;
+    result = _mm_max_ps(a, b);
+    return result;
+}
+
+
+inline
+__m128
+mm_sqrt(__m128 a) {
+    __m128 result;
+    result = _mm_sqrt_ps(a);
+    return result;
+}
+
+
+inline
+__m128
+mm_add(__m128 a, __m128 b) {
+    __m128 result;
+    result = _mm_add_ps(a, b);
     return result;
 }
 

@@ -9,6 +9,14 @@ Enter will spawn player
 WASD, arrows moves him
 Space - jumps
 
+day 116: 
+ with -02:       cycles total    |calls| cycles per call
+  draw_rect_slow: 78927118   cy    50h   1578542  cy/h
+  draw_rect_quak: 46461665   cy    50h   929233   cy/h
+ with -0d         
+  draw_rect_slow: 1947287758 cy    53h   36741278 cy/h
+  draw_rect_quak: 304777255  cy    53h   5750514  cy/h
+
 day 115: simd basics
  1. single instruction multiple data
  2. "normal" b = a + a; -> add b a,a or mov b, a; add b, a;
