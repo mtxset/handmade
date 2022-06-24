@@ -1,4 +1,4 @@
-// https://youtu.be/1CVmlnhgT3g?t=3784
+// https://youtu.be/90eSF6jLzvQ?t=4237
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include <stdio.h>
@@ -1192,19 +1192,19 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
             }
 #endif
             
-#if 1
-            // output fps
-            auto cycles_elapsed = (u32)(end_cycle_count - begin_cycle_count);
-            auto counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
-            
-            auto fps = (i32)(Global_perf_freq / counter_elapsed);
-            auto elapsed_ms = (i32)(counter_elapsed * 1000.0f / Global_perf_freq);
-            
-            char buffer[256];
-            _snprintf_s(buffer, sizeof(buffer), "%d ms/f  %d f/s  %d MC/f \n", elapsed_ms, fps, cycles_elapsed / 1000000);
-            // approx. cpu speed - fps * (cycles_elapsed / 1000000)
-            OutputDebugStringA(buffer);
-#endif
+            bool output_to_debug_fps = false;
+            if (output_to_debug_fps) {
+                auto cycles_elapsed = (u32)(end_cycle_count - begin_cycle_count);
+                auto counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
+                
+                auto fps = (i32)(Global_perf_freq / counter_elapsed);
+                auto elapsed_ms = (i32)(counter_elapsed * 1000.0f / Global_perf_freq);
+                
+                char buffer[256];
+                _snprintf_s(buffer, sizeof(buffer), "%d ms/f  %d f/s  %d MC/f \n", elapsed_ms, fps, cycles_elapsed / 1000000);
+                // approx. cpu speed - fps * (cycles_elapsed / 1000000)
+                OutputDebugStringA(buffer);
+            }
             
             last_counter = end_counter;
             begin_cycle_count = end_cycle_count;
