@@ -9,6 +9,9 @@ Enter will spawn player
 WASD, arrows moves him
 Space - jumps
 
+day 117: simd packing
+ 
+
 day 116: 
  with -02:       cycles total    |calls| cycles per call
   draw_rect_slow: 78927118   cy    50h   1578542  cy/h

@@ -346,6 +346,7 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
     v2 ny_axis = inverse_y_axis_squared * y_axis;
     
     __m128 zero_4x = mm_init_f32(0.0f);
+    __m128 half_4x = mm_init_f32(0.5f);
     __m128 one_4x = mm_init_f32(1.0f);
     __m128 one_255_4x = mm_init_f32(255.0f);
     __m128 inv_255_4x = mm_init_f32(inv_255);
@@ -542,10 +543,29 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                 blendeda = mm_mul(one_255_4x, blendedb);
             }
             
+            // convert float values to integer
+            __m128i out = {};
+            {
+                __m128i i32_r = mm_convert_f_i(mm_add(blendedr, half_4x));
+                __m128i i32_g = mm_convert_f_i(mm_add(blendedg, half_4x));
+                __m128i i32_b = mm_convert_f_i(mm_add(blendedb, half_4x));
+                __m128i i32_a = mm_convert_f_i(mm_add(blendeda, half_4x));
+                
+                __m128i shifted_r = _mm_slli_epi32(i32_r, 16);
+                __m128i shifted_g = _mm_slli_epi32(i32_g, 8);
+                __m128i shifted_b = _mm_slli_epi32(i32_b, 0);
+                __m128i shifted_a = _mm_slli_epi32(i32_a, 24);
+                
+                out = mm_or(mm_or(shifted_r, shifted_g), mm_or(shifted_b, shifted_a));
+            }
             
+            // to bypass alignent in 16 bytes
+            _mm_storeu_si128((__m128i *)pixel, out);
+            
+            /*
             for (i32 i = 0; i < 4; i++) {
-                if (!should_fill[i])
-                    continue;
+                //if (!should_fill[i])
+                //continue;
                 
                 // repack
                 *(pixel + i) = (((u32)(blendeda.m128_f32[i] + 0.5f) << 24)|
@@ -553,6 +573,7 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                                 ((u32)(blendedg.m128_f32[i] + 0.5f) << 8 )|
                                 ((u32)(blendedb.m128_f32[i] + 0.5f) << 0 ));
             }
+*/
             pixel += 4;
         }
         row += buffer->pitch;
