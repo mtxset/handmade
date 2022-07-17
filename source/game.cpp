@@ -1657,7 +1657,6 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                 }
             }
             
-            
             // update entities
             switch (entity->type) {
                 case Entity_type_hero: {

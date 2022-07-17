@@ -9,9 +9,15 @@ Enter will spawn player
 WASD, arrows moves him
 Space - jumps
 
+day 118: more optimizations
+ with -02:       cycles total    |calls| cycles per call
+  draw_rect_quak: 16237450   cy    53h   306366   cy/h 
+
+  quak: 36 cycles per pixel
+  slow: 194 cycles per pixel
+
 day 117: simd packing
  
-
 day 116: 
  with -02:       cycles total    |calls| cycles per call
   draw_rect_slow: 78927118   cy    50h   1578542  cy/h
