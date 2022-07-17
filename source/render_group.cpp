@@ -346,10 +346,11 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
     v2 ny_axis = inverse_y_axis_squared * y_axis;
     
     __m128 zero_4x = mm_init_f32(0.0f);
-    __m128 half_4x = mm_init_f32(0.5f);
     __m128 one_4x = mm_init_f32(1.0f);
     __m128 one_255_4x = mm_init_f32(255.0f);
     __m128 inv_255_4x = mm_init_f32(inv_255);
+    
+    __m128i mask_ff = _mm_set1_epi32(0xff);
     
     __m128 color_r_4x = mm_init_f32(color.r);
     __m128 color_g_4x = mm_init_f32(color.g);
@@ -364,26 +365,16 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
     __m128 ny_axisx_4x = mm_init_f32(ny_axis.x);
     __m128 ny_axisy_4x = mm_init_f32(ny_axis.y);
     
+    __m128 width_m2  = _mm_set1_ps((f32)(bitmap->width  - 2));
+    __m128 height_m2 = _mm_set1_ps((f32)(bitmap->height - 2));
+    
     u64 pixel_cycle_timer = __rdtsc();
     for (i32 y = y_min; y <= y_max; y++) {
         u32* pixel = (u32*)row;
         for (i32 x = x_min; x <= x_max; x += 4) {
             
-            __m128 texel_a_r = {}, texel_a_g = {}, texel_a_b = {}, texel_a_a = {};
-            __m128 texel_b_r = {}, texel_b_g = {}, texel_b_b = {}, texel_b_a = {};
-            __m128 texel_c_r = {}, texel_c_g = {}, texel_c_b = {}, texel_c_a = {};
-            __m128 texel_d_r = {}, texel_d_g = {}, texel_d_b = {}, texel_d_a = {};
-            
-            __m128 dstr = {}, dstg = {}, dstb = {}, dsta = {};
-            
-            __m128 blendedr = {}, blendedg = {}, blendedb = {}, blendeda = {};
-            
-            __m128 f_x = {}, f_y = {};
-            
-            bool should_fill[4];
-            
-            __m128 pixel_pos_x = mm_init_f32((f32)(x + 3), (f32)(x + 2), (f32)(x + 1), (f32)(x));
-            __m128 pixel_pos_y = mm_init_f32((f32)y);
+            __m128 pixel_pos_x = _mm_set_ps((f32)(x + 3), (f32)(x + 2), (f32)(x + 1), (f32)(x));
+            __m128 pixel_pos_y = _mm_set1_ps((f32)y);
             
             __m128 d_x = mm_sub(pixel_pos_x, origin_x_4x);
             __m128 d_y = mm_sub(pixel_pos_y, origin_y_4x);
@@ -391,62 +382,74 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
             __m128 u = mm_add(mm_mul(d_x, nx_axisx_4x), mm_mul(d_y, nx_axisy_4x));
             __m128 v = mm_add(mm_mul(d_y, ny_axisx_4x), mm_mul(d_y, ny_axisy_4x));
             
+            __m128i write_mask = _mm_castps_si128(_mm_and_ps(_mm_and_ps(_mm_cmpge_ps(u, zero_4x),
+                                                                        _mm_cmple_ps(u, one_4x)),
+                                                             _mm_and_ps(_mm_cmpge_ps(v, zero_4x),
+                                                                        _mm_cmple_ps(v, one_4x))));
+            __m128i original_dest = _mm_loadu_si128((__m128i*) pixel);
+            
+            u = _mm_min_ps(_mm_max_ps(u, zero_4x), one_4x);
+            v = _mm_min_ps(_mm_max_ps(v, zero_4x), one_4x);
+            
+            __m128 t_x = _mm_mul_ps(u, width_m2);
+            __m128 t_y = _mm_mul_ps(v, height_m2);
+            
+            __m128i fetch_x_4x = _mm_cvttps_epi32(t_x);
+            __m128i fetch_y_4x = _mm_cvttps_epi32(t_y);
+            
+            __m128 f_x = _mm_sub_ps(t_x, _mm_cvtepi32_ps(fetch_x_4x));
+            __m128 f_y = _mm_sub_ps(t_y, _mm_cvtepi32_ps(fetch_y_4x));
+            
+            __m128i samplea, sampleb, samplec, sampled;
             for (i32 i = 0; i < 4; i++) {
                 
-                should_fill[i] = (u.m128_f32[i] >= 0.0f && u.m128_f32[i] <= 1.0f &&
-                                  v.m128_f32[i] >= 0.0f && v.m128_f32[i] <= 1.0f);
+                i32 fetch_x = fetch_x_4x.m128i_i32[i];
+                i32 fetch_y = fetch_y_4x.m128i_i32[i];
                 
-                if (!should_fill[i])
-                    continue;
+                macro_assert(fetch_x >= 0 && fetch_x < bitmap->width);
+                macro_assert(fetch_x >= 0 && fetch_y < bitmap->height);
                 
-                f32 t_x = (u.m128_f32[i] * ((f32)(bitmap->width - 2)));
-                f32 t_y = (v.m128_f32[i] * ((f32)(bitmap->height - 2)));
+                u8* texel_ptr = ((u8*)bitmap->memory) + fetch_y * bitmap->pitch + fetch_x * sizeof(u32);
+                samplea.m128i_u32[i] = *(u32*) texel_ptr;
+                sampleb.m128i_u32[i] = *(u32*)(texel_ptr + sizeof(u32));
+                samplec.m128i_u32[i] = *(u32*)(texel_ptr + bitmap->pitch);
+                sampled.m128i_u32[i] = *(u32*)(texel_ptr + bitmap->pitch + sizeof(u32));
+            }
+            
+            // unpacking samples
+            __m128 texel_a_r, texel_a_g, texel_a_b, texel_a_a;
+            __m128 texel_b_r, texel_b_g, texel_b_b, texel_b_a;
+            __m128 texel_c_r, texel_c_g, texel_c_b, texel_c_a;
+            __m128 texel_d_r, texel_d_g, texel_d_b, texel_d_a;
+            {
+                texel_a_b = _mm_cvtepi32_ps(_mm_and_si128(samplea, mask_ff));
+                texel_a_g = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(samplea, 8), mask_ff));
+                texel_a_r = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(samplea, 16), mask_ff));
+                texel_a_a = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(samplea, 24), mask_ff));
                 
-                i32 x_i32 = (i32)t_x;
-                i32 y_i32 = (i32)t_y;
+                texel_b_b = _mm_cvtepi32_ps(_mm_and_si128(sampleb, mask_ff));
+                texel_b_g = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(sampleb, 8), mask_ff));
+                texel_b_r = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(sampleb, 16), mask_ff));
+                texel_b_a = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(sampleb, 24), mask_ff));
                 
-                f_x.m128_f32[i] = t_x - (f32)x_i32;
-                f_y.m128_f32[i] = t_y - (f32)y_i32;
+                texel_c_b = _mm_cvtepi32_ps(_mm_and_si128(samplec, mask_ff));
+                texel_c_g = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(samplec, 8), mask_ff));
+                texel_c_r = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(samplec, 16), mask_ff));
+                texel_c_a = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(samplec, 24), mask_ff));
                 
-                macro_assert(x_i32 >= 0 && x_i32 < bitmap->width);
-                macro_assert(y_i32 >= 0 && y_i32 < bitmap->height);
-                
-                u8* texel_ptr = ((u8*)bitmap->memory) + y_i32 * bitmap->pitch + x_i32 * sizeof(u32);
-                u32 samplea = *(u32*) texel_ptr;
-                u32 sampleb = *(u32*)(texel_ptr + sizeof(u32));
-                u32 samplec = *(u32*)(texel_ptr + bitmap->pitch);
-                u32 sampled = *(u32*)(texel_ptr + bitmap->pitch + sizeof(u32));
-                
-                // unpacking samples
-                {
-                    texel_a_r.m128_f32[i] = (f32)((samplea >> 16) & 0xff);
-                    texel_a_g.m128_f32[i] = (f32)((samplea >> 8 ) & 0xff);
-                    texel_a_b.m128_f32[i] = (f32)((samplea >> 0 ) & 0xff);
-                    texel_a_a.m128_f32[i] = (f32)((samplea >> 24) & 0xff);
-                    
-                    texel_b_r.m128_f32[i] = (f32)((sampleb >> 16) & 0xff);
-                    texel_b_g.m128_f32[i] = (f32)((sampleb >> 8 ) & 0xff);
-                    texel_b_b.m128_f32[i] = (f32)((sampleb >> 0 ) & 0xff);
-                    texel_b_a.m128_f32[i] = (f32)((sampleb >> 24) & 0xff);
-                    
-                    texel_c_r.m128_f32[i] = (f32)((samplec >> 16) & 0xff);
-                    texel_c_g.m128_f32[i] = (f32)((samplec >> 8 ) & 0xff);
-                    texel_c_b.m128_f32[i] = (f32)((samplec >> 0 ) & 0xff);
-                    texel_c_a.m128_f32[i] = (f32)((samplec >> 24) & 0xff);
-                    
-                    texel_d_r.m128_f32[i] = (f32)((sampled >> 16) & 0xff);
-                    texel_d_g.m128_f32[i] = (f32)((sampled >> 8 ) & 0xff);
-                    texel_d_b.m128_f32[i] = (f32)((sampled >> 0 ) & 0xff);
-                    texel_d_a.m128_f32[i] = (f32)((sampled >> 24) & 0xff);
-                }
-                
-                // load destination
-                {
-                    dstr.m128_f32[i] = (f32)((*(pixel + i) >> 16) & 0xff);
-                    dstg.m128_f32[i] = (f32)((*(pixel + i) >> 8)  & 0xff);
-                    dstb.m128_f32[i] = (f32)((*(pixel + i) >> 0)  & 0xff);
-                    dsta.m128_f32[i] = (f32)((*(pixel + i) >> 24) & 0xff);
-                }
+                texel_d_b = _mm_cvtepi32_ps(_mm_and_si128(sampled, mask_ff));
+                texel_d_g = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(sampled, 8), mask_ff));
+                texel_d_r = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(sampled, 16), mask_ff));
+                texel_d_a = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(sampled, 24), mask_ff));
+            }
+            
+            // load destination
+            __m128 dstr, dstg, dstb, dsta;
+            {
+                dstb = _mm_cvtepi32_ps(_mm_and_si128(original_dest, mask_ff));
+                dstg = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(original_dest, 8), mask_ff));
+                dstr = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(original_dest, 16), mask_ff));
+                dsta = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(original_dest, 24), mask_ff));
             }
             
             // convert from srgb255_to_linear1 
@@ -527,6 +530,7 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
             // blending techniques: http://ycpcs.github.io/cs470-fall2014/labs/lab09.html
             
             // linear blending
+            __m128 blendedr, blendedg, blendedb, blendeda;
             {
                 __m128 inv_texel_a = mm_sub(one_4x, texela);
                 blendedr = mm_add(mm_mul(inv_texel_a, dstr), texelr);
@@ -546,10 +550,10 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
             // convert float values to integer
             __m128i out = {};
             {
-                __m128i i32_r = mm_convert_f_i(mm_add(blendedr, half_4x));
-                __m128i i32_g = mm_convert_f_i(mm_add(blendedg, half_4x));
-                __m128i i32_b = mm_convert_f_i(mm_add(blendedb, half_4x));
-                __m128i i32_a = mm_convert_f_i(mm_add(blendeda, half_4x));
+                __m128i i32_r = _mm_cvtps_epi32(blendedr);
+                __m128i i32_g = _mm_cvtps_epi32(blendedg);
+                __m128i i32_b = _mm_cvtps_epi32(blendedb);
+                __m128i i32_a = _mm_cvtps_epi32(blendeda);
                 
                 __m128i shifted_r = _mm_slli_epi32(i32_r, 16);
                 __m128i shifted_g = _mm_slli_epi32(i32_g, 8);
@@ -559,8 +563,11 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                 out = mm_or(mm_or(shifted_r, shifted_g), mm_or(shifted_b, shifted_a));
             }
             
+            __m128i masket_out = _mm_or_si128(_mm_and_si128(write_mask, out),
+                                              _mm_andnot_si128(write_mask, original_dest));
+            
             // to bypass alignent in 16 bytes
-            _mm_storeu_si128((__m128i *)pixel, out);
+            _mm_storeu_si128((__m128i *)pixel, masket_out);
             
             /*
             for (i32 i = 0; i < 4; i++) {
@@ -579,7 +586,7 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
         row += buffer->pitch;
     }
     
-    u32 pixels_processed = (x_max - x_min + 1) * (y_max - y_max + 1);
+    u32 pixels_processed = (x_max - x_min + 1) * (y_max - y_min + 1);
     debug_end_timer(Debug_cycle_counter_type_process_pixel, pixel_cycle_timer, pixels_processed);
     
     debug_end_timer(Debug_cycle_counter_type_render_draw_rect_quak, start_cycle_timer);
@@ -644,6 +651,7 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
     f32 origin_y = (origin + 0.5f * x_axis + 0.5f * y_axis).y;
     f32 fixed_cast_y = inv_height_max * origin_y;
     
+    u64 pixel_cycle_timer = __rdtsc();
     for (i32 y = y_min; y <= y_max; y++) {
         u32* pixel = (u32*)row;
         for (i32 x = x_min; x <= x_max; x++) {
@@ -807,6 +815,10 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
         }
         row += buffer->pitch;
     }
+    
+    u32 pixels_processed = (x_max - x_min + 1) * (y_max - y_min + 1);
+    debug_end_timer(Debug_cycle_counter_type_process_pixel, pixel_cycle_timer, pixels_processed);
+    
     debug_end_timer(Debug_cycle_counter_type_render_draw_rect_slow, start_cycle_timer);
 }
 
@@ -1043,7 +1055,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
                 
                 Entity_basis_result basis = get_render_entity_basis_pos(render_group, &entry->entity_basis, screen_dim);
                 macro_assert(entry->bitmap);
-#if 0
+#if 1
                 draw_rect_slow(output_target, basis.pos, 
                                basis.scale * v2{entry->size.x, 0},
                                basis.scale * v2{0, entry->size.y},

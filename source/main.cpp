@@ -1,4 +1,4 @@
-// https://youtu.be/90eSF6jLzvQ?t=4237
+// https://youtu.be/-_X0UYCGaVA?t=4434
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include <stdio.h>
@@ -938,6 +938,15 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
             
             new_input->mouse_x = mouse_pos.x;
             new_input->mouse_y = mouse_pos.y;
+            
+            bool show_mouse_coords = false;
+            
+            if (show_mouse_coords) {
+                char buffer[256];
+                _snprintf_s(buffer, sizeof(buffer), "x: %d y: %d \n", mouse_pos.x, mouse_pos.y);
+                OutputDebugStringA(buffer);
+            }
+            
             win32_process_keyboard_input(&new_input->mouse_buttons[0], GetKeyState(VK_LBUTTON) & (1 << 15));
             win32_process_keyboard_input(&new_input->mouse_buttons[1], GetKeyState(VK_MBUTTON) & (1 << 15));
             win32_process_keyboard_input(&new_input->mouse_buttons[2], GetKeyState(VK_RBUTTON) & (1 << 15));
