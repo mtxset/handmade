@@ -86,8 +86,8 @@ enum Debug_cycle_counter_type {
     Debug_cycle_counter_type_game_update_render,      // 0
     Debug_cycle_counter_type_render_group_to_output,  // 1
     Debug_cycle_counter_type_render_draw_rect_slow,   // 2
-    Debug_cycle_counter_type_render_draw_rect_quak,   // 3
-    Debug_cycle_counter_type_process_pixel,           // 4
+    Debug_cycle_counter_type_process_pixel,           // 3
+    Debug_cycle_counter_type_render_draw_rect_quak,   // 4
     Debug_cycle_counter_count
 };
 
