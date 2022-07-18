@@ -345,42 +345,47 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
     v2 nx_axis = inverse_x_axis_squared * x_axis;
     v2 ny_axis = inverse_y_axis_squared * y_axis;
     
-    __m128 zero_4x = mm_init_f32(0.0f);
-    __m128 one_4x = mm_init_f32(1.0f);
-    __m128 one_255_4x = mm_init_f32(255.0f);
-    __m128 inv_255_4x = mm_init_f32(inv_255);
+    __m128 zero_4x = _mm_set1_ps(0.0f);
+    __m128 one_4x = _mm_set1_ps(1.0f);
+    __m128 four_4x = _mm_set1_ps(4.0f);
+    __m128 one_255_4x = _mm_set1_ps(255.0f);
+    __m128 inv_255_4x = _mm_set1_ps(inv_255);
     
     __m128i mask_ff = _mm_set1_epi32(0xff);
     
-    __m128 color_r_4x = mm_init_f32(color.r);
-    __m128 color_g_4x = mm_init_f32(color.g);
-    __m128 color_b_4x = mm_init_f32(color.b);
-    __m128 color_a_4x = mm_init_f32(color.a);
+    __m128 color_r_4x = _mm_set1_ps(color.r);
+    __m128 color_g_4x = _mm_set1_ps(color.g);
+    __m128 color_b_4x = _mm_set1_ps(color.b);
+    __m128 color_a_4x = _mm_set1_ps(color.a);
     
-    __m128 origin_x_4x = mm_init_f32(origin.x);
-    __m128 origin_y_4x = mm_init_f32(origin.y);
+    __m128 origin_x_4x = _mm_set1_ps(origin.x);
+    __m128 origin_y_4x = _mm_set1_ps(origin.y);
     
-    __m128 nx_axisx_4x = mm_init_f32(nx_axis.x);
-    __m128 nx_axisy_4x = mm_init_f32(nx_axis.y);
-    __m128 ny_axisx_4x = mm_init_f32(ny_axis.x);
-    __m128 ny_axisy_4x = mm_init_f32(ny_axis.y);
+    __m128 nx_axisx_4x = _mm_set1_ps(nx_axis.x);
+    __m128 nx_axisy_4x = _mm_set1_ps(nx_axis.y);
+    __m128 ny_axisx_4x = _mm_set1_ps(ny_axis.x);
+    __m128 ny_axisy_4x = _mm_set1_ps(ny_axis.y);
     
     __m128 width_m2  = _mm_set1_ps((f32)(bitmap->width  - 2));
     __m128 height_m2 = _mm_set1_ps((f32)(bitmap->height - 2));
     
     u64 pixel_cycle_timer = __rdtsc();
     for (i32 y = y_min; y <= y_max; y++) {
+        
+        __m128 pixel_pos_y = _mm_set1_ps((f32)y);
+        pixel_pos_y = _mm_sub_ps(pixel_pos_y, origin_y_4x);
+        
+        __m128 pixel_pos_x = _mm_set_ps((f32)(x_min + 3), 
+                                        (f32)(x_min + 2), 
+                                        (f32)(x_min + 1), 
+                                        (f32)(x_min + 0));
+        pixel_pos_x = _mm_sub_ps(pixel_pos_x, origin_x_4x);
+        
         u32* pixel = (u32*)row;
         for (i32 x = x_min; x <= x_max; x += 4) {
             
-            __m128 pixel_pos_x = _mm_set_ps((f32)(x + 3), (f32)(x + 2), (f32)(x + 1), (f32)(x));
-            __m128 pixel_pos_y = _mm_set1_ps((f32)y);
-            
-            __m128 d_x = mm_sub(pixel_pos_x, origin_x_4x);
-            __m128 d_y = mm_sub(pixel_pos_y, origin_y_4x);
-            
-            __m128 u = mm_add(mm_mul(d_x, nx_axisx_4x), mm_mul(d_y, nx_axisy_4x));
-            __m128 v = mm_add(mm_mul(d_y, ny_axisx_4x), mm_mul(d_y, ny_axisy_4x));
+            __m128 u = _mm_add_ps(_mm_mul_ps(pixel_pos_x, nx_axisx_4x), _mm_mul_ps(pixel_pos_y, nx_axisy_4x));
+            __m128 v = _mm_add_ps(_mm_mul_ps(pixel_pos_x, ny_axisx_4x), _mm_mul_ps(pixel_pos_y, ny_axisy_4x));
             
             __m128i write_mask = _mm_castps_si128(_mm_and_ps(_mm_and_ps(_mm_cmpge_ps(u, zero_4x),
                                                                         _mm_cmple_ps(u, one_4x)),
@@ -452,74 +457,75 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                 dsta = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(original_dest, 24), mask_ff));
             }
             
+#define mm_square(a) _mm_mul_ps(a, a)
             // convert from srgb255_to_linear1 
             {
-                texel_a_r = mm_square(mm_mul(inv_255_4x, texel_a_r));
-                texel_a_g = mm_square(mm_mul(inv_255_4x, texel_a_g));
-                texel_a_b = mm_square(mm_mul(inv_255_4x, texel_a_b));
-                texel_a_a =           mm_mul(inv_255_4x, texel_a_a);
+                texel_a_r = mm_square(_mm_mul_ps(inv_255_4x, texel_a_r));
+                texel_a_g = mm_square(_mm_mul_ps(inv_255_4x, texel_a_g));
+                texel_a_b = mm_square(_mm_mul_ps(inv_255_4x, texel_a_b));
+                texel_a_a =           _mm_mul_ps(inv_255_4x, texel_a_a);
                 
-                texel_b_r = mm_square(mm_mul(inv_255_4x, texel_b_r));
-                texel_b_g = mm_square(mm_mul(inv_255_4x, texel_b_g));
-                texel_b_b = mm_square(mm_mul(inv_255_4x, texel_b_b));
-                texel_b_a =           mm_mul(inv_255_4x, texel_b_a);
+                texel_b_r = mm_square(_mm_mul_ps(inv_255_4x, texel_b_r));
+                texel_b_g = mm_square(_mm_mul_ps(inv_255_4x, texel_b_g));
+                texel_b_b = mm_square(_mm_mul_ps(inv_255_4x, texel_b_b));
+                texel_b_a =           _mm_mul_ps(inv_255_4x, texel_b_a);
                 
-                texel_c_r = mm_square(mm_mul(inv_255_4x, texel_c_r));
-                texel_c_g = mm_square(mm_mul(inv_255_4x, texel_c_g));
-                texel_c_b = mm_square(mm_mul(inv_255_4x, texel_c_b));
-                texel_c_a =           mm_mul(inv_255_4x, texel_c_a);
+                texel_c_r = mm_square(_mm_mul_ps(inv_255_4x, texel_c_r));
+                texel_c_g = mm_square(_mm_mul_ps(inv_255_4x, texel_c_g));
+                texel_c_b = mm_square(_mm_mul_ps(inv_255_4x, texel_c_b));
+                texel_c_a =           _mm_mul_ps(inv_255_4x, texel_c_a);
                 
-                texel_d_r = mm_square(mm_mul(inv_255_4x, texel_d_r));
-                texel_d_g = mm_square(mm_mul(inv_255_4x, texel_d_g));
-                texel_d_b = mm_square(mm_mul(inv_255_4x, texel_d_b));
-                texel_d_a =           mm_mul(inv_255_4x, texel_d_a);
+                texel_d_r = mm_square(_mm_mul_ps(inv_255_4x, texel_d_r));
+                texel_d_g = mm_square(_mm_mul_ps(inv_255_4x, texel_d_g));
+                texel_d_b = mm_square(_mm_mul_ps(inv_255_4x, texel_d_b));
+                texel_d_a =           _mm_mul_ps(inv_255_4x, texel_d_a);
             }
             
             // lerp
             __m128 texelr, texelg, texelb, texela;
             {
-                __m128 if_x = mm_sub(one_4x, f_x);
-                __m128 if_y = mm_sub(one_4x, f_y);
+                __m128 if_x = _mm_sub_ps(one_4x, f_x);
+                __m128 if_y = _mm_sub_ps(one_4x, f_y);
                 
-                __m128 l0 = mm_mul(if_y, if_x);
-                __m128 l1 = mm_mul(if_y, f_x);
-                __m128 l2 = mm_mul(f_y, if_x);
-                __m128 l3 = mm_mul(f_y, f_x);
+                __m128 l0 = _mm_mul_ps(if_y, if_x);
+                __m128 l1 = _mm_mul_ps(if_y, f_x);
+                __m128 l2 = _mm_mul_ps(f_y, if_x);
+                __m128 l3 = _mm_mul_ps(f_y, f_x);
                 
-                texelr = mm_add(mm_add(mm_add
-                                       (mm_mul(l0, texel_a_r), mm_mul(l1, texel_b_r)), mm_mul(l2, texel_c_r)), mm_mul(l3, texel_d_r));
+                texelr = _mm_add_ps(_mm_add_ps(_mm_add_ps
+                                               (_mm_mul_ps(l0, texel_a_r), _mm_mul_ps(l1, texel_b_r)), _mm_mul_ps(l2, texel_c_r)), _mm_mul_ps(l3, texel_d_r));
                 
-                texelg = mm_add(mm_add(mm_add
-                                       (mm_mul(l0, texel_a_g), mm_mul(l1, texel_b_g)), mm_mul(l2, texel_c_g)), mm_mul(l3, texel_d_g));
+                texelg = _mm_add_ps(_mm_add_ps(_mm_add_ps
+                                               (_mm_mul_ps(l0, texel_a_g), _mm_mul_ps(l1, texel_b_g)), _mm_mul_ps(l2, texel_c_g)), _mm_mul_ps(l3, texel_d_g));
                 
-                texelb = mm_add(mm_add(mm_add
-                                       (mm_mul(l0, texel_a_b), mm_mul(l1, texel_b_b)), mm_mul(l2, texel_c_b)), mm_mul(l3, texel_d_b));
+                texelb = _mm_add_ps(_mm_add_ps(_mm_add_ps
+                                               (_mm_mul_ps(l0, texel_a_b), _mm_mul_ps(l1, texel_b_b)), _mm_mul_ps(l2, texel_c_b)), _mm_mul_ps(l3, texel_d_b));
                 
-                texela = mm_add(mm_add(mm_add
-                                       (mm_mul(l0, texel_a_a), mm_mul(l1, texel_b_a)), mm_mul(l2, texel_c_a)), mm_mul(l3, texel_d_a));
+                texela = _mm_add_ps(_mm_add_ps(_mm_add_ps
+                                               (_mm_mul_ps(l0, texel_a_a), _mm_mul_ps(l1, texel_b_a)), _mm_mul_ps(l2, texel_c_a)), _mm_mul_ps(l3, texel_d_a));
             }
             
             // multiple by incoming color
             {
-                texelr = mm_mul(texelr, color_r_4x);
-                texelg = mm_mul(texelg, color_g_4x);
-                texelb = mm_mul(texelb, color_b_4x);
-                texela = mm_mul(texela, color_a_4x);
+                texelr = _mm_mul_ps(texelr, color_r_4x);
+                texelg = _mm_mul_ps(texelg, color_g_4x);
+                texelb = _mm_mul_ps(texelb, color_b_4x);
+                texela = _mm_mul_ps(texela, color_a_4x);
             }
             
             // clamp
             {
-                texelr = mm_min(mm_max(texelr, zero_4x), one_4x);
-                texelr = mm_min(mm_max(texelr, zero_4x), one_4x);
-                texelr = mm_min(mm_max(texelr, zero_4x), one_4x);
+                texelr = _mm_min_ps(_mm_max_ps(texelr, zero_4x), one_4x);
+                texelr = _mm_min_ps(_mm_max_ps(texelr, zero_4x), one_4x);
+                texelr = _mm_min_ps(_mm_max_ps(texelr, zero_4x), one_4x);
             }
             
             // converting back from srgb to linear
             {
-                dstr = mm_square(mm_mul(inv_255_4x, dstr));
-                dstg = mm_square(mm_mul(inv_255_4x, dstg));
-                dstb = mm_square(mm_mul(inv_255_4x, dstb));
-                dsta =           mm_mul(inv_255_4x, dstr);
+                dstr = mm_square(_mm_mul_ps(inv_255_4x, dstr));
+                dstg = mm_square(_mm_mul_ps(inv_255_4x, dstg));
+                dstb = mm_square(_mm_mul_ps(inv_255_4x, dstb));
+                dsta =           _mm_mul_ps(inv_255_4x, dstr);
             }
             
             // (1-t)A + tB 
@@ -532,19 +538,19 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
             // linear blending
             __m128 blendedr, blendedg, blendedb, blendeda;
             {
-                __m128 inv_texel_a = mm_sub(one_4x, texela);
-                blendedr = mm_add(mm_mul(inv_texel_a, dstr), texelr);
-                blendedg = mm_add(mm_mul(inv_texel_a, dstg), texelg);
-                blendedb = mm_add(mm_mul(inv_texel_a, dstb), texelb);
-                blendeda = mm_add(mm_mul(inv_texel_a, dsta), texela);
+                __m128 inv_texel_a = _mm_sub_ps(one_4x, texela);
+                blendedr = _mm_add_ps(_mm_mul_ps(inv_texel_a, dstr), texelr);
+                blendedg = _mm_add_ps(_mm_mul_ps(inv_texel_a, dstg), texelg);
+                blendedb = _mm_add_ps(_mm_mul_ps(inv_texel_a, dstb), texelb);
+                blendeda = _mm_add_ps(_mm_mul_ps(inv_texel_a, dsta), texela);
             }
             
             // back to srgb
             {
-                blendedr = mm_mul(one_255_4x, mm_sqrt(blendedr));
-                blendedg = mm_mul(one_255_4x, mm_sqrt(blendedg));
-                blendedb = mm_mul(one_255_4x, mm_sqrt(blendedb));
-                blendeda = mm_mul(one_255_4x, blendedb);
+                blendedr = _mm_mul_ps(one_255_4x, _mm_sqrt_ps(blendedr));
+                blendedg = _mm_mul_ps(one_255_4x, _mm_sqrt_ps(blendedg));
+                blendedb = _mm_mul_ps(one_255_4x, _mm_sqrt_ps(blendedb));
+                blendeda = _mm_mul_ps(one_255_4x, blendedb);
             }
             
             // convert float values to integer
@@ -560,7 +566,7 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                 __m128i shifted_b = _mm_slli_epi32(i32_b, 0);
                 __m128i shifted_a = _mm_slli_epi32(i32_a, 24);
                 
-                out = mm_or(mm_or(shifted_r, shifted_g), mm_or(shifted_b, shifted_a));
+                out = _mm_or_si128(_mm_or_si128(shifted_r, shifted_g), _mm_or_si128(shifted_b, shifted_a));
             }
             
             __m128i masket_out = _mm_or_si128(_mm_and_si128(write_mask, out),
@@ -569,18 +575,7 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
             // to bypass alignent in 16 bytes
             _mm_storeu_si128((__m128i *)pixel, masket_out);
             
-            /*
-            for (i32 i = 0; i < 4; i++) {
-                //if (!should_fill[i])
-                //continue;
-                
-                // repack
-                *(pixel + i) = (((u32)(blendeda.m128_f32[i] + 0.5f) << 24)|
-                                ((u32)(blendedr.m128_f32[i] + 0.5f) << 16)|
-                                ((u32)(blendedg.m128_f32[i] + 0.5f) << 8 )|
-                                ((u32)(blendedb.m128_f32[i] + 0.5f) << 0 ));
-            }
-*/
+            pixel_pos_x = _mm_add_ps(pixel_pos_x, four_4x); 
             pixel += 4;
         }
         row += buffer->pitch;
@@ -1055,7 +1050,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
                 
                 Entity_basis_result basis = get_render_entity_basis_pos(render_group, &entry->entity_basis, screen_dim);
                 macro_assert(entry->bitmap);
-#if 1
+#if 0
                 draw_rect_slow(output_target, basis.pos, 
                                basis.scale * v2{entry->size.x, 0},
                                basis.scale * v2{0, entry->size.y},

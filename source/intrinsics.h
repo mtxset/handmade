@@ -1114,7 +1114,7 @@ get_barycentric(Rect3 a, v3 pos) {
 // RECT3 END
 
 //
-
+/*
 inline
 __m128i 
 mm_or(__m128i a, __m128i b) {
@@ -1224,6 +1224,7 @@ mm_sub(__m128 a, __m128 b) {
     result = _mm_sub_ps(a, b);
     return result;
 }
+*/
 //
 
 #endif //INTRINSICS_H

@@ -725,9 +725,9 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
     
     push_clear(render_group, yellow_v4);
     
-    
     ground_buffer->position = *chunk_pos;
     
+#if 1
     f32 width  = game_state->world->chunk_dim_meters.x;
     f32 height = game_state->world->chunk_dim_meters.y;
     
@@ -783,7 +783,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
             
             v2 center = v2 {chunk_offset_x * width, chunk_offset_y * height};
             
-            for (u32 grass_index = 0; grass_index < 30; grass_index++) {
+            for (u32 grass_index = 0; grass_index < 50; grass_index++) {
                 macro_assert(random_number_index < macro_array_count(random_number_table));
                 
                 Loaded_bmp* stamp;
@@ -800,7 +800,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
             }
         }
     }
-    
+#endif
     render_group_to_output(render_group, bitmap_buffer);
     end_temp_memory(ground_memory);
 }
@@ -1353,7 +1353,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                          memory->transient_storage_size - sizeof(Transient_state),
                          (u8*)memory->transient_storage + sizeof(Transient_state));
         
-        tran_state->ground_buffer_count = 64; // = 128;
+        tran_state->ground_buffer_count = 256;
         tran_state->ground_buffer_list = mem_push_array(&tran_state->tran_arena, tran_state->ground_buffer_count, Ground_buffer);
         
         for (u32 ground_buffer_index = 0; ground_buffer_index < tran_state->ground_buffer_count; ground_buffer_index++) {
@@ -1583,7 +1583,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                     }
                     
                     if (furthest_buffer) {
-                        //fill_ground_chunk(tran_state, game_state, furthest_buffer, &chunk_center_pos);
+                        fill_ground_chunk(tran_state, game_state, furthest_buffer, &chunk_center_pos);
                     }
                 }
             }
@@ -1889,7 +1889,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                       tran_state->env_map_list + 1,
                       tran_state->env_map_list + 0);
     
-    v2 map_pos = {0.0f, 0.0f};
+    v2 map_pos = { 0.0f, 0.0f };
     for (u32 map_index = 0; map_index < macro_array_count(tran_state->env_map_list); map_index++) {
         
         Env_map* map = tran_state->env_map_list + map_index;
