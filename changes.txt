@@ -75,6 +75,7 @@ day 112:
  prefetch - guessing what data we need so cpu can start calculation and query memory at the same time
  hyperthreading - if cpu thread is waiting for a memory it switches to other thread
  latency bubbles - cpu waiting for memory 
+ throughput (cpi - cycles per instruction) - how many cycles instruction will cost cpu (less is better)
 
 day 109: 
  resolution independent rendering

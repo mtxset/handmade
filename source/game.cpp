@@ -727,7 +727,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
     
     ground_buffer->position = *chunk_pos;
     
-#if 1
+#if 0
     f32 width  = game_state->world->chunk_dim_meters.x;
     f32 height = game_state->world->chunk_dim_meters.y;
     
