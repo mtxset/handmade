@@ -1,0 +1,23 @@
+It's called defintitions because there could acronyms and abbreviations which are different.
+
+acronym - uses first letter of words in phrase
+
+NASA  - National Aeronautics and Space Administration
+ZIP   - (zone improvement plan)
+taser - (Thomas A. Swift's Electric Rifle)
+AIDS  - (acquired immune deficiency syndrome)
+
+
+abbreviation - short form of word
+
+vol.  - volume
+cm    - centimeter
+min.  - minute
+
+used in code:
+sq    - squared
+coeff - coefficient
+dst   - destination
+src   - source
+inv   - inverse
+4x    - simd value (128 bit - 32 byte) 
