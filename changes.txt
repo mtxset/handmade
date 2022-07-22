@@ -9,6 +9,35 @@ Enter will spawn player
 WASD, arrows moves him
 Space - jumps
 
+day 121: 
+ preparing draw_rect_quak function for multithreading by clipping and splitting scan lines
+ clipping will be left for OS threads (clip size ~32 bytes ~l1-l2 cache size)
+ scanlines will be left for CPU threads and cache locality
+
+day 120: IACA tool (detailed explanation on report by iaca on day 121) https://www.intel.com/content/www/us/en/developer/articles/tool/architecture-code-analyzer.html
+put the code you wanna analyze
+ 1. get tool
+ 2. we assume you put under IACA_PATH (d:/tools/iaca has iaca.exe and iacaMarks.h), 
+ 3. in code include so you can turn on/off:
+#if 1
+#define <iacaMarks.h>
+#else
+#define IACA_VC64_START
+#define IACA_VC64_END
+#endif
+ 4. in build add:-IIACA_PATH (-Id:/tools/iaca/)
+ 5. win64: starting point: IACA_VC64_START end point: IACA_VC64_END (read readme on website if not clear)
+ while (true) {
+ IACA_VC64_START
+ }
+ IACA_VC64_END
+6. compile code with 5. additions
+7. run iaca tool (select arch closest to yours from:  https://en.wikipedia.org/wiki/List_of_Intel_CPU_microarchitectures)
+
+ IACA_PATH -arch SKL -trace path_to_trace_output PATH_TO_YOUR_BINARY > path_to_report_output
+
+ D:\tools\iaca\iaca.exe -arch SKL -trace other\output.txt C:\Users\MTX\source\repos\handmade\build\game.dll > other\report.txt
+ 
 day 118: more optimizations
  with -02:       cycles total    |calls| cycles per call
   draw_rect_quak: 16237450   cy    53h   306366   cy/h 
