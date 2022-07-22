@@ -6,6 +6,7 @@
 :: -wd4459: declaration of 'x' hides global declaration
 :: -wd4505: unreferenced local function has been removed
 :: -wd4668: 'x' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif' (found in win headers)
+set include_iaca=-Id:/tools/iaca/
 set ignore_errors=-wd4100 -wd4189 -wd4201 -wd4459 -wd4505 -wd4668
 set enable_errors=-w44800
 set common_compiler_flags=-Zo -O2 -MTd -EHa- -Gm- -GR- -Oi -fp:fast -DAR1610 -DINTERNAL=1 -DDEBUG=1 -WX -W4 %ignore_errors% %enable_errors% -FC -Fm -Z7 -nologo
@@ -29,7 +30,7 @@ for /F "tokens=1-4 delims=:.," %%a in ("%time%") do (
 :: lock is done so that vs has time to create debug file for dll, so breakpoints work for new code
 :: game wont load new code till there is lock file
 echo Waiting for pbd > lock.tmp
-cl.exe %common_compiler_flags% "..\source\game.cpp" /LD /link -incremental:no -opt:ref -PDB:game%random%.pdb  -EXPORT:game_get_sound_samples -EXPORT:game_update_render
+cl.exe %include_iaca% %common_compiler_flags% "..\source\game.cpp" /LD /link -incremental:no -opt:ref -PDB:game%random%.pdb  -EXPORT:game_get_sound_samples -EXPORT:game_update_render
 del lock.tmp
 cl.exe %common_compiler_flags% "..\source\main.cpp" /link %common_linker_flags%
 popd

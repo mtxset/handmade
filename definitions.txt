@@ -1,5 +1,7 @@
 It's called defintitions because there could acronyms and abbreviations which are different.
 
+for types look at types.h
+
 acronym - uses first letter of words in phrase
 
 NASA  - National Aeronautics and Space Administration
@@ -14,10 +16,12 @@ vol.  - volume
 cm    - centimeter
 min.  - minute
 
-used in code:
+abbreviations used in code:
 sq    - squared
 coeff - coefficient
 dst   - destination
 src   - source
 inv   - inverse
 4x    - simd value (128 bit - 32 byte) 
+rect  - rectangle
+pos   - position
