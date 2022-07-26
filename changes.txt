@@ -9,10 +9,32 @@ Enter will spawn player
 WASD, arrows moves him
 Space - jumps
 
+day 122: multithreading
+ cpu state: asm instructions, registry, memory, addresses
+ process - state of memory layout, as in: it gets only a separate memory (addresses) state
+ thread  - each process may want to have separate thread and thread has separate instruction set and registers too
+ fiber   - manual version of thread, but they don't run in parallel
+ 
+ core    - set of cpu units, it has instruction decoding, arithmetic logic units, memory, but it has logical processors too, which each of theam can hyperthread
+ hyperthread - somethwat like thread, but 
+ 
+ so my machine has 4 cores and 8 logical processors, so I can issue 8 hyperthreads and 4 threads
+ so I split clipping to 4 threads, and then further split scan lines to 2 hyperthreads
+
+ OS:
+  interrupts - os can interrupt process, to run its code which can decide to switch process which was running on cpu
+  preemption - means OS can interrupt process/thread without it giving permission
+  cooperative - OS does not interrupt, thread calls it manually through yield();
+
+ at some point Intel tried Pentium 6 with 8mgz clock and it melted, so they implemented:
+  - wide execution (simd)    -\ 
+															 ------ two main things
+  - more execution (threads) -/
+
 day 121: 
  preparing draw_rect_quak function for multithreading by clipping and splitting scan lines
  clipping will be left for OS threads (clip size ~32 bytes ~l1-l2 cache size)
- scanlines will be left for CPU threads and cache locality
+ scanlines will be left for CPU threads (hyperthreading) and cache locality
 
 day 120: IACA tool (detailed explanation on report by iaca on day 121) https://www.intel.com/content/www/us/en/developer/articles/tool/architecture-code-analyzer.html
 put the code you wanna analyze

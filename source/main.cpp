@@ -766,8 +766,28 @@ handle_debug_cycle_count(Game_memory* memory) {
 #endif
 }
 
+DWORD
+WINAPI
+thread_func(LPVOID param) {
+  char* str = (char*)param;
+  OutputDebugStringA(str);
+  
+  return 0;
+}
+
 i32
 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
+  
+  char* thread_params = "thread started\n";
+  DWORD thread_id;
+  HANDLE thread_handle = CreateThread(0,
+                                      0, // will default to the we have in current context
+                                      thread_func,
+                                      thread_params,
+                                      0, // start right away
+                                      &thread_id);
+  CloseHandle(thread_handle); // it will not terminate thread
+  // but later in c runtime lib windows will call ExitProcess which will kill all threads
   
   LARGE_INTEGER performance_freq, end_counter, last_counter, flip_wall_clock;
   QueryPerformanceFrequency(&performance_freq);
