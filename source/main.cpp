@@ -1,4 +1,4 @@
-// https://youtu.be/kZlPYka1T0g?t=10293
+// https://youtu.be/_olNhuuRYxo?t=3503
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include <stdio.h>
@@ -752,13 +752,17 @@ handle_debug_cycle_count(Game_memory* memory) {
     if (counter->hit_count == 0) 
       continue;
     
-    char buffer[256];
-    u64 cycles_per_hit = counter->cycle_count / counter->hit_count;
-    _snprintf_s(buffer, sizeof(buffer),
-                "%d: %I64u cy %uh %I64u cy/h\n", 
-                counter_index,
-                counter->cycle_count, counter->hit_count, cycles_per_hit);
-    OutputDebugStringA(buffer);
+    bool print_cycles = false;
+    
+    if (print_cycles) {
+      char buffer[256];
+      u64 cycles_per_hit = counter->cycle_count / counter->hit_count;
+      _snprintf_s(buffer, sizeof(buffer),
+                  "%d: %I64u cy %uh %I64u cy/h\n", 
+                  counter_index,
+                  counter->cycle_count, counter->hit_count, cycles_per_hit);
+      OutputDebugStringA(buffer);
+    }
     
     counter->cycle_count = 0;
     counter->hit_count = 0;
@@ -766,11 +770,41 @@ handle_debug_cycle_count(Game_memory* memory) {
 #endif
 }
 
+
+struct Work_queue_entry {
+  char* str;
+};
+
+global_var u32 next_entry_print;
+global_var u32 entry_count;
+Work_queue_entry work_list[256];
+
+internal
+void
+push_string(char* str) {
+  macro_assert(entry_count < macro_array_count(work_list));
+  Work_queue_entry* entry = work_list + entry_count++;
+  entry->str = str;
+}
+
+struct Win32_thread_info {
+  i32 index;
+};
+
 DWORD
 WINAPI
 thread_func(LPVOID param) {
-  char* str = (char*)param;
-  OutputDebugStringA(str);
+  Win32_thread_info* thread_info = (Win32_thread_info*)param;
+  
+  while (true) {
+    if (next_entry_print < entry_count) {
+      Work_queue_entry* entry = work_list + next_entry_print++;
+      char buffer[256];
+      _snprintf_s(buffer, sizeof(buffer), "thread: %u; %s\n", thread_info->index, entry->str);
+      OutputDebugStringA(buffer);
+    }
+    //Sleep(1000);
+  }
   
   return 0;
 }
@@ -778,16 +812,32 @@ thread_func(LPVOID param) {
 i32
 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
   
-  char* thread_params = "thread started\n";
-  DWORD thread_id;
-  HANDLE thread_handle = CreateThread(0,
-                                      0, // will default to the we have in current context
-                                      thread_func,
-                                      thread_params,
-                                      0, // start right away
-                                      &thread_id);
-  CloseHandle(thread_handle); // it will not terminate thread
-  // but later in c runtime lib windows will call ExitProcess which will kill all threads
+  Win32_thread_info info_list[8];
+  for (i32 i = 0; i < macro_array_count(info_list); i++) {
+    Win32_thread_info* info = info_list + i;
+    info->index = i;
+    
+    DWORD thread_id;
+    HANDLE thread_handle = CreateThread(0,
+                                        0, // will default to the we have in current context
+                                        thread_func,
+                                        info,
+                                        0, // start right away
+                                        &thread_id);
+    CloseHandle(thread_handle); // it will not terminate thread
+    // but later in c runtime lib windows will call ExitProcess which will kill all threads
+  }
+  
+  push_string("msg 1");
+  push_string("msg 2");
+  push_string("msg 3");
+  push_string("msg 4");
+  push_string("msg 5");
+  push_string("msg 6");
+  push_string("msg 7");
+  push_string("msg 8");
+  push_string("msg 9");
+  
   
   LARGE_INTEGER performance_freq, end_counter, last_counter, flip_wall_clock;
   QueryPerformanceFrequency(&performance_freq);

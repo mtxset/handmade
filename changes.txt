@@ -9,6 +9,42 @@ Enter will spawn player
 WASD, arrows moves him
 Space - jumps
 
+day 123: thread synchronization and communication
+ process - has a allocated memory
+  thread has access to memory allocated to process
+ 
+ problems:
+ #1 how thread should execute code
+ #2 sync/when-work-done
+
+ special instructions
+  locked exchange - ensures that at any given time only one thread will be able to modify memory
+  interlocked compare exchange - does if (work) but with lock/unlock guarantee between threads
+  while (true) {
+   if (interlocked_compare_exchange()) {
+    do_work();
+   }
+   sleep();
+  }
+
+ reads/writes:
+  reads always work
+  writes - can lead to multiple writes and then read becomes complicated
+
+ cache lines: (on x64 should not be a problem, but if it's not avoid it cuz it's costly)
+  var a, b; 
+  0,1 - state of var
+                   core #1  core #2
+  load into cache  a0 b0    a0 b0
+  work on vars     a0 b0    a0 b0
+  save changes     a1 b0    a0 b1
+  commit
+  final result:    a = a1 or a0; b = b0 or b1;            
+
+ single producer / single consumer
+  each tile(s) is done by preassigned thread; so if someone gets to do a slow work and still has some work to do after it's done, we will be waiting for him, but we may gain something if have a lot of work (so we decrease cycles from queue/dequeue)
+ single producer / multiple consumers threads will take any work thus if someone takes on long work, by the time he's done other will be done with rest of the work (good if we have ~100 work units)
+
 day 122: multithreading
  cpu state: asm instructions, registry, memory, addresses
  process - state of memory layout, as in: it gets only a separate memory (addresses) state
