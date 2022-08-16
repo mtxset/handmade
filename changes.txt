@@ -9,6 +9,12 @@ Enter will spawn player
 WASD, arrows moves him
 Space - jumps
 
+day 124:
+ a variable maybe changed without compiler knowing it can change, like by other thread
+ "transactional memory"
+ "lock collision" - not doing a lock
+ talks about "cache locality" "cache coeherence" "mesi" "snooper"
+
 day 123: thread synchronization and communication
  process - has a allocated memory
   thread has access to memory allocated to process
