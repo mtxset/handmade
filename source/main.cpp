@@ -1,4 +1,4 @@
-// https://youtu.be/_olNhuuRYxo?t=3503
+// https://youtu.be/W_szrzjYuvs?t=2125
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include <stdio.h>
@@ -752,7 +752,7 @@ handle_debug_cycle_count(Game_memory* memory) {
     if (counter->hit_count == 0) 
       continue;
     
-    bool print_cycles = false;
+    bool print_cycles = true;
     
     if (print_cycles) {
       char buffer[256];
@@ -775,19 +775,29 @@ struct Work_queue_entry {
   char* str;
 };
 
-global_var u32 next_entry_print;
-global_var u32 entry_count;
+global_var u32 volatile entry_completed_count;
+global_var u32 volatile next_entry_print;
+global_var u32 volatile entry_count;
 Work_queue_entry work_list[256];
+
+#define LIMIT_COMPILER_OPTIMIZATIONS _ReadWriteBarrier()
+#define LIMIT_CPU_OPTIMIZATIONS _mm_sfence()
 
 internal
 void
-push_string(char* str) {
+push_string(HANDLE semaphore_handle, char* str) {
   macro_assert(entry_count < macro_array_count(work_list));
-  Work_queue_entry* entry = work_list + entry_count++;
+  Work_queue_entry* entry = work_list + entry_count;
   entry->str = str;
+  LIMIT_COMPILER_OPTIMIZATIONS;
+  entry_count++;
+  
+  // wake up thread
+  ReleaseSemaphore(semaphore_handle, 1, 0);
 }
 
 struct Win32_thread_info {
+  HANDLE semaphore_handle;
   i32 index;
 };
 
@@ -798,12 +808,18 @@ thread_func(LPVOID param) {
   
   while (true) {
     if (next_entry_print < entry_count) {
-      Work_queue_entry* entry = work_list + next_entry_print++;
+      i32 next_entry_id = InterlockedIncrement(&next_entry_print) - 1;//next_entry_print++;
+      
+      Work_queue_entry* entry = work_list + next_entry_id;
       char buffer[256];
       _snprintf_s(buffer, sizeof(buffer), "thread: %u; %s\n", thread_info->index, entry->str);
       OutputDebugStringA(buffer);
+      
+      InterlockedIncrement(&entry_completed_count);
     }
-    //Sleep(1000);
+    else {
+      WaitForSingleObjectEx(thread_info->semaphore_handle, 0L, false);
+    }
   }
   
   return 0;
@@ -812,32 +828,60 @@ thread_func(LPVOID param) {
 i32
 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
   
-  Win32_thread_info info_list[8];
-  for (i32 i = 0; i < macro_array_count(info_list); i++) {
-    Win32_thread_info* info = info_list + i;
-    info->index = i;
+  const i32 thread_count = 7;
+  // create semaphore and threads
+  HANDLE semaphore;
+  {
+    semaphore = CreateSemaphoreEx(0,            // default security attributes
+                                  0,            // initial count
+                                  thread_count, // maximum count
+                                  0,            // unnamed semaphore
+                                  0, SEMAPHORE_ALL_ACCESS);
     
-    DWORD thread_id;
-    HANDLE thread_handle = CreateThread(0,
-                                        0, // will default to the we have in current context
-                                        thread_func,
-                                        info,
-                                        0, // start right away
-                                        &thread_id);
-    CloseHandle(thread_handle); // it will not terminate thread
-    // but later in c runtime lib windows will call ExitProcess which will kill all threads
+    Win32_thread_info info_list[thread_count];
+    for (i32 i = 0; i < thread_count; i++) {
+      Win32_thread_info* info = info_list + i;
+      info->index = i;
+      info->semaphore_handle = semaphore;
+      
+      DWORD thread_id;
+      HANDLE thread_handle = CreateThread(0, // security attributes
+                                          0, // stack size  will default to the we have in current context
+                                          thread_func, // thread function
+                                          info, // thread args
+                                          0, // start right away
+                                          &thread_id);
+      CloseHandle(thread_handle); // it will not terminate thread
+      // but later in c runtime lib windows will call ExitProcess which will kill all threads
+    }
   }
   
-  push_string("msg 1");
-  push_string("msg 2");
-  push_string("msg 3");
-  push_string("msg 4");
-  push_string("msg 5");
-  push_string("msg 6");
-  push_string("msg 7");
-  push_string("msg 8");
-  push_string("msg 9");
-  
+  // do some work with threads
+  {
+    push_string(semaphore, "msg a1");
+    push_string(semaphore, "msg a2");
+    push_string(semaphore, "msg a3");
+    push_string(semaphore, "msg a4");
+    push_string(semaphore, "msg a5");
+    push_string(semaphore, "msg a6");
+    push_string(semaphore, "msg a7");
+    push_string(semaphore, "msg a8");
+    push_string(semaphore, "msg a9");
+    
+    Sleep(1000);
+    
+    push_string(semaphore, "msg b1");
+    push_string(semaphore, "msg b2");
+    push_string(semaphore, "msg b3");
+    push_string(semaphore, "msg b4");
+    push_string(semaphore, "msg b5");
+    push_string(semaphore, "msg b6");
+    push_string(semaphore, "msg b7");
+    push_string(semaphore, "msg b8");
+    push_string(semaphore, "msg b9");
+    
+    while (entry_count != entry_completed_count);
+  }
   
   LARGE_INTEGER performance_freq, end_counter, last_counter, flip_wall_clock;
   QueryPerformanceFrequency(&performance_freq);
