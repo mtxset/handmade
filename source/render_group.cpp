@@ -802,9 +802,10 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
           v4 normal_c = unpack_4x8(normal_sample.c);
           v4 normal_d = unpack_4x8(normal_sample.d);
           
-          v4 normal = lerp(lerp(normal_a, f_x, normal_b),
-                           f_y,
-                           lerp(normal_c, f_x, normal_d));
+          v4 normal = 
+            lerp(lerp(normal_a, f_x, normal_b),
+                 f_y,
+                 lerp(normal_c, f_x, normal_d));
           
           normal = unscale_bias_normal(normal);
           
@@ -1207,23 +1208,43 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target, Re
   debug_end_timer(Debug_cycle_counter_type_render_group_to_output, start_cycle_count);
 }
 
+struct Tile_render_work
+{
+  Render_group* render_group;
+  Loaded_bmp *output_target;
+  Rect2i clip_rect;
+};
+
+internal void
+do_tile_render_work(void* data)
+{
+  Tile_render_work* work = (Tile_render_work*)data;
+  
+  bool even = true;
+  bool not_even = false;
+  
+  render_group_to_output(work->render_group, work->output_target, work->clip_rect, even);
+  render_group_to_output(work->render_group, work->output_target, work->clip_rect, not_even);
+}
+
 internal
 void
 tiled_render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
-#if 0
-  Rect2i clip_rect = { 4, 4, output_target->width - 4, output_target->height - 4 };
   
-  render_group_to_output(render_group, output_target, clip_rect, true);
-  render_group_to_output(render_group, output_target, clip_rect, false);
-#else
-  i32 tile_count_x = 4;
-  i32 tile_count_y = 4;
+  i32 const tile_count_x = 4;
+  i32 const tile_count_y = 4;
   
   int tile_width = output_target->width / tile_count_x;
   int tile_height = output_target->height / tile_count_y;
   
+  Tile_render_work work_array[tile_count_y * tile_count_x];
+  
+  i32 work_count = 0;
   for (i32 tile_y = 0; tile_y < tile_count_y; tile_y++) {
     for (i32 tile_x = 0; tile_x < tile_count_x; tile_x++) {
+      
+      Tile_render_work* work = work_array + work_count++;
+      
       Rect2i clip_rect;
       
       clip_rect.min_x = tile_x * tile_width  + 4;
@@ -1232,11 +1253,22 @@ tiled_render_group_to_output(Render_group* render_group, Loaded_bmp* output_targ
       clip_rect.max_x = clip_rect.min_x + tile_width  - 4;
       clip_rect.max_y = clip_rect.min_y + tile_height - 4;
       
-      render_group_to_output(render_group, output_target, clip_rect, true);
-      render_group_to_output(render_group, output_target, clip_rect, false);
+      
+      work->render_group = render_group;
+      work->output_target = output_target;
+      work->clip_rect = clip_rect;
+      
+      // add_work_queue_entry(render_queue, do_tile_render_work, work);
     }
   }
-#endif
+  
+  //render_queue->complete_all_work(render_queue);
+  
+  for (i32 work_index = 0; work_index < work_count; work_index++) {
+    Tile_render_work* work = work_array + work_index;
+    do_tile_render_work(work);
+  }
+  
 }
 
 internal

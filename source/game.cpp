@@ -1038,6 +1038,95 @@ make_cylinder_normal_map_x(Loaded_bmp* bitmap, f32 roughness) {
 Game_memory* debug_global_memory;
 #endif
 
+internal
+void
+bezier_curves(Loaded_bmp* draw_buffer, Game_input* input, Game_state* game_state) {
+  auto input_state = get_gamepad(input, 0);
+  
+  clear_screen(draw_buffer, color_black_byte);
+  
+  game_state->time += input->time_delta;
+  
+  if (game_state->time > 2.0f * PI) 
+    game_state->time -= 2.0f * PI;
+  
+  if (!game_state->bezier_init) {
+    game_state->p0_offset = { 90.0f + sin(game_state->time * 10.0f) * -10.0f, 0.0f };
+    game_state->p3_offset = { 
+      -100.0f, 
+      -200.0f + sin(game_state->time * 10.0f) * -10.0f
+    };
+    game_state->bezier_init = true;
+  }
+  
+  f32 offset = 5.0f;
+  
+  if (input_state->up.ended_down) {
+    game_state->p0_offset.y += offset;
+  }
+  if (input_state->down.ended_down) {
+    game_state->p0_offset.y -= offset;
+  }
+  if (input_state->left.ended_down) {
+    game_state->p0_offset.x -= offset;
+  }
+  if (input_state->right.ended_down) {
+    game_state->p0_offset.x += offset;
+  }
+  
+  if (input_state->action_up.ended_down) {
+    game_state->p3_offset.y += offset;
+  }
+  if (input_state->action_down.ended_down) {
+    game_state->p3_offset.y -= offset;
+  }
+  if (input_state->action_left.ended_down) {
+    game_state->p3_offset.x -= offset;
+  }
+  if (input_state->action_right.ended_down) {
+    game_state->p3_offset.x += offset;
+  }
+  
+  v2 p0 = game_state->p0_offset;
+  
+  v2 p1 = { 
+    100.0f + sin(game_state->time * 10.0f) * 50.0f, 
+    100.0f - cos(game_state->time * 10.0f) * 50.0f
+  };
+  v2 p2 = { 
+    70.0f + sin(game_state->time * 10.0f) * -10.0f, 
+    100.0f - cos(game_state->time * 10.0f) * 10.0f
+  };
+  
+  v2 p3 = game_state->p3_offset;
+  
+  for (f32 t = 0.0f; t <= 1.0f; t += 0.001f) {
+    
+    // lines between points
+    {
+      v2 l_p0 = lerp(p0, t, p1);
+      v2 l_p1 = lerp(p1, t, p2);
+      v2 l_p2 = lerp(p2, t, p3);
+      
+      draw_pixel(draw_buffer, {l_p0.x, -l_p0.y}, green_v4);
+      draw_pixel(draw_buffer, {l_p1.x, -l_p1.y}, green_v4);
+      draw_pixel(draw_buffer, {l_p2.x, -l_p2.y}, green_v4);
+    }
+    
+    // helper lines
+    {
+      v2 h0 = lerp_p3(p0, p1, p2, t);
+      v2 h1 = lerp_p3(p1, p2, p3, t);
+      
+      draw_pixel(draw_buffer, {h0.x, -h0.y}, blue_v4);
+      draw_pixel(draw_buffer, {h1.x, -h1.y}, blue_v4);
+    }
+    
+    v2 bezier = lerp_p4(p0, p1, p2, p3, t);
+    draw_pixel(draw_buffer, {bezier.x, -bezier.y}, white_v4);
+  }
+}
+
 extern "C"
 void 
 game_update_render(thread_context* thread, Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer) {
@@ -1410,7 +1499,8 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
   
   // check input and move player
   {
-    for (i32 controller_index = 0; controller_index < macro_array_count(input->gamepad); controller_index++) {
+    i32 controller_count = macro_array_count(input->gamepad);
+    for (i32 controller_index = 0; controller_index < controller_count; controller_index++) {
       auto input_state = get_gamepad(input, controller_index);
       Controlled_hero* controlled = game_state->controlled_hero_list + controller_index;
       
@@ -1860,7 +1950,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     dis = {0,0};
   
   v2 origin = screen_center;
-#if 1
+#if 0
   v2 x_axis = 100.0f * v2{cos(angle), sin(angle)};
   v2 y_axis = perpendicular(x_axis);
   
@@ -1918,11 +2008,17 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
   
   check_arena(&game_state->world_arena);
   check_arena(&tran_state->tran_arena);
+  
+#if 0
+  bezier_curves(draw_buffer, input, game_state);
+#endif
+  
 #if 0
   subpixel_test_update(draw_buffer, game_state, input, gold_v3);
 #endif
   
 #if 0
+  clear_screen(draw_buffer, color_black_byte);
   drops_update(draw_buffer, game_state, input);
 #endif
   

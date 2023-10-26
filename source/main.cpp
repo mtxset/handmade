@@ -1,4 +1,4 @@
-// https://youtu.be/W_szrzjYuvs?t=2125
+// https://youtu.be/ZAZV_PGlQ0s?t=3377
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include <stdio.h>
@@ -725,9 +725,9 @@ create_default_window(LRESULT win32_window_processor, HINSTANCE current_instance
   }
   
   result = CreateWindowEx(0, window_class.lpszClassName, "GG", 
-                          WS_OVERLAPPEDWINDOW | WS_VISIBLE, 
-                          CW_USEDEFAULT, CW_USEDEFAULT, 
-                          initial_window_width + 150, 
+                          WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                          CW_USEDEFAULT, CW_USEDEFAULT,
+                          initial_window_width + 150,
                           initial_window_height + 150, 
                           0, 0, current_instance, 0);
   
@@ -770,86 +770,136 @@ handle_debug_cycle_count(Game_memory* memory) {
 #endif
 }
 
+struct Work_queue_entry_storage {
+  void* user_pointer;
+};
 
-struct Work_queue_entry {
+struct Work_queue {
+  u32 volatile entry_completed_count;
+  u32 volatile next_entry_todo;
+  u32 volatile entry_count;
+  
+  HANDLE semaphore;
+  
+  Work_queue_entry_storage entry_list[256];
+};
+
+struct Work_q_entry {
+  void* data;
+  bool is_valid;
+};
+
+struct Win32_thread_info {
+  i32 index;
+  Work_queue* queue;
+};
+
+struct String_entry {
   char* str;
 };
 
-global_var u32 volatile entry_completed_count;
-global_var u32 volatile next_entry_print;
-global_var u32 volatile entry_count;
-Work_queue_entry work_list[256];
-
-#define LIMIT_COMPILER_OPTIMIZATIONS _ReadWriteBarrier()
-#define LIMIT_CPU_OPTIMIZATIONS _mm_sfence()
-
 internal
 void
-push_string(HANDLE semaphore_handle, char* str) {
-  macro_assert(entry_count < macro_array_count(work_list));
-  Work_queue_entry* entry = work_list + entry_count;
-  entry->str = str;
-  LIMIT_COMPILER_OPTIMIZATIONS;
-  entry_count++;
+add_work_queue_entry(Work_queue* queue, void* pointer) {
   
+  macro_assert(queue->entry_count < macro_array_count(queue->entry_list));
+  queue->entry_list[queue->entry_count].user_pointer = pointer;
+  
+  _WriteBarrier();
+  _mm_sfence();
+  
+  ++queue->entry_count;
   // wake up thread
-  ReleaseSemaphore(semaphore_handle, 1, 0);
+  ReleaseSemaphore(queue->semaphore, 1, 0);
 }
 
-struct Win32_thread_info {
-  HANDLE semaphore_handle;
-  i32 index;
-};
+internal
+Work_q_entry
+complete_and_get_next_work_q_entry(Work_queue* queue, Work_q_entry completed) {
+  
+  Work_q_entry result;
+  result.is_valid = false;
+  
+  if (completed.is_valid)
+    InterlockedIncrement((LONG volatile*)&queue->entry_completed_count);
+  
+  if (queue->next_entry_todo < queue->entry_count) {
+    u32 index = InterlockedIncrement((LONG volatile*)&queue->next_entry_todo) - 1;
+    result.data = queue->entry_list[index].user_pointer;
+    result.is_valid = true;
+    _ReadBarrier();
+  }
+  
+  return result;
+}
+
+internal
+bool
+q_work_still_in_progress(Work_queue* queue) {
+  bool result = (queue->entry_count != queue->entry_completed_count);
+  return result;
+}
+
+inline
+void
+do_worker_work(Work_q_entry entry, i32 thread_index) {
+  
+  macro_assert(entry.is_valid);
+  
+  char buffer[256];
+  _snprintf_s(buffer, sizeof(buffer), "thread: %u; %s\n", thread_index, (char*)entry.data);
+  OutputDebugStringA(buffer);
+}
 
 DWORD
 WINAPI
-thread_func(LPVOID param) {
+thread_proc(LPVOID param) {
   Win32_thread_info* thread_info = (Win32_thread_info*)param;
   
+  Work_q_entry entry = {};
   while (true) {
-    if (next_entry_print < entry_count) {
-      i32 next_entry_id = InterlockedIncrement(&next_entry_print) - 1;//next_entry_print++;
-      
-      Work_queue_entry* entry = work_list + next_entry_id;
-      char buffer[256];
-      _snprintf_s(buffer, sizeof(buffer), "thread: %u; %s\n", thread_info->index, entry->str);
-      OutputDebugStringA(buffer);
-      
-      InterlockedIncrement(&entry_completed_count);
-    }
-    else {
-      WaitForSingleObjectEx(thread_info->semaphore_handle, 0L, false);
-    }
+    entry = complete_and_get_next_work_q_entry(thread_info->queue, entry);
+    
+    if (entry.is_valid)
+      do_worker_work(entry, thread_info->index);
+    else
+      WaitForSingleObjectEx(thread_info->queue->semaphore, INFINITE, false);
   }
-  
-  return 0;
+}
+
+internal
+void
+push_string(Work_queue* queue, char* str) {
+  add_work_queue_entry(queue, str);
 }
 
 i32
 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
   
-  const i32 thread_count = 7;
+  const u32 thread_count = 7; // cuz we have total 8 and one is "main" one
+  Work_queue queue = {};
   // create semaphore and threads
-  HANDLE semaphore;
   {
-    semaphore = CreateSemaphoreEx(0,            // default security attributes
-                                  0,            // initial count
-                                  thread_count, // maximum count
-                                  0,            // unnamed semaphore
-                                  0, SEMAPHORE_ALL_ACCESS);
-    
+    u32 initial_count = 0;
     Win32_thread_info info_list[thread_count];
-    for (i32 i = 0; i < thread_count; i++) {
-      Win32_thread_info* info = info_list + i;
-      info->index = i;
-      info->semaphore_handle = semaphore;
+    queue.semaphore = CreateSemaphoreEx(0,            // default security attributes
+                                        initial_count,// initial count
+                                        thread_count, // maximum count
+                                        0,            // unnamed semaphore
+                                        0, SEMAPHORE_ALL_ACCESS);
+    
+    for (u32 thread_index = 0; thread_index < thread_count; thread_index++) {
+      Win32_thread_info* info = info_list + thread_index;
+      
+      info->queue = &queue;
+      info->index = thread_index;
       
       DWORD thread_id;
       HANDLE thread_handle = CreateThread(0, // security attributes
                                           0, // stack size  will default to the we have in current context
-                                          thread_func, // thread function
+                                          thread_proc, // thread function
                                           info, // thread args
-                                          0, // start right away
+                                          0,    // start right away
                                           &thread_id);
       CloseHandle(thread_handle); // it will not terminate thread
       // but later in c runtime lib windows will call ExitProcess which will kill all threads
@@ -858,29 +908,33 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
   
   // do some work with threads
   {
-    push_string(semaphore, "msg a1");
-    push_string(semaphore, "msg a2");
-    push_string(semaphore, "msg a3");
-    push_string(semaphore, "msg a4");
-    push_string(semaphore, "msg a5");
-    push_string(semaphore, "msg a6");
-    push_string(semaphore, "msg a7");
-    push_string(semaphore, "msg a8");
-    push_string(semaphore, "msg a9");
+    push_string(&queue, "msg a1");
+    push_string(&queue, "msg a2");
+    push_string(&queue, "msg a3");
+    push_string(&queue, "msg a4");
+    push_string(&queue, "msg a5");
+    push_string(&queue, "msg a6");
+    push_string(&queue, "msg a7");
+    push_string(&queue, "msg a8");
+    push_string(&queue, "msg a9");
     
-    Sleep(1000);
+    push_string(&queue, "msg b1");
+    push_string(&queue, "msg b2");
+    push_string(&queue, "msg b3");
+    push_string(&queue, "msg b4");
+    push_string(&queue, "msg b5");
+    push_string(&queue, "msg b6");
+    push_string(&queue, "msg b7");
+    push_string(&queue, "msg b8");
+    push_string(&queue, "msg b9");
     
-    push_string(semaphore, "msg b1");
-    push_string(semaphore, "msg b2");
-    push_string(semaphore, "msg b3");
-    push_string(semaphore, "msg b4");
-    push_string(semaphore, "msg b5");
-    push_string(semaphore, "msg b6");
-    push_string(semaphore, "msg b7");
-    push_string(semaphore, "msg b8");
-    push_string(semaphore, "msg b9");
-    
-    while (entry_count != entry_completed_count);
+    Work_q_entry entry = {};
+    while (q_work_still_in_progress(&queue)) {
+      entry = complete_and_get_next_work_q_entry(&queue, entry);
+      
+      if (entry.is_valid)
+        do_worker_work(entry, 7);
+    }
   }
   
   LARGE_INTEGER performance_freq, end_counter, last_counter, flip_wall_clock;

@@ -1,52 +1,33 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.31105.61
+# Visual Studio Version 17
+VisualStudioVersion = 17.3.32929.385
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{911E67C6-3D85-4FCE-B560-20A9C3E3FF48}") = "main", "..\build\main.exe", "{F3CF0EAC-6A8B-4BCF-88D3-2FA31DF21915}"
+Project("{911E67C6-3D85-4FCE-B560-20A9C3E3FF48}") = "main", "build\main.exe", "{7E2D5506-CC39-400D-8DCB-15C8FFF5D30C}"
 	ProjectSection(DebuggerProjectSystem) = preProject
 		PortSupplier = 00000000-0000-0000-0000-000000000000
-		Executable = C:\Users\MTX\source\repos\handmade\build\main.exe
+		Executable = D:\dev\repos\handmade\build\main.exe
 		RemoteMachine = MTX-ASUS-ROG
-		StartingDirectory = C:\Users\MTX\source\repos\handmade\build
+		StartingDirectory = D:\dev\repos\handmade\build
 		Environment = Default
-		LaunchingEngine = 00000000-0000-0000-0000-000000000000
+		LaunchingEngine = 3b476d35-a401-11d2-aad4-00c04f990171
 		UseLegacyDebugEngines = No
 		LaunchSQLEngine = No
 		AttachLaunchAction = No
 		IORedirection = Auto
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{E79B6F63-A4A6-4581-9E91-1CE37B738AB2}"
-	ProjectSection(SolutionItems) = preProject
-		source\file_io.cpp = source\file_io.cpp
-		source\file_io.h = source\file_io.h
-		source\game.cpp = source\game.cpp
-		source\game.h = source\game.h
-		source\intrinsics.h = source\intrinsics.h
-		source\main.cpp = source\main.cpp
-		source\main.h = source\main.h
-		source\record_disk.cpp = source\record_disk.cpp
-		source\record_memory.cpp = source\record_memory.cpp
-		source\tile.cpp = source\tile.cpp
-		source\tile.h = source\tile.h
-		source\todo.txt = source\todo.txt
-		source\types.h = source\types.h
-		source\utils.cpp = source\utils.cpp
-		source\utils.h = source\utils.h
-	EndProjectSection
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-		Release|x86 = Release|x86
+		Release|x64 = Release|x64
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{F3CF0EAC-6A8B-4BCF-88D3-2FA31DF21915}.Release|x86.ActiveCfg = Release|x86
+		{7E2D5506-CC39-400D-8DCB-15C8FFF5D30C}.Release|x64.ActiveCfg = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {66E82644-121E-4E16-8AA2-65118A7D6662}
+		SolutionGuid = {AEB30B26-B4D3-4A79-BB89-2637E49FC064}
 	EndGlobalSection
 EndGlobal
