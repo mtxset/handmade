@@ -1229,7 +1229,7 @@ do_tile_render_work(void* data)
 
 internal
 void
-tiled_render_group_to_output(Render_group* render_group, Loaded_bmp* output_target) {
+tiled_render_group_to_output(Work_queue* render_queue, Render_group* render_group, Loaded_bmp* output_target) {
   
   i32 const tile_count_x = 4;
   i32 const tile_count_y = 4;
@@ -1258,11 +1258,11 @@ tiled_render_group_to_output(Render_group* render_group, Loaded_bmp* output_targ
       work->output_target = output_target;
       work->clip_rect = clip_rect;
       
-      // add_work_queue_entry(render_queue, do_tile_render_work, work);
+      add_entry(render_queue, do_tile_render_work, work);
     }
   }
   
-  //render_queue->complete_all_work(render_queue);
+  complete_all_work(render_queue);
   
   for (i32 work_index = 0; work_index < work_count; work_index++) {
     Tile_render_work* work = work_array + work_index;

@@ -97,6 +97,9 @@ typedef struct Debug_cycle_counter {
 } Debug_cycle_counter;
 #endif
 
+typedef win32_add_entry(Work_queue* queue, );
+typedef win32_complete_all_work;
+
 typedef struct Game_memory {
   bool is_initialized;
   
@@ -105,6 +108,12 @@ typedef struct Game_memory {
   
   u64 transient_storage_size;
   void* transient_storage;
+  
+  struct Work_queue* render_queue;
+  
+  win32_add_entry* add_entry;
+  win32_complete_all_work* complete_all_work;
+  
 #if INTERNAL
   Debug_cycle_counter counter_list[Debug_cycle_counter_count];
 #endif
@@ -320,5 +329,8 @@ Low_entity* get_low_entity(Game_state* game_state, u32 index) {
   
   return entity;
 }
+
+global_var win32_add_entry* add_entry;
+global_var win32_complete_all_work* complete_all_work;
 
 #endif //GAME_H

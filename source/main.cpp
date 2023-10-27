@@ -770,8 +770,11 @@ handle_debug_cycle_count(Game_memory* memory) {
 #endif
 }
 
+typedef void work_q_callback(Work_queue* queue, void* data);
+
 struct Work_queue_entry_storage {
-  void* user_pointer;
+  work_q_callback* callback;
+  void* data;
 };
 
 struct Work_queue {
@@ -800,10 +803,12 @@ struct String_entry {
 
 internal
 void
-add_work_queue_entry(Work_queue* queue, void* pointer) {
+add_entry(Work_queue* queue, work_q_callback* callback, void* data) {
   
   macro_assert(queue->entry_count < macro_array_count(queue->entry_list));
-  queue->entry_list[queue->entry_count].user_pointer = pointer;
+  Work_q_entry* entry = queue->entry_list + queue->entry_count;
+  entry->data = data;
+  entry->callback = callback;
   
   _WriteBarrier();
   _mm_sfence();
@@ -823,11 +828,18 @@ complete_and_get_next_work_q_entry(Work_queue* queue, Work_q_entry completed) {
   if (completed.is_valid)
     InterlockedIncrement((LONG volatile*)&queue->entry_completed_count);
   
-  if (queue->next_entry_todo < queue->entry_count) {
-    u32 index = InterlockedIncrement((LONG volatile*)&queue->next_entry_todo) - 1;
-    result.data = queue->entry_list[index].user_pointer;
-    result.is_valid = true;
-    _ReadBarrier();
+  u32 original_entry_todo = queue->next_entry_todo;
+  
+  if (original_entry_todo < queue->entry_count) {
+    u32 index = InterlockedCompareExchange((LONG volatile*)&queue->next_entry_todo,
+                                           original_entry_todo + 1,
+                                           original_entry_todo);
+    
+    if (index == original_entry_todo) {
+      result.data = queue->entry_list[index].user_pointer;
+      result.is_valid = true;
+      _ReadBarrier();
+    }
   }
   
   return result;
