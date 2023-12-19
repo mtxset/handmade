@@ -144,8 +144,8 @@ draw_pixel(Loaded_bmp* bitmap_buffer, v2 pos, v4 color) {
     (f32)bitmap_buffer->height / 2 
   };
   
-  pos.y = -pos.y;
-  end.y = -end.y;
+  pos.y = pos.y;
+  end.y = end.y;
   
   end = { pos.x + 1.0f, pos.y + 1.0f };
   
@@ -229,6 +229,60 @@ vectors_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) 
   
   draw_line(bitmap_buffer, { 0, 0 }, vec, green_v4);
   draw_line(bitmap_buffer, { 0, 0 }, perpendicular(vec), green_v4);
+}
+
+internal
+void
+sin_cos_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) {
+  clear_screen(bitmap_buffer, color_black_byte);
+  
+  f32 xx = 100;
+  f32 yy = 100;
+  
+  draw_pixel(bitmap_buffer, { 0, 0 }, gold_v4);
+  
+  draw_pixel(bitmap_buffer, { xx, xx }, white_v4);
+  draw_pixel(bitmap_buffer, { -xx, -xx }, green_v4);
+  
+  bool draw_letter_a = false;
+  if (draw_letter_a)
+  {
+    for (float x = -50; x <= 50; x += 1.0) {
+      draw_pixel(bitmap_buffer, {x, 50}, white_v4);
+    }
+    
+    // Left slanted line of 'A'
+    float startX = 0;
+    for (float y = 100; y >= 0; y -= 1) {
+      draw_pixel(bitmap_buffer, {startX, y}, white_v4);
+      startX += 1.0;
+    }
+    
+    // right slanted line of a
+    startX = 0;
+    for (float y = 100; y >= 0; y -= 1) {
+      draw_pixel(bitmap_buffer, {startX, y}, white_v4);
+      startX -= 1.0;
+    }
+  }
+  /*draw_pixel(bitmap_buffer, { 0, x }, green_v4);
+  draw_pixel(bitmap_buffer, { 0, -x }, white_v4);
+  
+  draw_pixel(bitmap_buffer, { x, 0 }, blue_v4);
+  draw_pixel(bitmap_buffer, { -x, 0 }, red_v4);*/
+  
+  
+  f32 *sin_cos_state = &state->sin_cos_state;
+  
+  *sin_cos_state += input->time_delta;
+  if (*sin_cos_state > 2.0f * PI) {
+    *sin_cos_state -= 2.0f * PI;
+  }
+  
+  v2 sin_vec = {100, 0};
+  sin_vec.x = -100.0f * cos(*sin_cos_state);
+  sin_vec.y = 100.0f * cos(*sin_cos_state) * sin(*sin_cos_state);
+  draw_line(bitmap_buffer, { 0, 0 }, sin_vec, green_v4);
 }
 
 internal
@@ -2022,8 +2076,12 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
   drops_update(draw_buffer, game_state, input);
 #endif
   
-#if 0
+#if 1
   vectors_update(draw_buffer, game_state, input);
+#endif
+  
+#if 1
+  sin_cos_update(draw_buffer, game_state, input);
 #endif
   
 #if 0

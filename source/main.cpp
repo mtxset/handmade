@@ -1,4 +1,4 @@
-// https://youtu.be/ZAZV_PGlQ0s?t=3377
+// https://www.youtube.com/watch?v=0jfDwujUY4Y
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include <stdio.h>
@@ -773,8 +773,7 @@ handle_debug_cycle_count(Game_memory* memory) {
 typedef void work_q_callback(Work_queue* queue, void* data);
 
 struct Work_queue_entry_storage {
-  work_q_callback* callback;
-  void* data;
+  void *user_pointer;
 };
 
 struct Work_queue {
@@ -788,7 +787,7 @@ struct Work_queue {
 };
 
 struct Work_q_entry {
-  void* data;
+  void *data;
   bool is_valid;
 };
 
@@ -803,12 +802,10 @@ struct String_entry {
 
 internal
 void
-add_entry(Work_queue* queue, work_q_callback* callback, void* data) {
+add_work_q_entry(Work_queue *queue, void *pointer) {
   
   macro_assert(queue->entry_count < macro_array_count(queue->entry_list));
-  Work_q_entry* entry = queue->entry_list + queue->entry_count;
-  entry->data = data;
-  entry->callback = callback;
+  queue->entry_list[queue->entry_count].user_pointer = pointer;
   
   _WriteBarrier();
   _mm_sfence();
@@ -882,7 +879,7 @@ thread_proc(LPVOID param) {
 internal
 void
 push_string(Work_queue* queue, char* str) {
-  add_work_queue_entry(queue, str);
+  add_work_q_entry(queue, str);
 }
 
 i32
