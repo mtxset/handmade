@@ -231,18 +231,86 @@ vectors_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) 
   draw_line(bitmap_buffer, { 0, 0 }, perpendicular(vec), green_v4);
 }
 
+void draw_pixel_with_lighting(Loaded_bmp* bitmap_buffer, f32 x, f32 y, f32 sin_cos_state) {
+  
+  v2 screen_center = { 
+    (f32)bitmap_buffer->width / 2,
+    (f32)bitmap_buffer->height / 2 
+  };
+  
+  // Calculate distance from the center
+  f32 distance = sqrtf((x - (f32)bitmap_buffer->width/2.0f) * (x - (f32)bitmap_buffer->width/2.0f) + (y - (f32)bitmap_buffer->height/2.0f) * (y - (f32)bitmap_buffer->height/2.0f));
+  
+  // Calculate intensity based on distance (inverse relationship)
+  f32 intensity = 1.0f - (distance / sin_cos_state); // MAX_DISTANCE is a constant representing maximum distance
+  
+  // Apply the intensity to the color
+  v4 final_color = {
+    red_v4.r * intensity,
+    red_v4.g * intensity,
+    red_v4.b * intensity,
+    1.0f
+  };
+  
+  // Draw the pixel with the modified color
+  draw_pixel(bitmap_buffer, {x, y}, final_color);
+}
+
+f32 map_to_complex(f32 pixel, int size, f32 start, f32 end) {
+  return start + ((f32)pixel / size) * (end - start);
+}
+
+// Function to check if a point belongs to the Mandelbrot Set
+int mandelbrot(f32 cx, f32  cy) {
+  f32 x = 0.0f;
+  f32 y = 0.0f;
+  i32 iteration = 0;
+  
+  while (x * x + y * y <= 4 && iteration < 1000) {
+    f32 x_temp = x * x - y * y + cx;
+    y = 2 * x * y + cy;
+    x = x_temp;
+    iteration++;
+  }
+  
+  if (iteration == 1000) {
+    return 1; // The point is in the Mandelbrot Set
+  } else {
+    return 0; // The point is not in the Mandelbrot Set
+  }
+}
+
 internal
 void
 sin_cos_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) {
   clear_screen(bitmap_buffer, color_black_byte);
   
-  f32 xx = 100;
-  f32 yy = 100;
-  
-  draw_pixel(bitmap_buffer, { 0, 0 }, gold_v4);
-  
-  draw_pixel(bitmap_buffer, { xx, xx }, white_v4);
-  draw_pixel(bitmap_buffer, { -xx, -xx }, green_v4);
+  bool draw_mandelbrot_set = true;
+  if (draw_mandelbrot_set) {
+    
+    i32 height = 300;
+    i32 width = 300;
+    
+    for (f32 y = (f32)-height; y < height; ++y) {
+      for (f32 x = (f32)-width; x < width; ++x) {
+        // Map screen coordinates to Mandelbrot Set coordinates
+        f32 cx = map_to_complex(x, width, -2.5, 1.0);
+        f32 cy = map_to_complex(y, height, -1.0, 1.0);
+        
+        // Check if the point is in the Mandelbrot Set
+        int in_set = mandelbrot(cx, cy);
+        
+        // If the point is in the Mandelbrot Set, draw a pixel
+        if (in_set) {
+          f32 distance = sqrtf((x - width/2) * (x - width/2) + (y - height/2) * (y - height/2));
+          
+          f32 intensity = 1.0f - (distance / height);
+          v4 color = {intensity, intensity, intensity, 1.0f}; 
+          draw_pixel(bitmap_buffer, { x, y }, color);
+        }
+      }
+    }
+  }
   
   bool draw_letter_a = false;
   if (draw_letter_a)
@@ -265,24 +333,47 @@ sin_cos_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) 
       startX -= 1.0;
     }
   }
-  /*draw_pixel(bitmap_buffer, { 0, x }, green_v4);
-  draw_pixel(bitmap_buffer, { 0, -x }, white_v4);
-  
-  draw_pixel(bitmap_buffer, { x, 0 }, blue_v4);
-  draw_pixel(bitmap_buffer, { -x, 0 }, red_v4);*/
   
   
-  f32 *sin_cos_state = &state->sin_cos_state;
-  
-  *sin_cos_state += input->time_delta;
-  if (*sin_cos_state > 2.0f * PI) {
-    *sin_cos_state -= 2.0f * PI;
+  bool draw_lighting = false;
+  if (draw_lighting) {
+    for (f32 y = (f32)-bitmap_buffer->height; y < bitmap_buffer->height; ++y) {
+      for (f32 x = (f32)-bitmap_buffer->width; x < bitmap_buffer->width; ++x) {
+        
+        f32 *sin_cos_state = &state->sin_cos_state;
+        
+        *sin_cos_state += input->time_delta;
+        if (*sin_cos_state > 2.0f * PI) {
+          *sin_cos_state -= 2.0f * PI;
+        }
+        
+        draw_pixel_with_lighting(bitmap_buffer, x, y, *sin_cos_state);
+      }
+    }
   }
   
-  v2 sin_vec = {100, 0};
-  sin_vec.x = -100.0f * cos(*sin_cos_state);
-  sin_vec.y = 100.0f * cos(*sin_cos_state) * sin(*sin_cos_state);
-  draw_line(bitmap_buffer, { 0, 0 }, sin_vec, green_v4);
+  bool draw_sin_cos_circle = false;
+  if (draw_sin_cos_circle) {
+    f32 *sin_cos_state = &state->sin_cos_state;
+    
+    *sin_cos_state += input->time_delta;
+    if (*sin_cos_state > 2.0f * PI) {
+      *sin_cos_state -= 2.0f * PI;
+    }
+    
+    v2 sin_vec = {100, 0};
+    sin_vec.x = 100.0f * cos(*sin_cos_state);
+    sin_vec.y = 100.0f * sin(*sin_cos_state);
+    draw_line(bitmap_buffer, { 0, 0 }, sin_vec, green_v4);
+    draw_pixel(bitmap_buffer, sin_vec, red_v4);
+    
+    sin_vec.x = 0;
+    draw_pixel(bitmap_buffer, sin_vec, red_v4);
+    
+    sin_vec.x = 100.0f * cos(*sin_cos_state);
+    sin_vec.y = 0;
+    draw_pixel(bitmap_buffer, sin_vec, yellow_v4);
+  }
 }
 
 internal
@@ -855,7 +946,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
     }
   }
 #endif
-  tiled_render_group_to_output(render_group, bitmap_buffer);
+  tiled_render_group_to_output(tran_state->render_queue, render_group, bitmap_buffer);
   end_temp_memory(ground_memory);
 }
 
@@ -1205,6 +1296,10 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
   
   // init game state
   if (!memory->is_initialized) {
+    
+    add_entry_win32_callback = memory->add_entry;
+    complete_all_work_win32_callback = memory->complete_all_work;
+    
     const u32 tiles_per_width  = 17;
     const u32 tiles_per_height = 9;
     
@@ -1353,7 +1448,6 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     
     // world generation
     Random_series series = random_seed(1234);
-    
     {
       const u32 room_goes_horizontal = 1;
       const u32 stairs_up = 2;
@@ -1496,6 +1590,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                      memory->transient_storage_size - sizeof(Transient_state),
                      (u8*)memory->transient_storage + sizeof(Transient_state));
     
+    tran_state->render_queue = memory->high_priority_queue;
     tran_state->ground_buffer_count = 256;
     tran_state->ground_buffer_list = mem_push_array(&tran_state->tran_arena, tran_state->ground_buffer_count, Ground_buffer);
     
@@ -2053,7 +2148,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
 #endif 
   
   // output buffers to bitmap
-  tiled_render_group_to_output(render_group, draw_buffer);
+  tiled_render_group_to_output(tran_state->render_queue, render_group, draw_buffer);
   
   end_sim(sim_region, game_state);
   

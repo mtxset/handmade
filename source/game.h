@@ -97,8 +97,12 @@ typedef struct Debug_cycle_counter {
 } Debug_cycle_counter;
 #endif
 
-//typedef win32_add_entry(Work_queue* queue, );
-//typedef win32_complete_all_work;
+struct Work_queue;
+#define WORK_QUEUE_CALLBACK(name) void name(Work_queue* queue, void *data)
+typedef WORK_QUEUE_CALLBACK(Work_q_callback);
+
+typedef void add_entry(Work_queue* queue, Work_q_callback *callback, void *data);
+typedef void complete_all_work(Work_queue *queue);
 
 typedef struct Game_memory {
   bool is_initialized;
@@ -109,10 +113,9 @@ typedef struct Game_memory {
   u64 transient_storage_size;
   void* transient_storage;
   
-  struct Work_queue* render_queue;
-  
-  //win32_add_entry* add_entry;
-  //win32_complete_all_work* complete_all_work;
+  Work_queue *high_priority_queue;
+  add_entry *add_entry;
+  complete_all_work *complete_all_work;
   
 #if INTERNAL
   Debug_cycle_counter counter_list[Debug_cycle_counter_count];
@@ -242,7 +245,7 @@ struct Game_state {
   World_position camera_pos;
   f32 t_sine;
   
-  Controlled_hero controlled_hero_list[macro_array_count(((Game_input*)0)->gamepad)]; // @disgusting
+  Controlled_hero controlled_hero_list[macro_array_count(((Game_input*)0)->gamepad)]; // "c"
   
   u32 low_entity_count;
   Low_entity low_entity_list[100000];
@@ -301,6 +304,7 @@ struct Transient_state {
   Memory_arena tran_arena;
   u32 ground_buffer_count;
   Ground_buffer* ground_buffer_list;
+  Work_queue *render_queue;
   
   u32 env_map_width;
   u32 env_map_height;
@@ -332,7 +336,7 @@ Low_entity* get_low_entity(Game_state* game_state, u32 index) {
   return entity;
 }
 
-//global_var win32_add_entry* add_entry;
-//global_var win32_complete_all_work* complete_all_work;
+global_var add_entry *add_entry_win32_callback;
+global_var complete_all_work *complete_all_work_win32_callback;
 
 #endif //GAME_H

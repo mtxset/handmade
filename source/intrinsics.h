@@ -198,6 +198,12 @@ v2 operator + (v2 a, v2 b) {
   return result;
 }
 
+inline
+v2 operator += (v2 &a, v2 b) {
+  a = a + b;
+  return a;
+}
+
 inline 
 v2 operator - (v2 a, v2 b) {
   v2 result;
@@ -206,12 +212,6 @@ v2 operator - (v2 a, v2 b) {
   result.y = a.y - b.y;
   
   return result;
-}
-
-inline
-v2 operator += (v2 &a, v2 b) {
-  a = a + b;
-  return a;
 }
 
 inline
