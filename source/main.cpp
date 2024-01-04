@@ -770,12 +770,12 @@ handle_debug_cycle_count(Game_memory* memory) {
 #endif
 }
 
-struct Work_q_entry {
-  Work_q_callback *callback;
+struct Platform_work_queue_entry {
+  Platform_work_queue_callback *callback;
   void* data;
 };
 
-struct Work_queue {
+struct Platform_work_queue {
   u32 volatile completion_goal;
   u32 volatile completion_count;
   
@@ -784,12 +784,12 @@ struct Work_queue {
   
   HANDLE semaphore;
   
-  Work_q_entry entry_list[256];
+  Platform_work_queue_entry entry_list[256];
 };
 
 struct Win32_thread_info {
   i32 index;
-  Work_queue *queue;
+  Platform_work_queue *queue;
 };
 
 struct String_entry {
@@ -798,14 +798,14 @@ struct String_entry {
 
 internal
 void
-win32_add_entry(Work_queue *queue, Work_q_callback *callback, void *data) {
+win32_add_entry(Platform_work_queue *queue, Platform_work_queue_callback *callback, void *data) {
   
   u32 entry_count = macro_array_count(queue->entry_list);
-  u32 next_entry_to_write = (queue->next_entry_to_write + 1) % entry_count;
+  u32 new_entry_to_write = (queue->next_entry_to_write + 1) % entry_count;
   
-  macro_assert(next_entry_to_write != queue->next_entry_to_read);
+  macro_assert(new_entry_to_write != queue->next_entry_to_read);
   
-  Work_q_entry *entry = queue->entry_list + queue->next_entry_to_write;
+  Platform_work_queue_entry *entry = queue->entry_list + queue->next_entry_to_write;
   
   entry->callback = callback;
   entry->data = data;
@@ -815,29 +815,28 @@ win32_add_entry(Work_queue *queue, Work_q_callback *callback, void *data) {
   _WriteBarrier();
   _mm_sfence();
   
-  queue->next_entry_to_write = next_entry_to_write;
+  queue->next_entry_to_write = new_entry_to_write;
   
   // wake up thread
   ReleaseSemaphore(queue->semaphore, 1, 0);
 }
 
-
 bool
-win32_do_next_work_q_entry(Work_queue* queue) {
+win32_do_next_work_q_entry(Platform_work_queue *queue) {
   bool we_should_sleep = false;
   
   u32 original_next_entry_to_read = queue->next_entry_to_read;
   u32 entry_count = macro_array_count(queue->entry_list);
-  u32 next_entry_to_read = (original_next_entry_to_read + 1) % entry_count;
+  u32 new_entry_to_read = (original_next_entry_to_read + 1) % entry_count;
   
   if (original_next_entry_to_read != queue->next_entry_to_write) {
     
     u32 index = InterlockedCompareExchange((LONG volatile*)&queue->next_entry_to_read,
-                                           next_entry_to_read,
+                                           new_entry_to_read,
                                            original_next_entry_to_read);
     
     if (index == original_next_entry_to_read) {
-      Work_q_entry entry = queue->entry_list[index];
+      Platform_work_queue_entry entry = queue->entry_list[index];
       entry.callback(queue, entry.data);
       InterlockedIncrement((LONG volatile*)&queue->completion_count);
     }
@@ -852,7 +851,7 @@ win32_do_next_work_q_entry(Work_queue* queue) {
 
 internal
 void
-win32_complete_all_work(Work_queue* queue) {
+win32_complete_all_work(Platform_work_queue* queue) {
   while (queue->completion_goal != queue->completion_count)
     win32_do_next_work_q_entry(queue);
   
@@ -861,7 +860,7 @@ win32_complete_all_work(Work_queue* queue) {
 }
 
 internal
-WORK_QUEUE_CALLBACK(do_worker_work) {
+PLATFORM_WORK_QUEUE_CALLBACK(do_worker_work) {
   
   char buffer[256];
   _snprintf_s(buffer, sizeof(buffer), "thread: %u; %s\n", GetCurrentThreadId(), (char*)data);
@@ -882,12 +881,14 @@ thread_proc(LPVOID param) {
 i32
 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
   
-  const u32 thread_count = 7; // cuz we have total 8 and one is "main" one
-  Work_queue queue = {};
+  Platform_work_queue queue = {};
   // create semaphore and threads
   {
     u32 initial_count = 0;
-    Win32_thread_info info_list[thread_count];
+    Win32_thread_info info_list[7];
+    
+    
+    u32 thread_count = macro_array_count(info_list);
     queue.semaphore = CreateSemaphoreEx(0,            // default security attributes
                                         initial_count,// initial count
                                         thread_count, // maximum count
@@ -895,7 +896,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
                                         0, SEMAPHORE_ALL_ACCESS);
     
     for (u32 thread_index = 0; thread_index < thread_count; thread_index++) {
-      Win32_thread_info* info = info_list + thread_index;
+      Win32_thread_info *info = info_list + thread_index;
       
       info->queue = &queue;
       info->index = thread_index;
@@ -923,6 +924,8 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     win32_add_entry(&queue, do_worker_work, "msg a7");
     win32_add_entry(&queue, do_worker_work, "msg a8");
     win32_add_entry(&queue, do_worker_work, "msg a9");
+    
+    Sleep(1000);
     
     win32_add_entry(&queue, do_worker_work, "msg b1");
     win32_add_entry(&queue, do_worker_work, "msg b2");
@@ -1022,8 +1025,8 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
 #endif
     
     memory.high_priority_queue = &queue;
-    memory.add_entry = win32_add_entry;
-    memory.complete_all_work = win32_complete_all_work;
+    memory.platform_add_entry = win32_add_entry;
+    memory.platform_complete_all_work = win32_complete_all_work;
     
     memory.permanent_storage_size = macro_megabytes(PERMANENT_MEMORY_SIZE_MB);
     memory.transient_storage_size = macro_megabytes(TRANSIENT_MEMORY_SIZE_MB);

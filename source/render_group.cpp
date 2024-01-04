@@ -1208,13 +1208,13 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target, Re
 
 struct Tile_render_work
 {
-  Render_group* render_group;
+  Render_group *render_group;
   Loaded_bmp *output_target;
   Rect2i clip_rect;
 };
 
 internal
-WORK_QUEUE_CALLBACK(do_tile_render_work)
+PLATFORM_WORK_QUEUE_CALLBACK(do_tile_render_work)
 {
   Tile_render_work* work = (Tile_render_work*)data;
   
@@ -1227,8 +1227,8 @@ WORK_QUEUE_CALLBACK(do_tile_render_work)
 
 internal
 void
-tiled_render_group_to_output(Work_queue* render_queue, 
-                             Render_group* render_group, Loaded_bmp* output_target) {
+tiled_render_group_to_output(Platform_work_queue *render_queue, 
+                             Render_group *render_group, Loaded_bmp *output_target) {
   
   i32 const tile_count_x = 4;
   i32 const tile_count_y = 4;
@@ -1237,12 +1237,11 @@ tiled_render_group_to_output(Work_queue* render_queue,
   int tile_width = output_target->width / tile_count_x;
   int tile_height = output_target->height / tile_count_y;
   
-  
   i32 work_count = 0;
   for (i32 tile_y = 0; tile_y < tile_count_y; tile_y++) {
     for (i32 tile_x = 0; tile_x < tile_count_x; tile_x++) {
       
-      Tile_render_work* work = work_array + work_count++;
+      Tile_render_work *work = work_array + work_count++;
       
       Rect2i clip_rect;
       
@@ -1252,20 +1251,19 @@ tiled_render_group_to_output(Work_queue* render_queue,
       clip_rect.max_x = clip_rect.min_x + tile_width  - 4;
       clip_rect.max_y = clip_rect.min_y + tile_height - 4;
       
-      
       work->render_group = render_group;
       work->output_target = output_target;
       work->clip_rect = clip_rect;
       
 #if 1
-      add_entry_win32_callback(render_queue, do_tile_render_work, work);
+      platform_add_entry(render_queue, do_tile_render_work, work);
 #else
       do_tile_render_work(render_queue, work);
 #endif
     }
   }
   
-  complete_all_work_win32_callback(render_queue);
+  platform_complete_all_work(render_queue);
 }
 
 internal
@@ -1301,7 +1299,7 @@ allocate_render_group(Memory_arena* arena, u32 max_push_buffer_size, u32 resolut
 
 inline
 void
-push_clear(Render_group* group, v4 color) {
+push_clear(Render_group *group, v4 color) {
   Render_entry_clear* entry = push_render_element(group, Render_entry_clear);
   
   if (!entry)

@@ -1297,8 +1297,8 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
   // init game state
   if (!memory->is_initialized) {
     
-    add_entry_win32_callback = memory->add_entry;
-    complete_all_work_win32_callback = memory->complete_all_work;
+    platform_add_entry = memory->platform_add_entry;
+    platform_complete_all_work = memory->platform_complete_all_work;
     
     const u32 tiles_per_width  = 17;
     const u32 tiles_per_height = 9;
@@ -2171,11 +2171,11 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
   drops_update(draw_buffer, game_state, input);
 #endif
   
-#if 1
+#if 0
   vectors_update(draw_buffer, game_state, input);
 #endif
   
-#if 1
+#if 0
   sin_cos_update(draw_buffer, game_state, input);
 #endif
   
