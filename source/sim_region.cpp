@@ -499,9 +499,7 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
   if (move_spec->boost)
     move_speed *= move_spec->boost;
   
-  /* 
-      player_acceleration_dd *= move_speed;
-   */
+  player_acceleration_dd *= move_speed;
   
   v3 drag = -move_spec->drag * entity->velocity_d;
   drag.z = 0;

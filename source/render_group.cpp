@@ -327,10 +327,6 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
   f32 inverse_x_axis_squared = 1.0f / length_squared(x_axis);
   f32 inverse_y_axis_squared = 1.0f / length_squared(y_axis);
   
-  u32 color_hex = (round_f32_u32(color.a * 255.0f) << 24 | 
-                   round_f32_u32(color.r * 255.0f) << 16 | 
-                   round_f32_u32(color.g * 255.0f) << 8  |
-                   round_f32_u32(color.b * 255.0f) << 0);
   
   Rect2i fill_rect = rect_inverted_infinity();
   
@@ -389,7 +385,6 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
     }
   }
   
-  f32 one_255 = 255.0f;
   f32 inv_255 = 1.0f / 255.0f;
   
   v2 nx_axis = inverse_x_axis_squared * x_axis;
@@ -1255,11 +1250,11 @@ tiled_render_group_to_output(Platform_work_queue *render_queue,
       work->output_target = output_target;
       work->clip_rect = clip_rect;
       
-#if 1
-      platform_add_entry(render_queue, do_tile_render_work, work);
-#else
-      do_tile_render_work(render_queue, work);
-#endif
+      bool do_multithreaded_tiles = true;
+      if (do_multithreaded_tiles)
+        platform_add_entry(render_queue, do_tile_render_work, work);
+      else
+        do_tile_render_work(render_queue, work);
     }
   }
   

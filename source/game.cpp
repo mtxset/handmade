@@ -172,32 +172,18 @@ draw_circle(Loaded_bmp* bitmap_buffer, v2 start, f32 radius, v4 color) {
 internal
 void
 draw_line(Loaded_bmp* bitmap_buffer, v2 start, v2 end, v4 color, u32 points = 100) {
-  f32 m = (end.y - start.y) / (end.x - start.x);
-  // m - slope
-  // b - intercept
+  f32 dx = end.x - start.x;
+  f32 dy = end.y - start.y;
+  f32 steps = fabsf(dx) > fabsf(dy) ? fabsf(dx) : fabsf(dy);
+  f32 x_increment = dx / steps;
+  f32 y_increment = dy / steps;
+  f32 x = start.x;
+  f32 y = start.y;
   
-  // y - y1 = m(x - x1)
-  // y = m(x - x1) + y1
-  v2 vector = end - start;
-  
-  f32 x, i, inc;
-  f32 h = square_root(square(vector.x) + square(vector.y));
-  
-  inc = vector.x / points;
-  
-  if (end.x > start.x) {
-    for (x = start.x, i = 0; i <= points; x += inc, i++) {
-      f32 y = m * (x - start.x) + start.y;
-      v2 pixel = { x, y };
-      draw_pixel(bitmap_buffer, pixel, color);
-    }
-  }
-  else {
-    for (x = end.x, i = 0; i <= points; x -= inc, i++) {
-      f32 y = m * (x - start.x) + start.y;
-      v2 pixel = { x, y };
-      draw_pixel(bitmap_buffer, pixel, color);
-    }
+  for (int i = 0; i <= steps; i++) {
+    draw_pixel(bitmap_buffer, {x,y}, color);
+    x += x_increment;
+    y += y_increment;
   }
 }
 

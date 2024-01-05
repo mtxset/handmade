@@ -12,6 +12,13 @@
 #include "utils.cpp"
 #include "game.h" 
 
+// some race condition happening and introduced in 126 day
+// does not crash on -Od, crashes with -O2
+// most likely somehere race condition happens
+// very lame
+// running as exe as admin helps???
+#pragma optimize("", off)
+
 /* Add to win32 layer
 - save games locations
 - getting handle of our own executable
@@ -744,7 +751,6 @@ void
 handle_debug_cycle_count(Game_memory* memory) {
 #if INTERNAL
   
-  OutputDebugStringA("Cycles\n");
   for (u32 counter_index = 0; counter_index < macro_array_count(memory->counter_list); counter_index++) {
     
     Debug_cycle_counter* counter = memory->counter_list + counter_index;
@@ -752,9 +758,10 @@ handle_debug_cycle_count(Game_memory* memory) {
     if (counter->hit_count == 0) 
       continue;
     
-    bool print_cycles = true;
+    bool print_cycles = false;
     
     if (print_cycles) {
+      OutputDebugStringA("Cycles\n");
       char buffer[256];
       u64 cycles_per_hit = counter->cycle_count / counter->hit_count;
       _snprintf_s(buffer, sizeof(buffer),
@@ -772,7 +779,7 @@ handle_debug_cycle_count(Game_memory* memory) {
 
 struct Platform_work_queue_entry {
   Platform_work_queue_callback *callback;
-  void* data;
+  void *data;
 };
 
 struct Platform_work_queue {
@@ -799,9 +806,7 @@ struct String_entry {
 internal
 void
 win32_add_entry(Platform_work_queue *queue, Platform_work_queue_callback *callback, void *data) {
-  
-  u32 entry_count = macro_array_count(queue->entry_list);
-  u32 new_entry_to_write = (queue->next_entry_to_write + 1) % entry_count;
+  u32 new_entry_to_write = (queue->next_entry_to_write + 1) % macro_array_count(queue->entry_list);
   
   macro_assert(new_entry_to_write != queue->next_entry_to_read);
   
@@ -821,13 +826,13 @@ win32_add_entry(Platform_work_queue *queue, Platform_work_queue_callback *callba
   ReleaseSemaphore(queue->semaphore, 1, 0);
 }
 
+internal
 bool
 win32_do_next_work_q_entry(Platform_work_queue *queue) {
   bool we_should_sleep = false;
   
   u32 original_next_entry_to_read = queue->next_entry_to_read;
-  u32 entry_count = macro_array_count(queue->entry_list);
-  u32 new_entry_to_read = (original_next_entry_to_read + 1) % entry_count;
+  u32 new_entry_to_read = (original_next_entry_to_read + 1) % macro_array_count(queue->entry_list);
   
   if (original_next_entry_to_read != queue->next_entry_to_write) {
     
@@ -852,8 +857,9 @@ win32_do_next_work_q_entry(Platform_work_queue *queue) {
 internal
 void
 win32_complete_all_work(Platform_work_queue* queue) {
-  while (queue->completion_goal != queue->completion_count)
+  while (queue->completion_goal != queue->completion_count) {
     win32_do_next_work_q_entry(queue);
+  }
   
   queue->completion_count = 0;
   queue->completion_goal = 0;
@@ -873,8 +879,9 @@ thread_proc(LPVOID param) {
   Win32_thread_info *thread_info = (Win32_thread_info*)param;
   
   while (true) {
-    if (win32_do_next_work_q_entry(thread_info->queue))
-      WaitForSingleObjectEx(thread_info->queue->semaphore, INFINITE, false);
+    if (win32_do_next_work_q_entry(thread_info->queue)) {
+      WaitForSingleObjectEx(thread_info->queue->semaphore, INFINITE, 0);
+    }
   }
 }
 
@@ -882,20 +889,23 @@ i32
 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
   
   Platform_work_queue queue = {};
+  
   // create semaphore and threads
   {
     u32 initial_count = 0;
     Win32_thread_info info_list[7];
-    
     
     u32 thread_count = macro_array_count(info_list);
     queue.semaphore = CreateSemaphoreEx(0,            // default security attributes
                                         initial_count,// initial count
                                         thread_count, // maximum count
                                         0,            // unnamed semaphore
-                                        0, SEMAPHORE_ALL_ACCESS);
+                                        0,            // flags
+                                        SEMAPHORE_ALL_ACCESS);
     
-    for (u32 thread_index = 0; thread_index < thread_count; thread_index++) {
+    macro_assert(queue.semaphore != NULL);
+    
+    for (u32 thread_index = 0; thread_index < thread_count; ++thread_index) {
       Win32_thread_info *info = info_list + thread_index;
       
       info->queue = &queue;
@@ -908,6 +918,8 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
                                           info, // thread args
                                           0,    // start right away
                                           &thread_id);
+      
+      macro_assert(thread_handle != NULL);
       CloseHandle(thread_handle); // it will not terminate thread
       // but later in c runtime lib windows will call ExitProcess which will kill all threads
     }
@@ -924,8 +936,6 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     win32_add_entry(&queue, do_worker_work, "msg a7");
     win32_add_entry(&queue, do_worker_work, "msg a8");
     win32_add_entry(&queue, do_worker_work, "msg a9");
-    
-    Sleep(1000);
     
     win32_add_entry(&queue, do_worker_work, "msg b1");
     win32_add_entry(&queue, do_worker_work, "msg b2");
@@ -975,6 +985,11 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
   initial_window_height = 600; // 1080 
 #endif
   
+#if 0
+  initial_window_width  = 1920; // 2560
+  initial_window_height = 1080; // 1080 
+#endif
+  
   win32_resize_dib_section(&Global_backbuffer, initial_window_width, initial_window_height);
   
 #if INTERNAL
@@ -999,7 +1014,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
   if (win32_refresh_rate > 1)
     refresh_rate = win32_refresh_rate;
   local_persist const i32 monitor_refresh_rate     = refresh_rate;
-  local_persist const i32 game_update_refresh_rate = monitor_refresh_rate / 2;
+  local_persist const i32 game_update_refresh_rate = monitor_refresh_rate;
   
   f32 target_seconds_per_frame = 1.0f / (f32)game_update_refresh_rate;
   
@@ -1377,7 +1392,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       }
 #endif
       
-      bool output_to_debug_fps = false;
+      bool output_to_debug_fps = true;
       if (output_to_debug_fps) {
         auto cycles_elapsed = (u32)(end_cycle_count - begin_cycle_count);
         auto counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
@@ -1396,5 +1411,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     }
   }
   
+  CloseHandle(queue.semaphore);
   return 0;
 }
+#pragma optimize("", on) 
