@@ -198,6 +198,12 @@ v2 operator + (v2 a, v2 b) {
   return result;
 }
 
+inline
+v2 operator += (v2 &a, v2 b) {
+  a = a + b;
+  return a;
+}
+
 inline 
 v2 operator - (v2 a, v2 b) {
   v2 result;
@@ -206,12 +212,6 @@ v2 operator - (v2 a, v2 b) {
   result.y = a.y - b.y;
   
   return result;
-}
-
-inline
-v2 operator += (v2 &a, v2 b) {
-  a = a + b;
-  return a;
 }
 
 inline
@@ -311,6 +311,7 @@ clamp01(v2 value) {
   
   return result;
 }
+
 
 inline
 v3
@@ -811,6 +812,42 @@ f32 rad_to_degrees(f32 value) {
   f32 result;
   
   result = value * (180.0f / PI);
+  
+  return result;
+}
+
+inline
+v2
+lerp(v2 a, f32 t, v2 b) {
+  v2 result;
+  
+  result = (1.0f - t) * a + t * b;
+  
+  return result;
+}
+
+inline
+v2
+lerp_p3(v2 a, v2 b, v2 c, f32 t) {
+  v2 result;
+  
+  v2 lerp_ab = lerp(a, t, b);
+  v2 lerp_bc = lerp(b, t, c);
+  
+  result = lerp(lerp_ab, t, lerp_bc);
+  
+  return result;
+}
+
+inline
+v2
+lerp_p4(v2 a, v2 b, v2 c, v2 d, f32 t) {
+  v2 result;
+  
+  v2 lerp_abc = lerp_p3(a, b, c, t);
+  v2 lerp_bcd = lerp_p3(b, c, d, t);
+  
+  result = lerp(lerp_abc, t, lerp_bcd);
   
   return result;
 }

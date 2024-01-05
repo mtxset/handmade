@@ -144,8 +144,8 @@ draw_pixel(Loaded_bmp* bitmap_buffer, v2 pos, v4 color) {
     (f32)bitmap_buffer->height / 2 
   };
   
-  pos.y = -pos.y;
-  end.y = -end.y;
+  pos.y = pos.y;
+  end.y = end.y;
   
   end = { pos.x + 1.0f, pos.y + 1.0f };
   
@@ -172,32 +172,18 @@ draw_circle(Loaded_bmp* bitmap_buffer, v2 start, f32 radius, v4 color) {
 internal
 void
 draw_line(Loaded_bmp* bitmap_buffer, v2 start, v2 end, v4 color, u32 points = 100) {
-  f32 m = (end.y - start.y) / (end.x - start.x);
-  // m - slope
-  // b - intercept
+  f32 dx = end.x - start.x;
+  f32 dy = end.y - start.y;
+  f32 steps = fabsf(dx) > fabsf(dy) ? fabsf(dx) : fabsf(dy);
+  f32 x_increment = dx / steps;
+  f32 y_increment = dy / steps;
+  f32 x = start.x;
+  f32 y = start.y;
   
-  // y - y1 = m(x - x1)
-  // y = m(x - x1) + y1
-  v2 vector = end - start;
-  
-  f32 x, i, inc;
-  f32 h = square_root(square(vector.x) + square(vector.y));
-  
-  inc = vector.x / points;
-  
-  if (end.x > start.x) {
-    for (x = start.x, i = 0; i <= points; x += inc, i++) {
-      f32 y = m * (x - start.x) + start.y;
-      v2 pixel = { x, y };
-      draw_pixel(bitmap_buffer, pixel, color);
-    }
-  }
-  else {
-    for (x = end.x, i = 0; i <= points; x -= inc, i++) {
-      f32 y = m * (x - start.x) + start.y;
-      v2 pixel = { x, y };
-      draw_pixel(bitmap_buffer, pixel, color);
-    }
+  for (int i = 0; i <= steps; i++) {
+    draw_pixel(bitmap_buffer, {x,y}, color);
+    x += x_increment;
+    y += y_increment;
   }
 }
 
@@ -229,6 +215,151 @@ vectors_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) 
   
   draw_line(bitmap_buffer, { 0, 0 }, vec, green_v4);
   draw_line(bitmap_buffer, { 0, 0 }, perpendicular(vec), green_v4);
+}
+
+void draw_pixel_with_lighting(Loaded_bmp* bitmap_buffer, f32 x, f32 y, f32 sin_cos_state) {
+  
+  v2 screen_center = { 
+    (f32)bitmap_buffer->width / 2,
+    (f32)bitmap_buffer->height / 2 
+  };
+  
+  // Calculate distance from the center
+  f32 distance = sqrtf((x - (f32)bitmap_buffer->width/2.0f) * (x - (f32)bitmap_buffer->width/2.0f) + (y - (f32)bitmap_buffer->height/2.0f) * (y - (f32)bitmap_buffer->height/2.0f));
+  
+  // Calculate intensity based on distance (inverse relationship)
+  f32 intensity = 1.0f - (distance / sin_cos_state); // MAX_DISTANCE is a constant representing maximum distance
+  
+  // Apply the intensity to the color
+  v4 final_color = {
+    red_v4.r * intensity,
+    red_v4.g * intensity,
+    red_v4.b * intensity,
+    1.0f
+  };
+  
+  // Draw the pixel with the modified color
+  draw_pixel(bitmap_buffer, {x, y}, final_color);
+}
+
+f32 map_to_complex(f32 pixel, int size, f32 start, f32 end) {
+  return start + ((f32)pixel / size) * (end - start);
+}
+
+// Function to check if a point belongs to the Mandelbrot Set
+int mandelbrot(f32 cx, f32  cy) {
+  f32 x = 0.0f;
+  f32 y = 0.0f;
+  i32 iteration = 0;
+  
+  while (x * x + y * y <= 4 && iteration < 1000) {
+    f32 x_temp = x * x - y * y + cx;
+    y = 2 * x * y + cy;
+    x = x_temp;
+    iteration++;
+  }
+  
+  if (iteration == 1000) {
+    return 1; // The point is in the Mandelbrot Set
+  } else {
+    return 0; // The point is not in the Mandelbrot Set
+  }
+}
+
+internal
+void
+sin_cos_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) {
+  clear_screen(bitmap_buffer, color_black_byte);
+  
+  bool draw_mandelbrot_set = true;
+  if (draw_mandelbrot_set) {
+    
+    i32 height = 300;
+    i32 width = 300;
+    
+    for (f32 y = (f32)-height; y < height; ++y) {
+      for (f32 x = (f32)-width; x < width; ++x) {
+        // Map screen coordinates to Mandelbrot Set coordinates
+        f32 cx = map_to_complex(x, width, -2.5, 1.0);
+        f32 cy = map_to_complex(y, height, -1.0, 1.0);
+        
+        // Check if the point is in the Mandelbrot Set
+        int in_set = mandelbrot(cx, cy);
+        
+        // If the point is in the Mandelbrot Set, draw a pixel
+        if (in_set) {
+          f32 distance = sqrtf((x - width/2) * (x - width/2) + (y - height/2) * (y - height/2));
+          
+          f32 intensity = 1.0f - (distance / height);
+          v4 color = {intensity, intensity, intensity, 1.0f}; 
+          draw_pixel(bitmap_buffer, { x, y }, color);
+        }
+      }
+    }
+  }
+  
+  bool draw_letter_a = false;
+  if (draw_letter_a)
+  {
+    for (float x = -50; x <= 50; x += 1.0) {
+      draw_pixel(bitmap_buffer, {x, 50}, white_v4);
+    }
+    
+    // Left slanted line of 'A'
+    float startX = 0;
+    for (float y = 100; y >= 0; y -= 1) {
+      draw_pixel(bitmap_buffer, {startX, y}, white_v4);
+      startX += 1.0;
+    }
+    
+    // right slanted line of a
+    startX = 0;
+    for (float y = 100; y >= 0; y -= 1) {
+      draw_pixel(bitmap_buffer, {startX, y}, white_v4);
+      startX -= 1.0;
+    }
+  }
+  
+  
+  bool draw_lighting = false;
+  if (draw_lighting) {
+    for (f32 y = (f32)-bitmap_buffer->height; y < bitmap_buffer->height; ++y) {
+      for (f32 x = (f32)-bitmap_buffer->width; x < bitmap_buffer->width; ++x) {
+        
+        f32 *sin_cos_state = &state->sin_cos_state;
+        
+        *sin_cos_state += input->time_delta;
+        if (*sin_cos_state > 2.0f * PI) {
+          *sin_cos_state -= 2.0f * PI;
+        }
+        
+        draw_pixel_with_lighting(bitmap_buffer, x, y, *sin_cos_state);
+      }
+    }
+  }
+  
+  bool draw_sin_cos_circle = false;
+  if (draw_sin_cos_circle) {
+    f32 *sin_cos_state = &state->sin_cos_state;
+    
+    *sin_cos_state += input->time_delta;
+    if (*sin_cos_state > 2.0f * PI) {
+      *sin_cos_state -= 2.0f * PI;
+    }
+    
+    v2 sin_vec = {100, 0};
+    sin_vec.x = 100.0f * cos(*sin_cos_state);
+    sin_vec.y = 100.0f * sin(*sin_cos_state);
+    draw_line(bitmap_buffer, { 0, 0 }, sin_vec, green_v4);
+    draw_pixel(bitmap_buffer, sin_vec, red_v4);
+    
+    sin_vec.x = 0;
+    draw_pixel(bitmap_buffer, sin_vec, red_v4);
+    
+    sin_vec.x = 100.0f * cos(*sin_cos_state);
+    sin_vec.y = 0;
+    draw_pixel(bitmap_buffer, sin_vec, yellow_v4);
+  }
 }
 
 internal
@@ -801,7 +932,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
     }
   }
 #endif
-  tiled_render_group_to_output(render_group, bitmap_buffer);
+  tiled_render_group_to_output(tran_state->render_queue, render_group, bitmap_buffer);
   end_temp_memory(ground_memory);
 }
 
@@ -1038,6 +1169,95 @@ make_cylinder_normal_map_x(Loaded_bmp* bitmap, f32 roughness) {
 Game_memory* debug_global_memory;
 #endif
 
+internal
+void
+bezier_curves(Loaded_bmp* draw_buffer, Game_input* input, Game_state* game_state) {
+  auto input_state = get_gamepad(input, 0);
+  
+  clear_screen(draw_buffer, color_black_byte);
+  
+  game_state->time += input->time_delta;
+  
+  if (game_state->time > 2.0f * PI) 
+    game_state->time -= 2.0f * PI;
+  
+  if (!game_state->bezier_init) {
+    game_state->p0_offset = { 90.0f + sin(game_state->time * 10.0f) * -10.0f, 0.0f };
+    game_state->p3_offset = { 
+      -100.0f, 
+      -200.0f + sin(game_state->time * 10.0f) * -10.0f
+    };
+    game_state->bezier_init = true;
+  }
+  
+  f32 offset = 5.0f;
+  
+  if (input_state->up.ended_down) {
+    game_state->p0_offset.y += offset;
+  }
+  if (input_state->down.ended_down) {
+    game_state->p0_offset.y -= offset;
+  }
+  if (input_state->left.ended_down) {
+    game_state->p0_offset.x -= offset;
+  }
+  if (input_state->right.ended_down) {
+    game_state->p0_offset.x += offset;
+  }
+  
+  if (input_state->action_up.ended_down) {
+    game_state->p3_offset.y += offset;
+  }
+  if (input_state->action_down.ended_down) {
+    game_state->p3_offset.y -= offset;
+  }
+  if (input_state->action_left.ended_down) {
+    game_state->p3_offset.x -= offset;
+  }
+  if (input_state->action_right.ended_down) {
+    game_state->p3_offset.x += offset;
+  }
+  
+  v2 p0 = game_state->p0_offset;
+  
+  v2 p1 = { 
+    100.0f + sin(game_state->time * 10.0f) * 50.0f, 
+    100.0f - cos(game_state->time * 10.0f) * 50.0f
+  };
+  v2 p2 = { 
+    70.0f + sin(game_state->time * 10.0f) * -10.0f, 
+    100.0f - cos(game_state->time * 10.0f) * 10.0f
+  };
+  
+  v2 p3 = game_state->p3_offset;
+  
+  for (f32 t = 0.0f; t <= 1.0f; t += 0.001f) {
+    
+    // lines between points
+    {
+      v2 l_p0 = lerp(p0, t, p1);
+      v2 l_p1 = lerp(p1, t, p2);
+      v2 l_p2 = lerp(p2, t, p3);
+      
+      draw_pixel(draw_buffer, {l_p0.x, -l_p0.y}, green_v4);
+      draw_pixel(draw_buffer, {l_p1.x, -l_p1.y}, green_v4);
+      draw_pixel(draw_buffer, {l_p2.x, -l_p2.y}, green_v4);
+    }
+    
+    // helper lines
+    {
+      v2 h0 = lerp_p3(p0, p1, p2, t);
+      v2 h1 = lerp_p3(p1, p2, p3, t);
+      
+      draw_pixel(draw_buffer, {h0.x, -h0.y}, blue_v4);
+      draw_pixel(draw_buffer, {h1.x, -h1.y}, blue_v4);
+    }
+    
+    v2 bezier = lerp_p4(p0, p1, p2, p3, t);
+    draw_pixel(draw_buffer, {bezier.x, -bezier.y}, white_v4);
+  }
+}
+
 extern "C"
 void 
 game_update_render(thread_context* thread, Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer) {
@@ -1062,6 +1282,10 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
   
   // init game state
   if (!memory->is_initialized) {
+    
+    platform_add_entry = memory->platform_add_entry;
+    platform_complete_all_work = memory->platform_complete_all_work;
+    
     const u32 tiles_per_width  = 17;
     const u32 tiles_per_height = 9;
     
@@ -1210,7 +1434,6 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     
     // world generation
     Random_series series = random_seed(1234);
-    
     {
       const u32 room_goes_horizontal = 1;
       const u32 stairs_up = 2;
@@ -1353,6 +1576,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                      memory->transient_storage_size - sizeof(Transient_state),
                      (u8*)memory->transient_storage + sizeof(Transient_state));
     
+    tran_state->render_queue = memory->high_priority_queue;
     tran_state->ground_buffer_count = 256;
     tran_state->ground_buffer_list = mem_push_array(&tran_state->tran_arena, tran_state->ground_buffer_count, Ground_buffer);
     
@@ -1410,7 +1634,8 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
   
   // check input and move player
   {
-    for (i32 controller_index = 0; controller_index < macro_array_count(input->gamepad); controller_index++) {
+    i32 controller_count = macro_array_count(input->gamepad);
+    for (i32 controller_index = 0; controller_index < controller_count; controller_index++) {
       auto input_state = get_gamepad(input, controller_index);
       Controlled_hero* controlled = game_state->controlled_hero_list + controller_index;
       
@@ -1860,7 +2085,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     dis = {0,0};
   
   v2 origin = screen_center;
-#if 1
+#if 0
   v2 x_axis = 100.0f * v2{cos(angle), sin(angle)};
   v2 y_axis = perpendicular(x_axis);
   
@@ -1909,7 +2134,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
 #endif 
   
   // output buffers to bitmap
-  tiled_render_group_to_output(render_group, draw_buffer);
+  tiled_render_group_to_output(tran_state->render_queue, render_group, draw_buffer);
   
   end_sim(sim_region, game_state);
   
@@ -1918,16 +2143,26 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
   
   check_arena(&game_state->world_arena);
   check_arena(&tran_state->tran_arena);
+  
+#if 0
+  bezier_curves(draw_buffer, input, game_state);
+#endif
+  
 #if 0
   subpixel_test_update(draw_buffer, game_state, input, gold_v3);
 #endif
   
 #if 0
+  clear_screen(draw_buffer, color_black_byte);
   drops_update(draw_buffer, game_state, input);
 #endif
   
 #if 0
   vectors_update(draw_buffer, game_state, input);
+#endif
+  
+#if 0
+  sin_cos_update(draw_buffer, game_state, input);
 #endif
   
 #if 0

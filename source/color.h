@@ -40,13 +40,13 @@ global_var const v4 cyan_v4   = { 0.5f, 1.0f, 1.0f, 1.0f };
 inline
 v3 
 color_v4_v3(v4 color) {
-    v3 result;
-    
-    result.r = color.r;
-    result.g = color.g;
-    result.b = color.b;
-    
-    return result;
+  v3 result;
+  
+  result.r = color.r;
+  result.g = color.g;
+  result.b = color.b;
+  
+  return result;
 }
 
 #endif //COLOR_H

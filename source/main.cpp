@@ -1,4 +1,4 @@
-// https://youtu.be/W_szrzjYuvs?t=2125
+// https://www.youtube.com/watch?v=0jfDwujUY4Y
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include <stdio.h>
@@ -11,6 +11,13 @@
 #include "utils.h"
 #include "utils.cpp"
 #include "game.h" 
+
+// some race condition happening and introduced in 126 day
+// does not crash on -Od, crashes with -O2
+// most likely somehere race condition happens
+// very lame
+// running as exe as admin helps???
+#pragma optimize("", off)
 
 /* Add to win32 layer
 - save games locations
@@ -725,9 +732,9 @@ create_default_window(LRESULT win32_window_processor, HINSTANCE current_instance
   }
   
   result = CreateWindowEx(0, window_class.lpszClassName, "GG", 
-                          WS_OVERLAPPEDWINDOW | WS_VISIBLE, 
-                          CW_USEDEFAULT, CW_USEDEFAULT, 
-                          initial_window_width + 150, 
+                          WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                          CW_USEDEFAULT, CW_USEDEFAULT,
+                          initial_window_width + 150,
                           initial_window_height + 150, 
                           0, 0, current_instance, 0);
   
@@ -744,7 +751,6 @@ void
 handle_debug_cycle_count(Game_memory* memory) {
 #if INTERNAL
   
-  OutputDebugStringA("Cycles\n");
   for (u32 counter_index = 0; counter_index < macro_array_count(memory->counter_list); counter_index++) {
     
     Debug_cycle_counter* counter = memory->counter_list + counter_index;
@@ -752,9 +758,10 @@ handle_debug_cycle_count(Game_memory* memory) {
     if (counter->hit_count == 0) 
       continue;
     
-    bool print_cycles = true;
+    bool print_cycles = false;
     
     if (print_cycles) {
+      OutputDebugStringA("Cycles\n");
       char buffer[256];
       u64 cycles_per_hit = counter->cycle_count / counter->hit_count;
       _snprintf_s(buffer, sizeof(buffer),
@@ -770,87 +777,149 @@ handle_debug_cycle_count(Game_memory* memory) {
 #endif
 }
 
-
-struct Work_queue_entry {
-  char* str;
+struct Platform_work_queue_entry {
+  Platform_work_queue_callback *callback;
+  void *data;
 };
 
-global_var u32 volatile entry_completed_count;
-global_var u32 volatile next_entry_print;
-global_var u32 volatile entry_count;
-Work_queue_entry work_list[256];
+struct Platform_work_queue {
+  u32 volatile completion_goal;
+  u32 volatile completion_count;
+  
+  u32 volatile next_entry_to_write;
+  u32 volatile next_entry_to_read;
+  
+  HANDLE semaphore;
+  
+  Platform_work_queue_entry entry_list[256];
+};
 
-#define LIMIT_COMPILER_OPTIMIZATIONS _ReadWriteBarrier()
-#define LIMIT_CPU_OPTIMIZATIONS _mm_sfence()
+struct Win32_thread_info {
+  i32 index;
+  Platform_work_queue *queue;
+};
+
+struct String_entry {
+  char *str;
+};
 
 internal
 void
-push_string(HANDLE semaphore_handle, char* str) {
-  macro_assert(entry_count < macro_array_count(work_list));
-  Work_queue_entry* entry = work_list + entry_count;
-  entry->str = str;
-  LIMIT_COMPILER_OPTIMIZATIONS;
-  entry_count++;
+win32_add_entry(Platform_work_queue *queue, Platform_work_queue_callback *callback, void *data) {
+  u32 new_entry_to_write = (queue->next_entry_to_write + 1) % macro_array_count(queue->entry_list);
+  
+  macro_assert(new_entry_to_write != queue->next_entry_to_read);
+  
+  Platform_work_queue_entry *entry = queue->entry_list + queue->next_entry_to_write;
+  
+  entry->callback = callback;
+  entry->data = data;
+  
+  ++queue->completion_goal;
+  
+  _WriteBarrier();
+  _mm_sfence();
+  
+  queue->next_entry_to_write = new_entry_to_write;
   
   // wake up thread
-  ReleaseSemaphore(semaphore_handle, 1, 0);
+  ReleaseSemaphore(queue->semaphore, 1, 0);
 }
 
-struct Win32_thread_info {
-  HANDLE semaphore_handle;
-  i32 index;
-};
+internal
+bool
+win32_do_next_work_q_entry(Platform_work_queue *queue) {
+  bool we_should_sleep = false;
+  
+  u32 original_next_entry_to_read = queue->next_entry_to_read;
+  u32 new_entry_to_read = (original_next_entry_to_read + 1) % macro_array_count(queue->entry_list);
+  
+  if (original_next_entry_to_read != queue->next_entry_to_write) {
+    
+    u32 index = InterlockedCompareExchange((LONG volatile*)&queue->next_entry_to_read,
+                                           new_entry_to_read,
+                                           original_next_entry_to_read);
+    
+    if (index == original_next_entry_to_read) {
+      Platform_work_queue_entry entry = queue->entry_list[index];
+      entry.callback(queue, entry.data);
+      InterlockedIncrement((LONG volatile*)&queue->completion_count);
+    }
+    
+  }
+  else {
+    we_should_sleep = true;
+  }
+  
+  return we_should_sleep;
+}
+
+internal
+void
+win32_complete_all_work(Platform_work_queue* queue) {
+  while (queue->completion_goal != queue->completion_count) {
+    win32_do_next_work_q_entry(queue);
+  }
+  
+  queue->completion_count = 0;
+  queue->completion_goal = 0;
+}
+
+internal
+PLATFORM_WORK_QUEUE_CALLBACK(do_worker_work) {
+  
+  char buffer[256];
+  _snprintf_s(buffer, sizeof(buffer), "thread: %u; %s\n", GetCurrentThreadId(), (char*)data);
+  OutputDebugStringA(buffer);
+}
 
 DWORD
 WINAPI
-thread_func(LPVOID param) {
-  Win32_thread_info* thread_info = (Win32_thread_info*)param;
+thread_proc(LPVOID param) {
+  Win32_thread_info *thread_info = (Win32_thread_info*)param;
   
   while (true) {
-    if (next_entry_print < entry_count) {
-      i32 next_entry_id = InterlockedIncrement(&next_entry_print) - 1;//next_entry_print++;
-      
-      Work_queue_entry* entry = work_list + next_entry_id;
-      char buffer[256];
-      _snprintf_s(buffer, sizeof(buffer), "thread: %u; %s\n", thread_info->index, entry->str);
-      OutputDebugStringA(buffer);
-      
-      InterlockedIncrement(&entry_completed_count);
-    }
-    else {
-      WaitForSingleObjectEx(thread_info->semaphore_handle, 0L, false);
+    if (win32_do_next_work_q_entry(thread_info->queue)) {
+      WaitForSingleObjectEx(thread_info->queue->semaphore, INFINITE, 0);
     }
   }
-  
-  return 0;
 }
 
 i32
 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
   
-  const i32 thread_count = 7;
+  Platform_work_queue queue = {};
+  
   // create semaphore and threads
-  HANDLE semaphore;
   {
-    semaphore = CreateSemaphoreEx(0,            // default security attributes
-                                  0,            // initial count
-                                  thread_count, // maximum count
-                                  0,            // unnamed semaphore
-                                  0, SEMAPHORE_ALL_ACCESS);
+    u32 initial_count = 0;
+    Win32_thread_info info_list[7];
     
-    Win32_thread_info info_list[thread_count];
-    for (i32 i = 0; i < thread_count; i++) {
-      Win32_thread_info* info = info_list + i;
-      info->index = i;
-      info->semaphore_handle = semaphore;
+    u32 thread_count = macro_array_count(info_list);
+    queue.semaphore = CreateSemaphoreEx(0,            // default security attributes
+                                        initial_count,// initial count
+                                        thread_count, // maximum count
+                                        0,            // unnamed semaphore
+                                        0,            // flags
+                                        SEMAPHORE_ALL_ACCESS);
+    
+    macro_assert(queue.semaphore != NULL);
+    
+    for (u32 thread_index = 0; thread_index < thread_count; ++thread_index) {
+      Win32_thread_info *info = info_list + thread_index;
+      
+      info->queue = &queue;
+      info->index = thread_index;
       
       DWORD thread_id;
       HANDLE thread_handle = CreateThread(0, // security attributes
                                           0, // stack size  will default to the we have in current context
-                                          thread_func, // thread function
+                                          thread_proc, // thread function
                                           info, // thread args
-                                          0, // start right away
+                                          0,    // start right away
                                           &thread_id);
+      
+      macro_assert(thread_handle != NULL);
       CloseHandle(thread_handle); // it will not terminate thread
       // but later in c runtime lib windows will call ExitProcess which will kill all threads
     }
@@ -858,29 +927,27 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
   
   // do some work with threads
   {
-    push_string(semaphore, "msg a1");
-    push_string(semaphore, "msg a2");
-    push_string(semaphore, "msg a3");
-    push_string(semaphore, "msg a4");
-    push_string(semaphore, "msg a5");
-    push_string(semaphore, "msg a6");
-    push_string(semaphore, "msg a7");
-    push_string(semaphore, "msg a8");
-    push_string(semaphore, "msg a9");
+    win32_add_entry(&queue, do_worker_work, "msg a1");
+    win32_add_entry(&queue, do_worker_work, "msg a2");
+    win32_add_entry(&queue, do_worker_work, "msg a3");
+    win32_add_entry(&queue, do_worker_work, "msg a4");
+    win32_add_entry(&queue, do_worker_work, "msg a5");
+    win32_add_entry(&queue, do_worker_work, "msg a6");
+    win32_add_entry(&queue, do_worker_work, "msg a7");
+    win32_add_entry(&queue, do_worker_work, "msg a8");
+    win32_add_entry(&queue, do_worker_work, "msg a9");
     
-    Sleep(1000);
+    win32_add_entry(&queue, do_worker_work, "msg b1");
+    win32_add_entry(&queue, do_worker_work, "msg b2");
+    win32_add_entry(&queue, do_worker_work, "msg b3");
+    win32_add_entry(&queue, do_worker_work, "msg b4");
+    win32_add_entry(&queue, do_worker_work, "msg b5");
+    win32_add_entry(&queue, do_worker_work, "msg b6");
+    win32_add_entry(&queue, do_worker_work, "msg b7");
+    win32_add_entry(&queue, do_worker_work, "msg b8");
+    win32_add_entry(&queue, do_worker_work, "msg b9");
     
-    push_string(semaphore, "msg b1");
-    push_string(semaphore, "msg b2");
-    push_string(semaphore, "msg b3");
-    push_string(semaphore, "msg b4");
-    push_string(semaphore, "msg b5");
-    push_string(semaphore, "msg b6");
-    push_string(semaphore, "msg b7");
-    push_string(semaphore, "msg b8");
-    push_string(semaphore, "msg b9");
-    
-    while (entry_count != entry_completed_count);
+    win32_complete_all_work(&queue);
   }
   
   LARGE_INTEGER performance_freq, end_counter, last_counter, flip_wall_clock;
@@ -918,6 +985,11 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
   initial_window_height = 600; // 1080 
 #endif
   
+#if 0
+  initial_window_width  = 1920; // 2560
+  initial_window_height = 1080; // 1080 
+#endif
+  
   win32_resize_dib_section(&Global_backbuffer, initial_window_width, initial_window_height);
   
 #if INTERNAL
@@ -942,7 +1014,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
   if (win32_refresh_rate > 1)
     refresh_rate = win32_refresh_rate;
   local_persist const i32 monitor_refresh_rate     = refresh_rate;
-  local_persist const i32 game_update_refresh_rate = monitor_refresh_rate / 2;
+  local_persist const i32 game_update_refresh_rate = monitor_refresh_rate;
   
   f32 target_seconds_per_frame = 1.0f / (f32)game_update_refresh_rate;
   
@@ -966,6 +1038,10 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
 #else
     LPVOID base_address = 0;
 #endif
+    
+    memory.high_priority_queue = &queue;
+    memory.platform_add_entry = win32_add_entry;
+    memory.platform_complete_all_work = win32_complete_all_work;
     
     memory.permanent_storage_size = macro_megabytes(PERMANENT_MEMORY_SIZE_MB);
     memory.transient_storage_size = macro_megabytes(TRANSIENT_MEMORY_SIZE_MB);
@@ -1316,7 +1392,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       }
 #endif
       
-      bool output_to_debug_fps = false;
+      bool output_to_debug_fps = true;
       if (output_to_debug_fps) {
         auto cycles_elapsed = (u32)(end_cycle_count - begin_cycle_count);
         auto counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
@@ -1335,5 +1411,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     }
   }
   
+  CloseHandle(queue.semaphore);
   return 0;
 }
+#pragma optimize("", on) 
