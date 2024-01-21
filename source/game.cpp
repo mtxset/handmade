@@ -1261,6 +1261,10 @@ bezier_curves(Loaded_bmp* draw_buffer, Game_input* input, Game_state* game_state
 extern "C"
 void 
 game_update_render(thread_context* thread, Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer) {
+  
+  platform_add_entry = memory->platform_add_entry;
+  platform_complete_all_work = memory->platform_complete_all_work;
+  
 #if INTERNAL
   debug_global_memory = memory;
   auto start_cycle_count = __rdtsc();
@@ -1282,9 +1286,6 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
   
   // init game state
   if (!memory->is_initialized) {
-    
-    platform_add_entry = memory->platform_add_entry;
-    platform_complete_all_work = memory->platform_complete_all_work;
     
     const u32 tiles_per_width  = 17;
     const u32 tiles_per_height = 9;

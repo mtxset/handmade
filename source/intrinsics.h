@@ -1048,7 +1048,6 @@ get_barycentric(Rect2 a, v2 pos) {
   return result;
 }
 
-
 // Rect2 END
 
 // Rect3 START
@@ -1212,6 +1211,7 @@ get_barycentric(Rect3 a, v3 pos) {
   
   return result;
 }
+
 
 // RECT3 END
 

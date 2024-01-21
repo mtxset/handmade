@@ -32,4 +32,6 @@
 global_var f32 MAX_F32 = 3.402823466e+38F;
 global_var f32 MIN_F32 = 1.175494351e-38F;
 
+#define align_16(value) ((value + 15) & ~15)
+
 #endif //PLATFORM_H

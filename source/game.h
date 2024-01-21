@@ -336,7 +336,7 @@ Low_entity* get_low_entity(Game_state* game_state, u32 index) {
   return entity;
 }
 
-global_var Platform_add_entry *platform_add_entry;
+global_var Platform_add_entry         *platform_add_entry;
 global_var Platform_complete_all_work *platform_complete_all_work;
 
 #endif //GAME_H
