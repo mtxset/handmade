@@ -317,7 +317,7 @@ debug_simd_example() {
 
 internal
 void
-draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Loaded_bmp* bitmap, f32 pixel_to_meter, Rect2i clip_rect, bool even) {
+draw_rect_quak(Loaded_bmp *buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Loaded_bmp *bitmap, f32 pixel_to_meter, Rect2i clip_rect, bool even) {
   u64 start_cycle_timer = __rdtsc();
   
   debug_simd_example();
@@ -326,7 +326,6 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
   
   f32 inverse_x_axis_squared = 1.0f / length_squared(x_axis);
   f32 inverse_y_axis_squared = 1.0f / length_squared(y_axis);
-  
   
   Rect2i fill_rect = rect_inverted_infinity();
   
@@ -367,6 +366,34 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
   if (!rect_has_area(fill_rect))
     return;
   
+  __m128i start_clip_mask = _mm_set1_epi8(-1);
+  __m128i end_clip_mask = _mm_set1_epi8(-1);
+  
+  __m128i start_clip_masks[] = {
+    _mm_slli_si128(start_clip_mask, 0 * 4),
+    _mm_slli_si128(start_clip_mask, 1 * 4),
+    _mm_slli_si128(start_clip_mask, 2 * 4),
+    _mm_slli_si128(start_clip_mask, 3 * 4),
+  };
+  
+  __m128i end_clip_masks[] = {
+    _mm_srli_si128(end_clip_mask, 0 * 4),
+    _mm_srli_si128(end_clip_mask, 3 * 4),
+    _mm_srli_si128(end_clip_mask, 2 * 4),
+    _mm_srli_si128(end_clip_mask, 1 * 4),
+  };
+  
+  if (fill_rect.min_x & 3) {
+    start_clip_mask = start_clip_masks[fill_rect.min_x & 3];
+    fill_rect.min_x = fill_rect.min_x & ~3;
+  }
+  
+  if (fill_rect.max_x & 3) {
+    end_clip_mask = end_clip_masks[fill_rect.max_x & 3];
+    fill_rect.max_x = (fill_rect.max_x & ~3) + 4;
+  }
+  
+  /*
   // align into 16 bytes memory chunk
   __m128i startup_clip_mask = _mm_set1_epi32(0xffffffff);
   {
@@ -376,14 +403,13 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
     if (fill_width_align > 0) {
       i32 adjust = 4 - fill_width_align;
       switch (adjust) {
-        case 1: startup_clip_mask = _mm_slli_si128(startup_clip_mask, 1 * 4); break;
-        case 2: startup_clip_mask = _mm_slli_si128(startup_clip_mask, 2 * 4); break;
-        case 3: startup_clip_mask = _mm_slli_si128(startup_clip_mask, 3 * 4); break;
+        
       }
       fill_width += adjust;
       fill_rect.min_x = fill_rect.max_x - fill_width;
     }
   }
+  */
   
   f32 inv_255 = 1.0f / 255.0f;
   
@@ -411,10 +437,10 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
   __m128 height_m2 = _mm_set1_ps((f32)(bitmap->height - 2));
   
   i32 bitmap_pitch = bitmap->pitch;
-  void* bitmap_memory = bitmap->memory;
+  void *bitmap_memory = bitmap->memory;
   
   i32 bytes_per_pixel = BITMAP_BYTES_PER_PIXEL;
-  u8* row = (u8*)buffer->memory + fill_rect.min_x * bytes_per_pixel + fill_rect.min_y * buffer->pitch;
+  u8 *row = (u8*)buffer->memory + fill_rect.min_x * bytes_per_pixel + fill_rect.min_y * buffer->pitch;
   i32 row_advance = 2 * buffer->pitch;
   
   i32 min_x = fill_rect.min_x;
@@ -434,9 +460,9 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                                     (f32)(min_x + 0));
     pixel_pos_x = _mm_sub_ps(pixel_pos_x, origin_x_4x);
     
-    __m128i clip_mask = startup_clip_mask;
+    __m128i clip_mask = start_clip_mask;
     
-    u32* pixel = (u32*)row;
+    u32 *pixel = (u32*)row;
     for (i32 x = min_x; x < max_x; x += 4) {
       
       IACA_VC64_START;
@@ -450,7 +476,7 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
       
       write_mask = _mm_and_si128(write_mask, clip_mask);
       
-      __m128i original_dest = _mm_loadu_si128((__m128i*) pixel);
+      __m128i original_dest = _mm_load_si128((__m128i*) pixel);
       
       u = _mm_min_ps(_mm_max_ps(u, zero_4x), one_4x);
       v = _mm_min_ps(_mm_max_ps(v, zero_4x), one_4x);
@@ -664,11 +690,18 @@ draw_rect_quak(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
                                         _mm_andnot_si128(write_mask, original_dest));
       
       // to bypass alignent in 16 bytes
-      _mm_storeu_si128((__m128i *)pixel, masket_out);
+      _mm_store_si128((__m128i *)pixel, masket_out);
       
       pixel_pos_x = _mm_add_ps(pixel_pos_x, four_4x); 
       pixel += 4;
-      clip_mask = _mm_set1_epi32(0xffffffff);
+      
+      if (x + 8 < max_x) {
+        clip_mask = _mm_set1_epi32(0xffffffff);
+      }
+      else {
+        clip_mask = end_clip_mask;
+      }
+      
     }
     IACA_VC64_END;
     row += row_advance;
@@ -1211,7 +1244,7 @@ struct Tile_render_work
 internal
 PLATFORM_WORK_QUEUE_CALLBACK(do_tile_render_work)
 {
-  Tile_render_work* work = (Tile_render_work*)data;
+  Tile_render_work *work = (Tile_render_work*)data;
   
   bool even = true;
   bool not_even = false;
@@ -1225,12 +1258,16 @@ void
 tiled_render_group_to_output(Platform_work_queue *render_queue, 
                              Render_group *render_group, Loaded_bmp *output_target) {
   
-  i32 const tile_count_x = 4;
-  i32 const tile_count_y = 4;
+  i32 const tile_count_x = 9;
+  i32 const tile_count_y = 9;
   Tile_render_work work_array[tile_count_y * tile_count_x];
   
-  int tile_width = output_target->width / tile_count_x;
-  int tile_height = output_target->height / tile_count_y;
+  macro_assert(((uintptr)output_target->memory & 15) == 0);
+  
+  i32 tile_width = output_target->width / tile_count_x;
+  i32 tile_height = output_target->height / tile_count_y;
+  
+  tile_width = ((tile_width + 3) / 4) * 4;
   
   i32 work_count = 0;
   for (i32 tile_y = 0; tile_y < tile_count_y; tile_y++) {
@@ -1240,11 +1277,18 @@ tiled_render_group_to_output(Platform_work_queue *render_queue,
       
       Rect2i clip_rect;
       
-      clip_rect.min_x = tile_x * tile_width  + 4;
-      clip_rect.min_y = tile_y * tile_height + 4;
+      clip_rect.min_x = tile_x * tile_width;
+      clip_rect.min_y = tile_y * tile_height;
       
-      clip_rect.max_x = clip_rect.min_x + tile_width  - 4;
-      clip_rect.max_y = clip_rect.min_y + tile_height - 4;
+      clip_rect.max_x = clip_rect.min_x + tile_width;
+      clip_rect.max_y = clip_rect.min_y + tile_height;
+      
+      if (tile_x == tile_count_x - 1) {
+        clip_rect.max_x = output_target->width;
+      }
+      if (tile_y == tile_count_y - 1) {
+        clip_rect.max_y = output_target->height;
+      }
       
       work->render_group = render_group;
       work->output_target = output_target;

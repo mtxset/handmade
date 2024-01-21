@@ -348,7 +348,7 @@ win32_resize_dib_section(Win32_bitmap_buffer* bitmap_buffer, i32 width, i32 heig
   bitmap_buffer->width = width;
   bitmap_buffer->height = height;
   bitmap_buffer->bytes_per_pixel = 4;
-  bitmap_buffer->pitch = bitmap_buffer->bytes_per_pixel * width;
+  bitmap_buffer->pitch = align_16(bitmap_buffer->bytes_per_pixel * width);
   
   bitmap_buffer->info.bmiHeader.biSize = sizeof(bitmap_buffer->info.bmiHeader);
   bitmap_buffer->info.bmiHeader.biWidth = width;
@@ -358,7 +358,7 @@ win32_resize_dib_section(Win32_bitmap_buffer* bitmap_buffer, i32 width, i32 heig
   bitmap_buffer->info.bmiHeader.biCompression = BI_RGB;
   
   // we are taking 4 bytes (8 bits for each color (rgb) + aligment 8 bits = 32 bits) for each pixel
-  auto bitmap_memory_size = width * height * bitmap_buffer->bytes_per_pixel;
+  auto bitmap_memory_size = bitmap_buffer->pitch * height;
   // virtual alloc allocates region of page which, one page size is 1 mb? GetSystemInfo can output that info
   bitmap_buffer->memory = VirtualAlloc(0, bitmap_memory_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 }
@@ -817,8 +817,8 @@ win32_add_entry(Platform_work_queue *queue, Platform_work_queue_callback *callba
   
   ++queue->completion_goal;
   
-  _WriteBarrier();
-  _mm_sfence();
+  _WriteBarrier(); // tell compiler not move stores around
+  // _mm_sfence(); not neccessary (cpu not to move around???)
   
   queue->next_entry_to_write = new_entry_to_write;
   
@@ -988,6 +988,12 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
 #if 0
   initial_window_width  = 1920; // 2560
   initial_window_height = 1080; // 1080 
+#endif
+  
+#if 0
+  // win does not support pitch
+  initial_window_width  = 1279;
+  initial_window_height = 719;
 #endif
   
   win32_resize_dib_section(&Global_backbuffer, initial_window_width, initial_window_height);

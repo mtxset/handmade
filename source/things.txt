@@ -1,0 +1,18 @@
+Aligning memory
+ let's say we have threads who load tile work in following manner:
+
+ |AAAA|AABB|BBBB|
+
+ such that A is done by 1 thread and B is done by 2 thread.
+
+ 1 takes AABB
+ 2 takes AABB
+
+ 1 works on AA
+ 2 works on BB
+
+ when both done they return
+ 1 A'A'BB
+ 2 A A B'B
+
+ thus overwriting values of each other's work 	
