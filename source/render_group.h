@@ -73,6 +73,8 @@ struct Render_entry_bitmap {
 
 struct Render_transform {
   
+  bool orthographic;
+  
   f32 meters_to_pixels;
   v2 screen_center;
   

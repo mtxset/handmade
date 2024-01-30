@@ -846,24 +846,26 @@ void
 fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_buffer* ground_buffer, World_position* chunk_pos) {
   
   Temp_memory ground_memory = begin_temp_memory(&tran_state->tran_arena);
+  ground_buffer->position = *chunk_pos;
   
   Loaded_bmp* bitmap_buffer = &ground_buffer->bitmap;
-  
   bitmap_buffer->align_pcent = { 0.5f, 0.5f };
   bitmap_buffer->width_over_height = 1.0f;
   
-  Render_group* render_group = allocate_render_group(&tran_state->tran_arena, macro_megabytes(4), bitmap_buffer->width, bitmap_buffer->height);
+  f32 width  = game_state->world->chunk_dim_meters.x;
+  f32 height = game_state->world->chunk_dim_meters.y;
+  macro_assert(width == height);
+  
+  v2 half_dim = 0.5f * v2{width, height};
+  //half_dim = 2.0f * half_dim;
+  
+  Render_group* render_group = allocate_render_group(&tran_state->tran_arena, macro_megabytes(4));
+  ortographic(render_group, bitmap_buffer->width, bitmap_buffer->height, bitmap_buffer->width / width);
   
   push_clear(render_group, yellow_v4);
   
-  ground_buffer->position = *chunk_pos;
-  
 #if 1
-  f32 width  = game_state->world->chunk_dim_meters.x;
-  f32 height = game_state->world->chunk_dim_meters.y;
   
-  v2 half_dim = 0.5f * v2{width, height};
-  half_dim = 2.0f * half_dim;
   
   u32 random_number_index = 0;
   for (i32 chunk_offset_y = -1; chunk_offset_y <= 1; chunk_offset_y++) {
@@ -898,7 +900,8 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
           center + 
           hadamard(half_dim, v2 { random_bilateral(&series), random_bilateral(&series) });
         
-        push_bitmap(render_group, stamp, 4.0f, v2_to_v3(pos, 0.0f));
+        f32 splat_size = 2.0f;
+        push_bitmap(render_group, stamp, splat_size, v2_to_v3(pos, 0.0f));
       }
     }
   }
@@ -912,7 +915,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
       
       Random_series series = random_seed(139 * chunk_x + 593 * chunk_y + 329 * chunk_z);
       
-      v2 center = v2 {chunk_offset_x * width, chunk_offset_y * height};
+      v2 center = {chunk_offset_x * width, chunk_offset_y * height}; 
       
       for (u32 grass_index = 0; grass_index < 50; grass_index++) {
         macro_assert(random_number_index < macro_array_count(random_number_table));
@@ -925,9 +928,10 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
         
         v2 pos = 
           center + 
-          hadamard(half_dim, v2 { random_bilateral(&series), random_bilateral(&series) });
+          hadamard(half_dim, { random_bilateral(&series), random_bilateral(&series) });
         
-        push_bitmap(render_group, stamp, 0.4f, v2_to_v3(pos, 0.0f));
+        f32 grass_size = 0.1f;
+        push_bitmap(render_group, stamp, grass_size, v2_to_v3(pos, 0.0f));
       }
     }
   }
@@ -1708,7 +1712,12 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
   draw_buffer->memory = bitmap_buffer->memory;
   
   Temp_memory render_memory = begin_temp_memory(&tran_state->tran_arena);
-  Render_group* render_group = allocate_render_group(&tran_state->tran_arena, macro_megabytes(4), draw_buffer->width, draw_buffer->height);
+  
+  Render_group* render_group = allocate_render_group(&tran_state->tran_arena, macro_megabytes(4));
+  
+  f32 width_of_monitor = 0.635f;
+  f32 meters_to_pixels = (f32)draw_buffer->width * width_of_monitor;
+  perspective(render_group, draw_buffer->width, draw_buffer->height, meters_to_pixels, 0.6f, 9.0f);
   
   // clear screen
   push_clear(render_group, grey_v4);
@@ -1751,7 +1760,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     f32 ground_side_meters = world->chunk_dim_meters.x;
     push_bitmap(render_group, bitmap, ground_side_meters, delta);
     
-    bool show_chunk_outlines = true;
+    bool show_chunk_outlines = false;
     
     if (show_chunk_outlines) {
       push_rect_outline(render_group,
@@ -2055,7 +2064,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
           v4 color = checker_on ? to_v4(map_color[map_index], 1.0f) : v4{0,0,0,1};
           v2 min_pos = v2_i32(x, y);
           v2 max_pos = min_pos + v2_i32(checker_width, checker_height);
-          draw_rect(lod, min_pos, max_pos, color);
+          draw_rect_old(lod, min_pos, max_pos, color);
           checker_on = !checker_on;
         }
         row_checker_on = !row_checker_on;
