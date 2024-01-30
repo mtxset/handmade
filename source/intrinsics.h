@@ -357,6 +357,16 @@ u32 quadrant_v2(v2 a) {
 }
 
 inline
+v2
+v3_to_v2(v3 a) {
+  v2 result;
+  
+  result = {a.x, a.y};
+  
+  return result;
+}
+
+inline
 v3
 v2_to_v3(v2 a, f32 z) {
   v3 result;

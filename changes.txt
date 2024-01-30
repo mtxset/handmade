@@ -9,6 +9,11 @@ Enter will spawn player
 WASD, arrows moves him
 Space - jumps
 
+day 127:
+ threading done
+ https://youtu.be/8L21Tyh53BQ?t=3915 more cache details (cache lines) 
+
+
 day 124:
  a variable maybe changed without compiler knowing it can change, like by other thread
  "transactional memory"
