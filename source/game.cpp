@@ -858,7 +858,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
   
   ground_buffer->position = *chunk_pos;
   
-#if 0
+#if 1
   f32 width  = game_state->world->chunk_dim_meters.x;
   f32 height = game_state->world->chunk_dim_meters.y;
   
@@ -1748,18 +1748,14 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     if (delta.z >= 1.0f || delta.z <= -1.0f)
       continue;
     
-    Render_basis* basis = mem_push_struct(&tran_state->tran_arena, Render_basis);
-    render_group->default_basis = basis;
-    basis->position = delta;
-    
     f32 ground_side_meters = world->chunk_dim_meters.x;
-    push_bitmap(render_group, bitmap, ground_side_meters, v3{0,0,0});
+    push_bitmap(render_group, bitmap, ground_side_meters, delta);
     
     bool show_chunk_outlines = true;
     
     if (show_chunk_outlines) {
       push_rect_outline(render_group,
-                        v3{0,0,0},
+                        delta,
                         v2{ground_side_meters, ground_side_meters},
                         yellow_v4);
     }
@@ -1830,10 +1826,6 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                            game_state->camera_pos, sim_camera_bounds, input->time_delta);
   }
   
-  Render_basis* main_basis = mem_push_struct(&tran_state->tran_arena, Render_basis);
-  main_basis->position = v3{0,0,0};
-  render_group->default_basis = main_basis;
-  
   // draw debug bounds
   {
     push_rect_outline(render_group, v3{0,0,0}, get_dim(screen_bounds), yellow_v4);
@@ -1862,9 +1854,6 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
       Move_spec move_spec = default_move_spec();
       v3 ddp = {};
       
-      Render_basis* basis = mem_push_struct(&tran_state->tran_arena, Render_basis);
-      render_group->default_basis = basis;
-      
       // fadding out things based on camera z
       {
         v3 cam_relative_ground_pos = get_entity_ground_point(entity) - camera_pos;
@@ -1883,7 +1872,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         }
       }
       
-      // update entities
+      // pre physics
       switch (entity->type) {
         case Entity_type_hero: {
           
@@ -1914,27 +1903,19 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
               }
             }
           }
+        } break;
+        
+        case Entity_type_sword: {
           
-          Hero_bitmaps* hero_bitmap = &game_state->hero_bitmaps[entity->facing_direction];
+          move_spec.max_acceleration_vector = false;
+          move_spec.speed = 0.0f;
+          move_spec.drag = 0.0f;
+          move_spec.boost = 0.0f;
           
-          /*
-          // jump
-          f32 jump_z;
-          {
-              
-              entity->z_velocity_d = ddz * time_delta + entity->z_velocity_d;
-              
-              
-              
-              jump_z = -entity->z;
+          if (entity->distance_limit == 0.0f) {
+            clear_collision_rule(game_state, entity->storage_index);
+            make_entity_non_spatial(entity);
           }
-          */
-          f32 hero_size = 2.5f;
-          push_bitmap(render_group, &hero_bitmap->torso, hero_size * 1.2f, v3{0, 0, 0});
-          push_bitmap(render_group, &hero_bitmap->cape, hero_size * 1.2f, v3{0, 0, 0});
-          push_bitmap(render_group, &hero_bitmap->head, hero_size * 1.2f, v3{0, 0, 0});
-          
-          draw_hitpoints(render_group, entity);
         } break;
         
         case Entity_type_familiar: {
@@ -1971,6 +1952,27 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
           move_spec.drag = 8.0f;
           move_spec.boost = 1.0f;
           
+        } break;
+        
+      }
+      
+      render_group->transform.offset_pos = get_entity_ground_point(entity);
+      
+      // post physics
+      switch (entity->type) {
+        case Entity_type_hero: {
+          
+          Hero_bitmaps* hero_bitmap = &game_state->hero_bitmaps[entity->facing_direction];
+          f32 hero_size = 2.5f;
+          push_bitmap(render_group, &hero_bitmap->torso, hero_size * 1.2f, v3{0, 0, 0});
+          push_bitmap(render_group, &hero_bitmap->cape, hero_size * 1.2f, v3{0, 0, 0});
+          push_bitmap(render_group, &hero_bitmap->head, hero_size * 1.2f, v3{0, 0, 0});
+          
+          draw_hitpoints(render_group, entity);
+        } break;
+        
+        case Entity_type_familiar: {
+          
           entity->t_bob += time_delta;
           if (entity->t_bob > 2.0f * PI) {
             entity->t_bob -= 2.0f * PI;
@@ -1980,29 +1982,22 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         } break;
         
         case Entity_type_monster: {
+          
           push_bitmap(render_group, &game_state->monster, 1.0f, v3{0, 0, 0});
           draw_hitpoints(render_group, entity);
+          
         } break;
         
         case Entity_type_sword: {
           
-          move_spec.max_acceleration_vector = false;
-          move_spec.speed = 0.0f;
-          move_spec.drag = 0.0f;
-          move_spec.boost = 0.0f;
-          
-          if (entity->distance_limit == 0.0f) {
-            clear_collision_rule(game_state, entity->storage_index);
-            make_entity_non_spatial(entity);
-          }
-          
           push_bitmap(render_group, &game_state->sword, 1.0f, v3{0, 0, 0});
+          
         } break;
         
         case Entity_type_wall: {
-          //draw_rect(draw_buffer, player_start, player_end, color_player);
           
           push_bitmap(render_group, &game_state->tree, 2.5f, v3{0,0,0});
+          
         } break;
         
         case Entity_type_stairwell: {
@@ -2026,6 +2021,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         default: {
           macro_assert(!"INVALID");
         } break;
+        
       }
       
       if (!is_set(entity, Entity_flag_non_spatial) &&
@@ -2033,7 +2029,6 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
         move_entity(game_state, sim_region, entity, input->time_delta, &move_spec, ddp);
       }
       
-      basis->position = get_entity_ground_point(entity);
     }
   }
   
