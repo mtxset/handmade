@@ -76,27 +76,35 @@ get_render_entity_basis_pos(Render_transform *transform, v3 original_pos) {
   
   v3 pos = v2_to_v3(original_pos.xy, 0) + transform->offset_pos;
   
-  f32 offzet_z = 0.0f;
-  
-  f32 dist_above_target = transform->dist_above_target;
-  
-  bool debug_camera = false;
-  if (debug_camera) {
-    dist_above_target += 50.0f;
-  }
-  
-  f32 dist_to_p = dist_above_target - pos.z;
-  f32 near_clip_plane = 0.2f;
-  
-  v3 raw_xy = v2_to_v3(pos.xy, 1.0f);
-  
-  if (dist_to_p > near_clip_plane) {
-    v3 projected_xy = (1.0f / dist_to_p) * transform->focal_length * raw_xy;
-    
-    result.scale = transform->meters_to_pixels * projected_xy.z;
-    result.pos = transform->screen_center + transform->meters_to_pixels * projected_xy.xy +
-      v2 {0, result.scale * offzet_z};
+  if (transform->orthographic) {
+    result.pos = transform->screen_center + transform->meters_to_pixels * pos.xy;
+    result.scale = transform->meters_to_pixels;
     result.valid = true;
+  }
+  else {
+    
+    f32 offzet_z = 0.0f;
+    
+    f32 dist_above_target = transform->dist_above_target;
+    
+    bool debug_camera = false;
+    if (debug_camera) {
+      dist_above_target += 50.0f;
+    }
+    
+    f32 dist_to_p = dist_above_target - pos.z;
+    f32 near_clip_plane = 0.2f;
+    
+    v3 raw_xy = v2_to_v3(pos.xy, 1.0f);
+    
+    if (dist_to_p > near_clip_plane) {
+      v3 projected_xy = (1.0f / dist_to_p) * transform->focal_length * raw_xy;
+      
+      result.scale = transform->meters_to_pixels * projected_xy.z;
+      result.pos = transform->screen_center + transform->meters_to_pixels * projected_xy.xy +
+        v2 {0, result.scale * offzet_z};
+      result.valid = true;
+    }
   }
   
   return result;
@@ -1315,7 +1323,7 @@ tiled_render_group_to_output(Platform_work_queue *render_queue,
 
 internal
 Render_group*
-allocate_render_group(Memory_arena* arena, u32 max_push_buffer_size, u32 resolution_pixels_x, u32 resolution_pixels_y) {
+allocate_render_group(Memory_arena* arena, u32 max_push_buffer_size) {
   Render_group* result = mem_push_struct(arena, Render_group);
   result->push_buffer_base = (u8*)mem_push_size(arena, max_push_buffer_size);
   
@@ -1324,23 +1332,52 @@ allocate_render_group(Memory_arena* arena, u32 max_push_buffer_size, u32 resolut
   
   result->global_alpha = 1.0f;
   
-  f32 width_of_monitor = 0.635f;
-  f32 meters_to_pixels = (f32)resolution_pixels_x * width_of_monitor;
-  f32 pixels_to_meters = safe_ratio_1(1.0f, meters_to_pixels);
-  
-  result->monitor_half_dim_meters = {
-    0.5f * resolution_pixels_x * pixels_to_meters,
-    0.5f * resolution_pixels_y * pixels_to_meters
-  };
-  
-  result->transform.meters_to_pixels = meters_to_pixels;
-  result->transform.focal_length = 0.6f;
-  result->transform.dist_above_target = 9.0f;
-  result->transform.screen_center = {0.5f * resolution_pixels_x, 0.5f * resolution_pixels_y};
   result->transform.offset_pos = {0,0,0};
   result->transform.scale = 1.0f;
   
   return result;
+}
+
+inline
+void
+perspective(Render_group *render_group, u32 pixel_width, u32 pixel_height, f32 meters_to_pixels, f32 focal_length, f32 dist_above_target) {
+  
+  f32 pixels_to_meters = safe_ratio_1(1.0f, meters_to_pixels);
+  
+  render_group->monitor_half_dim_meters = {
+    0.5f * pixel_width * pixels_to_meters,
+    0.5f * pixel_height * pixels_to_meters
+  };
+  
+  render_group->transform.meters_to_pixels = meters_to_pixels;
+  render_group->transform.focal_length = focal_length;
+  render_group->transform.dist_above_target = dist_above_target;
+  render_group->transform.screen_center = {
+    0.5f * pixel_width,
+    0.5f * pixel_height 
+  };
+  render_group->transform.orthographic = false;
+}
+
+inline
+void
+ortographic(Render_group *render_group, u32 pixel_width, u32 pixel_height, f32 meters_to_pixels) {
+  
+  f32 pixels_to_meters = safe_ratio_1(1.0f, meters_to_pixels);
+  
+  render_group->monitor_half_dim_meters = {
+    0.5f * pixel_width * pixels_to_meters,
+    0.5f * pixel_height * pixels_to_meters
+  };
+  
+  render_group->transform.meters_to_pixels = meters_to_pixels;
+  render_group->transform.focal_length = 1.0f;
+  render_group->transform.dist_above_target = 1.0f;
+  render_group->transform.screen_center = {
+    0.5f * pixel_width,
+    0.5f * pixel_height 
+  };
+  render_group->transform.orthographic = true;
 }
 
 inline
