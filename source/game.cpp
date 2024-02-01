@@ -860,12 +860,13 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
   //half_dim = 2.0f * half_dim;
   
   Render_group* render_group = allocate_render_group(&tran_state->tran_arena, macro_megabytes(4));
-  ortographic(render_group, bitmap_buffer->width, bitmap_buffer->height, bitmap_buffer->width / width);
+  
+  ortographic(render_group, bitmap_buffer->width, bitmap_buffer->height,
+              (bitmap_buffer->width -2) / width);
   
   push_clear(render_group, yellow_v4);
   
 #if 1
-  
   
   u32 random_number_index = 0;
   for (i32 chunk_offset_y = -1; chunk_offset_y <= 1; chunk_offset_y++) {
@@ -936,7 +937,8 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
     }
   }
 #endif
-  tiled_render_group_to_output(tran_state->render_queue, render_group, bitmap_buffer);
+  
+  tiled_render_group_to_output(tran_state->high_priority_queue, render_group, bitmap_buffer);
   end_temp_memory(ground_memory);
 }
 
@@ -1581,7 +1583,8 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
                      memory->transient_storage_size - sizeof(Transient_state),
                      (u8*)memory->transient_storage + sizeof(Transient_state));
     
-    tran_state->render_queue = memory->high_priority_queue;
+    tran_state->high_priority_queue = memory->high_priority_queue;
+    tran_state->low_priority_queue = memory->low_priority_queue;
     tran_state->ground_buffer_count = 256;
     tran_state->ground_buffer_list = mem_push_array(&tran_state->tran_arena, tran_state->ground_buffer_count, Ground_buffer);
     
@@ -1717,7 +1720,9 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
   
   f32 width_of_monitor = 0.635f;
   f32 meters_to_pixels = (f32)draw_buffer->width * width_of_monitor;
-  perspective(render_group, draw_buffer->width, draw_buffer->height, meters_to_pixels, 0.6f, 9.0f);
+  f32 focal_length = 0.6f;
+  f32 dist_above_ground = 9.0f;
+  perspective(render_group, draw_buffer->width, draw_buffer->height, meters_to_pixels, focal_length, dist_above_ground);
   
   // clear screen
   push_clear(render_group, grey_v4);
@@ -2139,7 +2144,7 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
 #endif 
   
   // output buffers to bitmap
-  tiled_render_group_to_output(tran_state->render_queue, render_group, draw_buffer);
+  tiled_render_group_to_output(tran_state->high_priority_queue, render_group, draw_buffer);
   
   end_sim(sim_region, game_state);
   

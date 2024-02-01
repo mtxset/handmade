@@ -87,7 +87,7 @@ get_render_entity_basis_pos(Render_transform *transform, v3 original_pos) {
     
     f32 dist_above_target = transform->dist_above_target;
     
-    bool debug_camera = false;
+    bool debug_camera = true;
     if (debug_camera) {
       dist_above_target += 50.0f;
     }
@@ -474,6 +474,7 @@ draw_rect_quak(Loaded_bmp *buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
   
   __m128 zero_4x = _mm_set1_ps(0.0f);
   __m128 one_4x = _mm_set1_ps(1.0f);
+  __m128 half_4x = _mm_set1_ps(0.5f);
   __m128 four_4x = _mm_set1_ps(4.0f);
   __m128 one_255_4x = _mm_set1_ps(255.0f);
   __m128 inv_255_4x = _mm_set1_ps(inv_255);
@@ -537,8 +538,8 @@ draw_rect_quak(Loaded_bmp *buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
       u = _mm_min_ps(_mm_max_ps(u, zero_4x), one_4x);
       v = _mm_min_ps(_mm_max_ps(v, zero_4x), one_4x);
       
-      __m128 t_x = _mm_mul_ps(u, width_m2);
-      __m128 t_y = _mm_mul_ps(v, height_m2);
+      __m128 t_x = _mm_add_ps(_mm_mul_ps(u, width_m2), half_4x);
+      __m128 t_y = _mm_add_ps(_mm_mul_ps(v, height_m2), half_4x);
       
       __m128i fetch_x_4x = _mm_cvttps_epi32(t_x);
       __m128i fetch_y_4x = _mm_cvttps_epi32(t_y);
