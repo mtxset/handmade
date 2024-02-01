@@ -114,6 +114,8 @@ typedef struct Game_memory {
   void* transient_storage;
   
   Platform_work_queue *high_priority_queue;
+  Platform_work_queue *low_priority_queue;
+  
   Platform_add_entry *platform_add_entry;
   Platform_complete_all_work *platform_complete_all_work;
   
@@ -157,6 +159,7 @@ struct Pacman_state {
   i32 player_tile_x;
   i32 player_tile_y;
   f32 move_timer;
+  
   bool can_move;
 };
 
@@ -304,7 +307,10 @@ struct Transient_state {
   Memory_arena tran_arena;
   u32 ground_buffer_count;
   Ground_buffer* ground_buffer_list;
-  Platform_work_queue *render_queue;
+  
+  Platform_work_queue *high_priority_queue;
+  Platform_work_queue *low_priority_queue;
+  u64 _pad;
   
   u32 env_map_width;
   u32 env_map_height;

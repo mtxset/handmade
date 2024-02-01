@@ -794,11 +794,6 @@ struct Platform_work_queue {
   Platform_work_queue_entry entry_list[256];
 };
 
-struct Win32_thread_info {
-  i32 index;
-  Platform_work_queue *queue;
-};
-
 struct String_entry {
   char *str;
 };
@@ -876,79 +871,87 @@ PLATFORM_WORK_QUEUE_CALLBACK(do_worker_work) {
 DWORD
 WINAPI
 thread_proc(LPVOID param) {
-  Win32_thread_info *thread_info = (Win32_thread_info*)param;
+  Platform_work_queue *queue = (Platform_work_queue*)param;
   
   while (true) {
-    if (win32_do_next_work_q_entry(thread_info->queue)) {
-      WaitForSingleObjectEx(thread_info->queue->semaphore, INFINITE, 0);
+    if (win32_do_next_work_q_entry(queue)) {
+      WaitForSingleObjectEx(queue->semaphore, INFINITE, 0);
     }
+  }
+}
+
+internal
+void
+win32_make_queue(Platform_work_queue *queue, u32 thread_count) {
+  
+  queue->completion_goal = 0;
+  queue->completion_count = 0;
+  
+  queue->next_entry_to_write = 0;
+  queue->next_entry_to_read = 0;
+  
+  // create semaphore and threads
+  u32 initial_count = 0;
+  
+  queue->semaphore = CreateSemaphoreEx(0,            // default security attributes
+                                       initial_count,// initial count
+                                       thread_count, // maximum count
+                                       0,            // unnamed semaphore
+                                       0,            // flags
+                                       SEMAPHORE_ALL_ACCESS);
+  
+  macro_assert(queue->semaphore != NULL);
+  
+  for (u32 thread_index = 0; thread_index < thread_count; ++thread_index) {
+    DWORD thread_id;
+    HANDLE thread_handle = CreateThread(0, // security attributes
+                                        0, // stack size  will default to the we have in current context
+                                        thread_proc, // thread function
+                                        queue, // thread args
+                                        0,    // start right away
+                                        &thread_id);
+    
+    macro_assert(thread_handle != NULL);
+    CloseHandle(thread_handle); // it will not terminate thread
+    // but later in c runtime lib windows will call ExitProcess which will kill all threads
   }
 }
 
 i32
 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
   
-  Platform_work_queue queue = {};
+  Platform_work_queue high_priority_queue = {};
+  Platform_work_queue low_priority_queue = {};
   
-  // create semaphore and threads
-  {
-    u32 initial_count = 0;
-    Win32_thread_info info_list[7];
-    
-    u32 thread_count = macro_array_count(info_list);
-    queue.semaphore = CreateSemaphoreEx(0,            // default security attributes
-                                        initial_count,// initial count
-                                        thread_count, // maximum count
-                                        0,            // unnamed semaphore
-                                        0,            // flags
-                                        SEMAPHORE_ALL_ACCESS);
-    
-    macro_assert(queue.semaphore != NULL);
-    
-    for (u32 thread_index = 0; thread_index < thread_count; ++thread_index) {
-      Win32_thread_info *info = info_list + thread_index;
-      
-      info->queue = &queue;
-      info->index = thread_index;
-      
-      DWORD thread_id;
-      HANDLE thread_handle = CreateThread(0, // security attributes
-                                          0, // stack size  will default to the we have in current context
-                                          thread_proc, // thread function
-                                          info, // thread args
-                                          0,    // start right away
-                                          &thread_id);
-      
-      macro_assert(thread_handle != NULL);
-      CloseHandle(thread_handle); // it will not terminate thread
-      // but later in c runtime lib windows will call ExitProcess which will kill all threads
-    }
-  }
+  win32_make_queue(&high_priority_queue, 6);
+  win32_make_queue(&low_priority_queue, 2);
   
+#if 0
   // do some work with threads
   {
-    win32_add_entry(&queue, do_worker_work, "msg a1");
-    win32_add_entry(&queue, do_worker_work, "msg a2");
-    win32_add_entry(&queue, do_worker_work, "msg a3");
-    win32_add_entry(&queue, do_worker_work, "msg a4");
-    win32_add_entry(&queue, do_worker_work, "msg a5");
-    win32_add_entry(&queue, do_worker_work, "msg a6");
-    win32_add_entry(&queue, do_worker_work, "msg a7");
-    win32_add_entry(&queue, do_worker_work, "msg a8");
-    win32_add_entry(&queue, do_worker_work, "msg a9");
+    win32_add_entry(&high_priority_queue, do_worker_work, "msg a1");
+    win32_add_entry(&high_priority_queue, do_worker_work, "msg a2");
+    win32_add_entry(&high_priority_queue, do_worker_work, "msg a3");
+    win32_add_entry(&high_priority_queue, do_worker_work, "msg a4");
+    win32_add_entry(&high_priority_queue, do_worker_work, "msg a5");
+    win32_add_entry(&high_priority_queue, do_worker_work, "msg a6");
+    win32_add_entry(&high_priority_queue, do_worker_work, "msg a7");
+    win32_add_entry(&high_priority_queue, do_worker_work, "msg a8");
+    win32_add_entry(&high_priority_queue, do_worker_work, "msg a9");
     
-    win32_add_entry(&queue, do_worker_work, "msg b1");
-    win32_add_entry(&queue, do_worker_work, "msg b2");
-    win32_add_entry(&queue, do_worker_work, "msg b3");
-    win32_add_entry(&queue, do_worker_work, "msg b4");
-    win32_add_entry(&queue, do_worker_work, "msg b5");
-    win32_add_entry(&queue, do_worker_work, "msg b6");
-    win32_add_entry(&queue, do_worker_work, "msg b7");
-    win32_add_entry(&queue, do_worker_work, "msg b8");
-    win32_add_entry(&queue, do_worker_work, "msg b9");
+    win32_add_entry(&high_priority_queue, do_worker_work, "msg b1");
+    win32_add_entry(&high_priority_queue, do_worker_work, "msg b2");
+    win32_add_entry(&high_priority_queue, do_worker_work, "msg b3");
+    win32_add_entry(&high_priority_queue, do_worker_work, "msg b4");
+    win32_add_entry(&high_priority_queue, do_worker_work, "msg b5");
+    win32_add_entry(&high_priority_queue, do_worker_work, "msg b6");
+    win32_add_entry(&high_priority_queue, do_worker_work, "msg b7");
+    win32_add_entry(&high_priority_queue, do_worker_work, "msg b8");
+    win32_add_entry(&high_priority_queue, do_worker_work, "msg b9");
     
-    win32_complete_all_work(&queue);
+    win32_complete_all_work(&high_priority_queue);
   }
+#endif
   
   LARGE_INTEGER performance_freq, end_counter, last_counter, flip_wall_clock;
   QueryPerformanceFrequency(&performance_freq);
@@ -1045,7 +1048,8 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     LPVOID base_address = 0;
 #endif
     
-    memory.high_priority_queue = &queue;
+    memory.high_priority_queue = &high_priority_queue;
+    memory.low_priority_queue = &low_priority_queue;
     memory.platform_add_entry = win32_add_entry;
     memory.platform_complete_all_work = win32_complete_all_work;
     
@@ -1417,7 +1421,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     }
   }
   
-  CloseHandle(queue.semaphore);
+  CloseHandle(high_priority_queue.semaphore);
   return 0;
 }
 #pragma optimize("", on) 
