@@ -87,7 +87,7 @@ get_render_entity_basis_pos(Render_transform *transform, v3 original_pos) {
     
     f32 dist_above_target = transform->dist_above_target;
     
-    bool debug_camera = true;
+    bool debug_camera = false;
     if (debug_camera) {
       dist_above_target += 50.0f;
     }
@@ -1272,6 +1272,29 @@ PLATFORM_WORK_QUEUE_CALLBACK(do_tile_render_work)
 
 internal
 void
+render_group_to_output(Render_group *render_group, Loaded_bmp *output_target) {
+  
+  macro_assert(((uintptr)output_target->memory & 15) == 0);
+  
+  Rect2i clip_rect;
+  
+  clip_rect.min_x = 0;
+  clip_rect.min_y = 0;
+  
+  clip_rect.max_x = output_target->width;
+  clip_rect.max_y = output_target->height;
+  
+  Tile_render_work work;
+  work.render_group = render_group;
+  work.output_target = output_target;
+  work.clip_rect = clip_rect;
+  
+  do_tile_render_work(0, &work);
+}
+
+
+internal
+void
 tiled_render_group_to_output(Platform_work_queue *render_queue, 
                              Render_group *render_group, Loaded_bmp *output_target) {
   
@@ -1326,6 +1349,10 @@ internal
 Render_group*
 allocate_render_group(Memory_arena* arena, u32 max_push_buffer_size) {
   Render_group* result = mem_push_struct(arena, Render_group);
+  
+  if (max_push_buffer_size == 0)
+    max_push_buffer_size = (u32)get_arena_size_remaining(arena);
+  
   result->push_buffer_base = (u8*)mem_push_size(arena, max_push_buffer_size);
   
   result->max_push_buffer_size = max_push_buffer_size;
