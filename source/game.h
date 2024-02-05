@@ -302,15 +302,23 @@ struct Game_state {
   f32 sin_cos_state;
 };
 
+struct Task_with_memory {
+  bool being_used;
+  Memory_arena arena;
+  Temp_memory memory_flush;
+};
+
 struct Transient_state {
   bool is_initialized;
   Memory_arena tran_arena;
+  
+  Task_with_memory task_list[4];
+  
   u32 ground_buffer_count;
   Ground_buffer* ground_buffer_list;
   
   Platform_work_queue *high_priority_queue;
   Platform_work_queue *low_priority_queue;
-  u64 _pad;
   
   u32 env_map_width;
   u32 env_map_height;

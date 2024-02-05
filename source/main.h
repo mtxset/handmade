@@ -8,145 +8,188 @@
 #include "platform.h"
 
 struct Win32_bitmap_buffer {
-    // pixels are always 32 bit, memory order BB GG RR XX (padding)
-    BITMAPINFO info;
-    void* memory;
-    i32 width;
-    i32 height;
-    i32 pitch;
-    i32 bytes_per_pixel;
+  // pixels are always 32 bit, memory order BB GG RR XX (padding)
+  BITMAPINFO info;
+  void* memory;
+  i32 width;
+  i32 height;
+  i32 pitch;
+  i32 bytes_per_pixel;
 };
 
 struct Win32_window_dimensions {
-    i32 width;
-    i32 height;
+  i32 width;
+  i32 height;
 };
 
 struct Win32_sound_output {
-    i32 samples_per_second;
-    i32 latency_sample_count;
-    i32 bytes_per_sample;
-    u32 buffer_size;
-    i32 safety_bytes;
-    u32 running_sample_index;
+  i32 samples_per_second;
+  i32 latency_sample_count;
+  i32 bytes_per_sample;
+  u32 buffer_size;
+  i32 safety_bytes;
+  u32 running_sample_index;
 };
 
 struct Win32_debug_time_marker {
-    u32 output_play_cursor;
-    u32 play_cursor;
-    
-    u32 output_write_cursor;
-    u32 write_cursor;
-    
-    u32 output_location;
-    u32 output_bytes;
-    
-    u32 expected_play_cursor;
+  u32 output_play_cursor;
+  u32 play_cursor;
+  
+  u32 output_write_cursor;
+  u32 write_cursor;
+  
+  u32 output_location;
+  u32 output_bytes;
+  
+  u32 expected_play_cursor;
 };
 
 struct Win32_game_code {
-    HMODULE game_code_dll;
-    FILETIME dll_last_write_time;
-    
-    // because we don't have stubs we need to check for 0 before calling
-    game_update_render_signature*     update_and_render;
-    game_get_sound_samples_signature* get_sound_samples;
-    
-    bool valid;
+  HMODULE game_code_dll;
+  FILETIME dll_last_write_time;
+  
+  // because we don't have stubs we need to check for 0 before calling
+  game_update_render_signature*     update_and_render;
+  game_get_sound_samples_signature* get_sound_samples;
+  
+  bool valid;
 };
 
 struct Win32_state {
-    u64 total_memory_size;
-    void* game_memory_block;
-    
-    HANDLE recording_file_handle;
-    HANDLE playing_file_handle;
-    
-    i32 recording_input_index;
-    i32 playing_input_index;
-    
-    void* recording_memory[4];
-    
-    char exe_file_name[MAX_PATH];
-    char* last_slash;
+  u64 total_memory_size;
+  void* game_memory_block;
+  
+  HANDLE recording_file_handle;
+  HANDLE playing_file_handle;
+  
+  i32 recording_input_index;
+  i32 playing_input_index;
+  
+  void* recording_memory[4];
+  
+  char exe_file_name[MAX_PATH];
+  char* last_slash;
 };
 
 inline
 void initialize_arena(Memory_arena* arena, size_t size, void* base) {
-    arena->size = size;
-    arena->base = (u8*)base;
-    arena->used = 0;
-    arena->temp_count = 0;
+  arena->size = size;
+  arena->base = (u8*)base;
+  arena->used = 0;
+  arena->temp_count = 0;
 }
 
-#define mem_push_struct(arena,type)      (type *)mem_push_size_(arena, sizeof(type))
-#define mem_push_array(arena,count,type) (type *)mem_push_size_(arena, (count) * sizeof(type))
-#define mem_push_size(arena,size)       mem_push_size_(arena, size)
+#define mem_push_struct(arena,type,...) \
+(type *)mem_push_size_(arena, sizeof(type), ## __VA_ARGS__)
+
+#define mem_push_array(arena,count,type, ...) \
+(type *)mem_push_size_(arena, (count) * sizeof(type), ## __VA_ARGS__)
+
+#define mem_push_size(arena,size, ...) \
+mem_push_size_(arena, size, ## __VA_ARGS__)
 
 #define mem_zero_struct(instance) mem_zero_size_(sizeof(instance), &(instance))
 
 inline
 Temp_memory
 begin_temp_memory(Memory_arena* arena) {
-    Temp_memory result;
-    
-    result.arena = arena;
-    result.used = arena->used;
-    arena->temp_count++;
-    
-    return result;
+  Temp_memory result;
+  
+  result.arena = arena;
+  result.used = arena->used;
+  arena->temp_count++;
+  
+  return result;
 }
 
 inline
 void
 end_temp_memory(Temp_memory temp_memory) {
-    Memory_arena* arena = temp_memory.arena;
-    macro_assert(arena->used >= temp_memory.used);
-    arena->used = temp_memory.used;
-    macro_assert(arena->temp_count > 0);
-    arena->temp_count--;
+  Memory_arena* arena = temp_memory.arena;
+  macro_assert(arena->used >= temp_memory.used);
+  arena->used = temp_memory.used;
+  macro_assert(arena->temp_count > 0);
+  arena->temp_count--;
 }
 
 inline
 void
 check_arena(Memory_arena* arena) {
-    macro_assert(arena->temp_count == 0);
+  macro_assert(arena->temp_count == 0);
+}
+
+inline
+size_t
+get_alignment_offset(Memory_arena *arena, size_t alignment = 4) {
+  size_t result_pointer = (size_t)arena->base + arena->used;
+  size_t current_alignment = result_pointer & (alignment - 1);
+  size_t alignment_offset = (alignment - current_alignment) & (alignment - 1);
+  
+  return alignment_offset;
+}
+
+inline
+size_t
+get_arena_size_remaining(Memory_arena *arena, size_t alignment = 4) {
+  size_t result = 0;
+  
+  size_t alignment_offset = get_alignment_offset(arena, alignment);
+  result = arena->size - (arena->used + alignment_offset);
+  
+  return result;
 }
 
 inline
 void* 
-mem_push_size_(Memory_arena* arena, size_t size) {
-    macro_assert((arena->used + size) <= arena->size);
-    
-    void* result = arena->base + arena->used;
-    arena->used += size;
-    
-    return result;
+mem_push_size_(Memory_arena* arena, size_t size_init, size_t alignment = 4) {
+  
+  size_t size = size_init;
+  
+  size_t alignment_offset = get_alignment_offset(arena, alignment);
+  size += alignment_offset;
+  
+  macro_assert((arena->used + size) <= arena->size);
+  
+  void* result = arena->base + arena->used + alignment_offset;
+  arena->used += size;
+  
+  macro_assert(size >= size_init);
+  
+  return result;
+}
+
+
+inline
+void
+sub_arena(Memory_arena* result, Memory_arena *arena, size_t size, size_t alignment = 16) {
+  result->size = size;
+  result->base = (u8*)mem_push_size(arena, size, alignment);
+  result->used = 0;
+  result->temp_count = 0;
 }
 
 inline
 void 
 mem_zero_size_(size_t size, void* pointer) {
-    u8* byte = (u8*)pointer;
-    while (size--)
-        *byte++ = 0;
+  u8* byte = (u8*)pointer;
+  while (size--)
+    *byte++ = 0;
 }
-
 
 extern struct Game_memory* debug_global_memory;
 #if INTERNAL
 internal
 void
 debug_end_timer(Debug_cycle_counter_type type, u64 start_cycle_count) {
-    debug_global_memory->counter_list[type].cycle_count += __rdtsc() - start_cycle_count;
-    debug_global_memory->counter_list[type].hit_count++;
+  debug_global_memory->counter_list[type].cycle_count += __rdtsc() - start_cycle_count;
+  debug_global_memory->counter_list[type].hit_count++;
 }
 
 internal
 void
 debug_end_timer(Debug_cycle_counter_type type, u64 start_cycle_count, u32 count) {
-    debug_global_memory->counter_list[type].cycle_count += __rdtsc() - start_cycle_count;
-    debug_global_memory->counter_list[type].hit_count += count;
+  debug_global_memory->counter_list[type].cycle_count += __rdtsc() - start_cycle_count;
+  debug_global_memory->counter_list[type].hit_count += count;
 }
 #endif
 

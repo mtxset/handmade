@@ -842,10 +842,60 @@ make_simple_grounded_collision(Game_state* game_state, v3 dim) {
 }
 
 internal
+Task_with_memory*
+begin_task_with_mem(Transient_state *tran_state) {
+  
+  Task_with_memory *found_task = {};
+  
+  for (u32 task_index = 0; task_index < macro_array_count(tran_state->task_list); task_index++) {
+    Task_with_memory *task = tran_state->task_list + task_index;
+    
+    if (!task->being_used) {
+      found_task = task;
+      task->being_used = true;
+      task->memory_flush = begin_temp_memory(&task->arena);
+      break;
+    }
+  }
+  
+  return found_task;
+  
+}
+
+inline
+void
+end_task_with_mem(Task_with_memory *task) {
+  end_temp_memory(task->memory_flush);
+  _WriteBarrier();
+  task->being_used = false;
+}
+
+struct Fill_ground_chunk_work {
+  Render_group *render_group;
+  Loaded_bmp *buffer;
+  Task_with_memory *task;
+};
+
+internal
+PLATFORM_WORK_QUEUE_CALLBACK(fill_ground_chunk_work)
+{
+  Fill_ground_chunk_work *work = (Fill_ground_chunk_work*)data;
+  
+  render_group_to_output(work->render_group, work->buffer);
+  
+  end_task_with_mem(work->task);
+}
+
+internal
 void
 fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_buffer* ground_buffer, World_position* chunk_pos) {
   
-  Temp_memory ground_memory = begin_temp_memory(&tran_state->tran_arena);
+  Task_with_memory *task = begin_task_with_mem(tran_state);
+  if (!task)
+    return;
+  
+  Fill_ground_chunk_work *work = mem_push_struct(&task->arena, Fill_ground_chunk_work);
+  
   ground_buffer->position = *chunk_pos;
   
   Loaded_bmp* bitmap_buffer = &ground_buffer->bitmap;
@@ -859,14 +909,12 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
   v2 half_dim = 0.5f * v2{width, height};
   //half_dim = 2.0f * half_dim;
   
-  Render_group* render_group = allocate_render_group(&tran_state->tran_arena, macro_megabytes(4));
+  Render_group* render_group = allocate_render_group(&task->arena, 0);
   
   ortographic(render_group, bitmap_buffer->width, bitmap_buffer->height,
               (bitmap_buffer->width -2) / width);
   
   push_clear(render_group, yellow_v4);
-  
-#if 1
   
   u32 random_number_index = 0;
   for (i32 chunk_offset_y = -1; chunk_offset_y <= 1; chunk_offset_y++) {
@@ -936,10 +984,11 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
       }
     }
   }
-#endif
   
-  tiled_render_group_to_output(tran_state->high_priority_queue, render_group, bitmap_buffer);
-  end_temp_memory(ground_memory);
+  work->render_group = render_group;
+  work->buffer = bitmap_buffer;
+  work->task = task;
+  platform_add_entry(tran_state->low_priority_queue, fill_ground_chunk_work, work);
 }
 
 internal
@@ -963,7 +1012,8 @@ make_empty_bitmap(Memory_arena* arena, i32 width, i32 height, bool clear_to_zero
   result.pitch  = result.width * bytes_per_pixel;
   
   u32 total_bitmap_size = width * height * bytes_per_pixel;
-  result.memory = mem_push_size(arena, total_bitmap_size);
+  u32 alignment = 16;
+  result.memory = mem_push_size(arena, total_bitmap_size, alignment);
   
   if (clear_to_zero)
     clear_bitmap(&result);
@@ -1582,6 +1632,13 @@ game_update_render(thread_context* thread, Game_memory* memory, Game_input* inpu
     initialize_arena(&tran_state->tran_arena,
                      memory->transient_storage_size - sizeof(Transient_state),
                      (u8*)memory->transient_storage + sizeof(Transient_state));
+    
+    for (u32 task_index = 0; task_index < macro_array_count(tran_state->task_list); task_index++) {
+      Task_with_memory *task = tran_state->task_list + task_index;
+      
+      task->being_used = false;
+      sub_arena(&task->arena, &tran_state->tran_arena, macro_megabytes(1));
+    }
     
     tran_state->high_priority_queue = memory->high_priority_queue;
     tran_state->low_priority_queue = memory->low_priority_queue;
