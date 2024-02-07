@@ -162,6 +162,20 @@ push_bitmap(Render_group* group, Loaded_bmp* bitmap, f32 height, v3 offset, v4 c
 
 inline
 void
+push_bitmap(Render_group* group, Game_asset_id id, f32 height, v3 offset, v4 color = white_v4) {
+  
+  Loaded_bmp *result = get_bitmap(group->asset_list, id);
+  
+  if (result) {
+    push_bitmap(group, result, height, offset, color);
+  }
+  else {
+    load_asset(group->asset_list, id);
+  }
+}
+
+inline
+void
 push_rect(Render_group* group, v3 offset, v2 dim, v4 color = white_v4) {
   
   v3 pos = offset - v2_to_v3(0.5 * dim, 0);
@@ -1347,7 +1361,7 @@ tiled_render_group_to_output(Platform_work_queue *render_queue,
 
 internal
 Render_group*
-allocate_render_group(Memory_arena* arena, u32 max_push_buffer_size) {
+allocate_render_group(Game_asset_list *asset_list, Memory_arena* arena, u32 max_push_buffer_size) {
   Render_group* result = mem_push_struct(arena, Render_group);
   
   if (max_push_buffer_size == 0)
@@ -1358,6 +1372,7 @@ allocate_render_group(Memory_arena* arena, u32 max_push_buffer_size) {
   result->max_push_buffer_size = max_push_buffer_size;
   result->push_buffer_size = 0;
   
+  result->asset_list = asset_list;
   result->global_alpha = 1.0f;
   
   result->transform.offset_pos = {0,0,0};

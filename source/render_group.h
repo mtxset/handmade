@@ -87,6 +87,7 @@ struct Render_transform {
 
 struct Render_group {
   
+  struct Game_asset_list *asset_list; 
   f32 global_alpha;
   
   v2 monitor_half_dim_meters;

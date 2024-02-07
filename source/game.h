@@ -239,6 +239,51 @@ struct Ground_buffer {
   Loaded_bmp bitmap;
 };
 
+enum Game_asset_id {
+  GAI_tree,
+  GAI_background,
+  GAI_monster,
+  GAI_familiar,
+  GAI_sword,
+  GAI_stairwell,
+  
+  GAI_count
+};
+
+enum Asset_state {
+  Asset_state_unloaded,
+  Asset_state_queued,
+  Asset_state_loaded
+};
+
+struct Asset_handle {
+  Asset_state state;
+  Loaded_bmp *bitmap;
+};
+
+struct Game_asset_list {
+  
+  struct Transient_state *tran_state;
+  Memory_arena arena;
+  //Debug_platform_read_entire_file *read_entire_file;
+  
+  Hero_bitmaps hero_bitmaps[4];
+  
+  Loaded_bmp grass[2];
+  Loaded_bmp stone[4];
+  Loaded_bmp tuft[3];
+  
+  Loaded_bmp *bitmap_list[GAI_count];
+};
+
+inline
+Loaded_bmp*
+get_bitmap(Game_asset_list *asset_list, Game_asset_id id) {
+  Loaded_bmp *result = asset_list->bitmap_list[id];
+  
+  return result;
+}
+
 struct Game_state {
   Memory_arena world_arena;
   World* world;
@@ -253,16 +298,6 @@ struct Game_state {
   u32 low_entity_count;
   Low_entity low_entity_list[100000];
   
-  Loaded_bmp grass[2];
-  Loaded_bmp stone[4];
-  Loaded_bmp tuft[3];
-  
-  Loaded_bmp tree;
-  Loaded_bmp background;
-  Loaded_bmp monster;
-  Loaded_bmp familiar;
-  Loaded_bmp sword;
-  Loaded_bmp stairwell;
   u32 following_entity_index;
   
   Pairwise_collision_rule* collision_rule_hash[256];
@@ -281,8 +316,6 @@ struct Game_state {
   
   Loaded_bmp test_diffuse;
   Loaded_bmp test_normal;
-  
-  Hero_bitmaps hero_bitmaps[4];
   
 #if 0
   Pacman_state pacman_state;
@@ -323,6 +356,8 @@ struct Transient_state {
   u32 env_map_width;
   u32 env_map_height;
   Env_map env_map_list[3]; // 0 bottom, 1 middle, 2 is top
+  
+  Game_asset_list asset_list;
 };
 
 Game_controller_input* 
@@ -352,5 +387,7 @@ Low_entity* get_low_entity(Game_state* game_state, u32 index) {
 
 global_var Platform_add_entry         *platform_add_entry;
 global_var Platform_complete_all_work *platform_complete_all_work;
+
+internal void load_asset(Game_asset_list *asset_list, Game_asset_id id);
 
 #endif //GAME_H

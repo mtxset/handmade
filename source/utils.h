@@ -4,6 +4,7 @@
 #define UTILS_H
 
 global_var const float PI = 3.14159265358979323846f;
+global_var const float TAU = 2 * 3.14159265358979323846f;
 
 #ifndef max
 #define max(a,b) (((a) > (b)) ? (a) : (b))
