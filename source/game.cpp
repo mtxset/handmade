@@ -886,6 +886,34 @@ PLATFORM_WORK_QUEUE_CALLBACK(fill_ground_chunk_work)
   end_task_with_mem(work->task);
 }
 
+// no idea what it supposed to do on (day 133)
+internal
+i32
+pick_best(i32 info_count, Asset_bitmap_info *info_list, Asset_tag *tag_list, f32 *match_vector, f32 *weight_vector) {
+  
+  f32 best_diff = FLT_MAX;
+  i32 best_index = 0;
+  
+  for (i32 info_index = 0; info_index < info_count; info_index++) {
+    Asset_bitmap_info *info = info_list + info_index;
+    
+    f32 total_weight_diff = 0.0f;
+    for (u32 tag_index = info->first_tag_index; tag_index < info->one_past_last_tag_index; tag_index++) {
+      Asset_tag *tag = tag_list + tag_index;
+      f32 diff = match_vector[tag->id] - tag->value;
+      f32 weighted = weight_vector[tag->id] * absolute(diff);
+      total_weight_diff += weighted;
+    }
+    
+    if (best_diff > total_weight_diff) {
+      best_diff = total_weight_diff;
+      best_index = info_index;
+    }
+  }
+  
+  return best_index;
+}
+
 internal
 void
 fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_buffer* ground_buffer, World_position* chunk_pos) {
@@ -895,8 +923,6 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
     return;
   
   Fill_ground_chunk_work *work = mem_push_struct(&task->arena, Fill_ground_chunk_work);
-  
-  ground_buffer->position = *chunk_pos;
   
   Loaded_bmp* bitmap_buffer = &ground_buffer->bitmap;
   bitmap_buffer->align_pcent = { 0.5f, 0.5f };
@@ -985,10 +1011,15 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
     }
   }
   
-  work->render_group = render_group;
-  work->buffer = bitmap_buffer;
-  work->task = task;
-  platform_add_entry(tran_state->low_priority_queue, fill_ground_chunk_work, work);
+  if (all_resources_present(render_group)) {
+    
+    ground_buffer->position = *chunk_pos;
+    
+    work->render_group = render_group;
+    work->buffer = bitmap_buffer;
+    work->task = task;
+    platform_add_entry(tran_state->low_priority_queue, fill_ground_chunk_work, work);
+  }
 }
 
 internal
@@ -1320,16 +1351,29 @@ struct Load_asset_work
   char *file_name;
   Task_with_memory *task;
   Loaded_bmp *bitmap;
+  
+  bool has_alignment;
+  i32 align_x;
+  i32 top_down_align_y;
+  
+  Asset_state final_state;
 };
 
 internal 
-PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work)
-{
+PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work) {
   Load_asset_work *work = (Load_asset_work*)data;
   
-  *work->bitmap = debug_load_bmp(work->file_name);
+  if (work->has_alignment) {
+    *work->bitmap = debug_load_bmp(work->file_name, work->align_x, work->top_down_align_y);
+  }
+  else {
+    *work->bitmap = debug_load_bmp(work->file_name);
+  }
   
-  work->asset_list->bitmap_list[work->id] = work->bitmap;
+  _WriteBarrier();
+  
+  work->asset_list->bitmap_list[work->id].bitmap = work->bitmap;
+  work->asset_list->bitmap_list[work->id].state = work->final_state;
   
   end_task_with_mem(work->task);
 }
@@ -1337,6 +1381,9 @@ PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work)
 internal
 void 
 load_asset(Game_asset_list *asset_list, Game_asset_id id) {
+  
+  if (atomic_compare_exchange_u32((u32*)&asset_list->bitmap_list[id].state, Asset_state_unloaded, Asset_state_queued) != Asset_state_unloaded) 
+    return;
   
   Task_with_memory *task = begin_task_with_mem(asset_list->tran_state);
   
@@ -1350,8 +1397,8 @@ load_asset(Game_asset_list *asset_list, Game_asset_id id) {
   work->file_name = "";
   work->task = task;
   work->bitmap = mem_push_struct(&asset_list->arena, Loaded_bmp);
-  
-  platform_add_entry(asset_list->tran_state->low_priority_queue, load_asset_work, work);
+  work->has_alignment = false;
+  work->final_state = Asset_state_loaded;
   
   switch (id) {
     case GAI_background: {
@@ -1359,25 +1406,39 @@ load_asset(Game_asset_list *asset_list, Game_asset_id id) {
     } break;
     
     case GAI_tree: { 
-      work->file_name = "../data/tree.bmp"; // 50, 115
+      work->file_name = "../data/tree.bmp";
+      work->has_alignment = true;
+      work->align_x = 50;
+      work->top_down_align_y = 115;
     } break;
     
     case GAI_monster: {
-      work->file_name = "../data/george-front-0.bmp"; // 25, 42
+      work->file_name = "../data/george-front-0.bmp";
+      work->has_alignment = true;
+      work->align_x = 25;
+      work->top_down_align_y = 42;
     } break;
     
     case GAI_familiar: {
-      work->file_name = "../data/ship.bmp"; //34, 72
+      work->file_name = "../data/ship.bmp";
+      work->has_alignment = true;
+      work->align_x = 34;
+      work->top_down_align_y = 72;
     } break;
     
     case GAI_sword: {
-      work->file_name = "../data/sword.bmp"; // 33, 29
+      work->file_name = "../data/sword.bmp";
+      work->has_alignment = true;
+      work->align_x = 33;
+      work->top_down_align_y = 29;
     } break;
     
     case GAI_stairwell: {
       work->file_name = "../data/george-back-0.bmp";
     } break;
   }
+  
+  platform_add_entry(asset_list->tran_state->low_priority_queue, load_asset_work, work);
 }
 
 extern "C"
