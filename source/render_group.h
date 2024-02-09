@@ -3,6 +3,8 @@
 #ifndef RENDER_GROUP_H
 #define RENDER_GROUP_H
 
+#include "game.h"
+
 struct Loaded_bmp {
   v2 align_pcent;
   
@@ -64,7 +66,6 @@ struct Render_entry_rect {
 };
 
 struct Render_entry_bitmap {
-  
   Loaded_bmp* bitmap;
   v2 pos;
   v2 size;
@@ -96,6 +97,8 @@ struct Render_group {
   u32 max_push_buffer_size;
   u32 push_buffer_size;
   u8* push_buffer_base;
+  
+  u32 missing_resource_count;
 };
 
 #endif //RENDER_GROUP_H

@@ -239,6 +239,44 @@ struct Ground_buffer {
   Loaded_bmp bitmap;
 };
 
+
+enum Asset_state {
+  Asset_state_unloaded,
+  Asset_state_queued,
+  Asset_state_loaded,
+  Asset_state_locked
+};
+
+struct Asset_slot {
+  Asset_state state;
+  Loaded_bmp *bitmap;
+};
+
+struct Asset_tag {
+  u32 id;
+  f32 value;
+};
+
+struct Asset_bitmap_info {
+  
+  v2 align_pcent;
+  
+  f32 width_over_height;
+  f32 native_height;
+  
+  i32 height;
+  i32 width;
+  
+  u32 first_tag_index;
+  u32 one_past_last_tag_index;
+};
+
+struct Asset_group
+{
+  u32 first_tag_index;
+  u32 one_past_last_tag_index;
+};
+
 enum Game_asset_id {
   GAI_tree,
   GAI_background,
@@ -248,17 +286,6 @@ enum Game_asset_id {
   GAI_stairwell,
   
   GAI_count
-};
-
-enum Asset_state {
-  Asset_state_unloaded,
-  Asset_state_queued,
-  Asset_state_loaded
-};
-
-struct Asset_handle {
-  Asset_state state;
-  Loaded_bmp *bitmap;
 };
 
 struct Game_asset_list {
@@ -273,13 +300,13 @@ struct Game_asset_list {
   Loaded_bmp stone[4];
   Loaded_bmp tuft[3];
   
-  Loaded_bmp *bitmap_list[GAI_count];
+  Asset_slot bitmap_list[GAI_count];
 };
 
 inline
 Loaded_bmp*
 get_bitmap(Game_asset_list *asset_list, Game_asset_id id) {
-  Loaded_bmp *result = asset_list->bitmap_list[id];
+  Loaded_bmp *result = asset_list->bitmap_list[id].bitmap;
   
   return result;
 }

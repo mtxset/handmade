@@ -165,13 +165,14 @@ void
 push_bitmap(Render_group* group, Game_asset_id id, f32 height, v3 offset, v4 color = white_v4) {
   
   Loaded_bmp *result = get_bitmap(group->asset_list, id);
-  
   if (result) {
     push_bitmap(group, result, height, offset, color);
   }
   else {
     load_asset(group->asset_list, id);
+    group->missing_resource_count++;
   }
+  
 }
 
 inline
@@ -1378,6 +1379,8 @@ allocate_render_group(Game_asset_list *asset_list, Memory_arena* arena, u32 max_
   result->transform.offset_pos = {0,0,0};
   result->transform.scale = 1.0f;
   
+  result->missing_resource_count = 0;
+  
   return result;
 }
 
@@ -1500,6 +1503,14 @@ get_cam_rect_at_target(Render_group* group) {
   Rect2 result;
   
   result = get_cam_rect_at_z(group, group->transform.dist_above_target);
+  
+  return result;
+}
+
+inline
+bool
+all_resources_present(Render_group *group) {
+  bool result = (group->missing_resource_count == 0);
   
   return result;
 }
