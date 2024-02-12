@@ -1012,8 +1012,6 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
   
   macro_assert(window_handle);
   
-  thread_context thread = {};
-  
   // set refresh rate and target seconds per frame
   i32 refresh_rate = 60;
   HDC refresh_dc = GetDC(window_handle);
@@ -1250,7 +1248,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
         win32_playback_input(&win_state, new_input);
       
       if (game_code.update_and_render) {
-        game_code.update_and_render(&thread, &memory, new_input, &game_buffer);
+        game_code.update_and_render(&memory, new_input, &game_buffer);
         handle_debug_cycle_count(&memory);
       }
     }
@@ -1313,7 +1311,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       sound_buffer.samples = samples;
       
       if (game_code.get_sound_samples)
-        game_code.get_sound_samples(&thread, &memory, &sound_buffer);
+        game_code.get_sound_samples(&memory, &sound_buffer);
       
 #if INTERNAL
       auto marker = &debug_time_marker_list[debug_last_marker_index];
