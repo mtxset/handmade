@@ -186,6 +186,11 @@ struct Ground_buffer {
   World_position position;
   Loaded_bmp bitmap;
 };
+
+inline
+Loaded_bmp*
+get_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
+  Loaded_bmp *result = asset_list->bitmap_list[id.value].bitmap;
   
   return result;
 }
