@@ -784,6 +784,7 @@ PLATFORM_WORK_QUEUE_CALLBACK(fill_ground_chunk_work)
   end_task_with_mem(work->task);
 }
 
+
 #if 0
 // no idea what it supposed to do on (day 133)
 internal
@@ -812,6 +813,7 @@ pick_best(i32 info_count, Asset_bitmap_info *info_list, Asset_tag *tag_list, f32
   
   return best_index;
 }
+
 #endif
 
 internal
@@ -1243,7 +1245,6 @@ bezier_curves(Loaded_bmp* draw_buffer, Game_input* input, Game_state* game_state
     draw_pixel(draw_buffer, {bezier.x, -bezier.y}, white_v4);
   }
 }
-
 
 extern "C"
 void 
