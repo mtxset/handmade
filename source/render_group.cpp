@@ -162,14 +162,14 @@ push_bitmap(Render_group* group, Loaded_bmp* bitmap, f32 height, v3 offset, v4 c
 
 inline
 void
-push_bitmap(Render_group* group, Game_asset_id id, f32 height, v3 offset, v4 color = white_v4) {
+push_bitmap(Render_group* group, Bitmap_id id, f32 height, v3 offset, v4 color = white_v4) {
   
   Loaded_bmp *result = get_bitmap(group->asset_list, id);
   if (result) {
     push_bitmap(group, result, height, offset, color);
   }
   else {
-    load_asset(group->asset_list, id);
+    load_bitmap(group->asset_list, id);
     group->missing_resource_count++;
   }
   

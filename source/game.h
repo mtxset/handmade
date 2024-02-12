@@ -4,10 +4,12 @@
 
 #include "types.h"
 #include "utils.h"
+#include "memory.h"
 #include "world.h"
 #include "sim_region.h"
 #include "entity.h"
 #include "render_group.h"
+#include "asset.h"
 
 #define BITMAP_BYTES_PER_PIXEL 4
 
@@ -105,8 +107,6 @@ typedef void Platform_add_entry(Platform_work_queue *queue, Platform_work_queue_
 typedef void Platform_complete_all_work(Platform_work_queue *queue);
 
 typedef struct Game_memory {
-  bool is_initialized;
-  
   u64 permanent_storage_size;
   void* permanent_storage;
   
@@ -124,28 +124,10 @@ typedef struct Game_memory {
 #endif
 } Game_memory;
 
-// https://www.youtube.com/watch?v=es-Bou2dIdY
-struct thread_context {
-  i32 placeholder;
-};
-
 struct drop {
   bool active;
   f32 a;
   v2 pos;
-};
-
-struct Memory_arena {
-  u8* base;
-  size_t size;
-  size_t used;
-  
-  u32 temp_count;
-};
-
-struct Temp_memory {
-  Memory_arena* arena;
-  size_t used;
 };
 
 struct Pacman_state {
@@ -172,40 +154,6 @@ struct Subpixel_test {
   f32 pixel_timer;
   f32 transition_state;
   bool direction;
-};
-
-// struct is from: https://www.fileformat.info/format/bmp/egff.htm
-// preventing compiler padding this struct
-#pragma pack(push, 1)
-struct Bitmap_header {
-  u16 FileType;        /* File type, always 4D42h ("BM") */
-  u32 FileSize;        /* Size of the file in bytes */
-  u16 Reserved1;       /* Always 0 */
-  u16 Reserved2;       /* Always 0 */
-  u32 BitmapOffset;    /* Starting position of image data in bytes */
-  
-  u32 Size;            /* Size of this header in bytes */
-  i32 Width;           /* Image width in pixels */
-  i32 Height;          /* Image height in pixels */
-  u16 Planes;          /* Number of color planes */
-  u16 BitsPerPixel;    /* Number of bits per pixel */
-  u32 Compression;     /* Compression methods used */
-  u32 SizeOfBitmap;    /* Size of bitmap in bytes */
-  i32 HorzResolution;  /* Horizontal resolution in pixels per meter */
-  i32 VertResolution;  /* Vertical resolution in pixels per meter */
-  u32 ColorsUsed;      /* Number of colors in the image */
-  u32 ColorsImportant; /* Minimum number of important colors */
-  
-  u32 RedMask;         /* Mask identifying bits of red component */
-  u32 GreenMask;       /* Mask identifying bits of green component */
-  u32 BlueMask;        /* Mask identifying bits of blue component */
-};
-#pragma pack(pop)
-
-struct Hero_bitmaps {
-  Loaded_bmp head;
-  Loaded_bmp cape;
-  Loaded_bmp torso;
 };
 
 struct Low_entity {
@@ -238,80 +186,12 @@ struct Ground_buffer {
   World_position position;
   Loaded_bmp bitmap;
 };
-
-
-enum Asset_state {
-  Asset_state_unloaded,
-  Asset_state_queued,
-  Asset_state_loaded,
-  Asset_state_locked
-};
-
-struct Asset_slot {
-  Asset_state state;
-  Loaded_bmp *bitmap;
-};
-
-struct Asset_tag {
-  u32 id;
-  f32 value;
-};
-
-struct Asset_bitmap_info {
-  
-  v2 align_pcent;
-  
-  f32 width_over_height;
-  f32 native_height;
-  
-  i32 height;
-  i32 width;
-  
-  u32 first_tag_index;
-  u32 one_past_last_tag_index;
-};
-
-struct Asset_group
-{
-  u32 first_tag_index;
-  u32 one_past_last_tag_index;
-};
-
-enum Game_asset_id {
-  GAI_tree,
-  GAI_background,
-  GAI_monster,
-  GAI_familiar,
-  GAI_sword,
-  GAI_stairwell,
-  
-  GAI_count
-};
-
-struct Game_asset_list {
-  
-  struct Transient_state *tran_state;
-  Memory_arena arena;
-  //Debug_platform_read_entire_file *read_entire_file;
-  
-  Hero_bitmaps hero_bitmaps[4];
-  
-  Loaded_bmp grass[2];
-  Loaded_bmp stone[4];
-  Loaded_bmp tuft[3];
-  
-  Asset_slot bitmap_list[GAI_count];
-};
-
-inline
-Loaded_bmp*
-get_bitmap(Game_asset_list *asset_list, Game_asset_id id) {
-  Loaded_bmp *result = asset_list->bitmap_list[id].bitmap;
   
   return result;
 }
 
 struct Game_state {
+  bool is_initialized;
   Memory_arena world_arena;
   World* world;
   
@@ -384,7 +264,7 @@ struct Transient_state {
   u32 env_map_height;
   Env_map env_map_list[3]; // 0 bottom, 1 middle, 2 is top
   
-  Game_asset_list asset_list;
+  Game_asset_list *asset_list;
 };
 
 Game_controller_input* 
@@ -396,10 +276,10 @@ get_gamepad(Game_input* input, i32 input_index) {
 }
 
 typedef 
-void (game_update_render_signature) (thread_context* thread, Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer);
+void (game_update_render_signature) (Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer);
 
 typedef 
-void (game_get_sound_samples_signature) (thread_context* thread, Game_memory* memory, Game_sound_buffer* sound_buffer);
+void (game_get_sound_samples_signature) (Game_memory* memory, Game_sound_buffer* sound_buffer);
 
 internal
 Low_entity* get_low_entity(Game_state* game_state, u32 index) {
@@ -415,6 +295,7 @@ Low_entity* get_low_entity(Game_state* game_state, u32 index) {
 global_var Platform_add_entry         *platform_add_entry;
 global_var Platform_complete_all_work *platform_complete_all_work;
 
-internal void load_asset(Game_asset_list *asset_list, Game_asset_id id);
+internal Task_with_memory* begin_task_with_mem(Transient_state *tran_state);
+internal void end_task_with_mem(Task_with_memory *task);
 
 #endif //GAME_H
