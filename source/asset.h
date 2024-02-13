@@ -36,13 +36,19 @@ struct Asset_tag {
 enum Asset_type_id {
   Asset_null,
   
-  Asset_tree,
   Asset_background,
-  Asset_monster,
-  Asset_familiar,
+  
+  Asset_tree,
   Asset_sword,
-  Asset_stairwell,
+  //Asset_stairwell,
   Asset_rock,
+  
+  Asset_grass,
+  Asset_tuft,
+  Asset_stone,
+  
+  //Asset_monster,
+  //Asset_familiar,
   
   Asset_count
 };
@@ -59,13 +65,8 @@ struct Asset {
 };
 
 struct Asset_bitmap_info {
-  
+  char *filename;
   v2 align_pcent;
-  
-  f32 width_over_height;
-  
-  i32 height;
-  i32 width;
 };
 
 struct Game_asset_list {
@@ -74,6 +75,7 @@ struct Game_asset_list {
   Memory_arena arena;
   
   u32 bitmap_count;
+  Asset_bitmap_info *bitmap_info_list;
   Asset_slot *bitmap_list;
   
   u32 sound_count;
@@ -92,6 +94,10 @@ struct Game_asset_list {
   Loaded_bmp tuft[3];
   
   Asset_type asset_type_list[Asset_count];
+  
+  u32 debug_used_bitmap_count;
+  u32 debug_used_asset_count;
+  Asset_type *debug_asset_type;
 };
 
 

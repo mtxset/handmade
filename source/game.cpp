@@ -1537,8 +1537,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     game_state->test_diffuse = make_empty_bitmap(&tran_state->tran_arena, 256, 256, false);
     draw_rect_old(&game_state->test_diffuse, v2{0,0}, v2_i32(game_state->test_diffuse.width, game_state->test_diffuse.height), v4 {0.5f, 0.5f, 0.5f, 1.0f});
     
-    game_state->test_normal = make_empty_bitmap(&tran_state->tran_arena, 
-                                                game_state->test_diffuse.width, game_state->test_diffuse.height, false);
+    game_state->test_normal = make_empty_bitmap(&tran_state->tran_arena, game_state->test_diffuse.width, game_state->test_diffuse.height, false);
     
     make_sphere_normal_map(&game_state->test_normal, 0.0f);
     make_sphere_diffuse_map(&game_state->test_diffuse);
@@ -1929,13 +1928,13 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
             entity->t_bob -= TAU;
           }
           v3 offset = {0, 0, 0.5f * sin(entity->t_bob)};
-          Bitmap_id id = get_first_bitmap_id(tran_state->asset_list, Asset_familiar);
+          Bitmap_id id = get_first_bitmap_id(tran_state->asset_list, Asset_sword);
           push_bitmap(render_group, id, 1.0f, offset);
         } break;
         
         case Entity_type_monster: {
           
-          Bitmap_id id = get_first_bitmap_id(tran_state->asset_list, Asset_monster);
+          Bitmap_id id = get_first_bitmap_id(tran_state->asset_list, Asset_sword);
           push_bitmap(render_group, id, 1.0f, v3{0, 0, 0});
           draw_hitpoints(render_group, entity);
           
