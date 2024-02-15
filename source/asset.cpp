@@ -155,7 +155,6 @@ PLATFORM_WORK_QUEUE_CALLBACK(load_bitmap_work) {
   end_task_with_mem(work->task);
 }
 
-
 internal
 void 
 load_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
@@ -181,6 +180,24 @@ load_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
 
 internal void
 load_sound(Game_asset_list *asset_list, u32 id) {
+}
+
+internal
+Bitmap_id
+random_asset_from(Game_asset_list *asset_list, Asset_type_id type_id, Random_series *series) {
+  Bitmap_id result = {};
+  
+  Asset_type *type = asset_list->asset_type_list + type_id;
+  
+  if (type->first_asset_index != type->one_past_last_asset_index) {
+    u32 count = type->one_past_last_asset_index - type->first_asset_index;
+    u32 choice = random_choise(series, count);
+    
+    Asset *asset = asset_list->asset_list + type->first_asset_index + choice;
+    result.value = asset->slot_id;
+  }
+  
+  return result;
 }
 
 internal
@@ -220,7 +237,7 @@ end_asset_type(Game_asset_list *asset_list) {
 internal
 Bitmap_id
 debug_add_bitmap_info(Game_asset_list* asset_list, char *filename, v2 align_pcent) {
-  macro_assert(asset_list->debug_used_asset_count < asset_list->bitmap_count);
+  macro_assert(asset_list->debug_used_bitmap_count < asset_list->bitmap_count);
   
   Bitmap_id id = {asset_list->debug_used_bitmap_count++};
   
@@ -263,12 +280,27 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
   asset_list->debug_used_bitmap_count = 1;
   asset_list->debug_used_asset_count = 1;
   
-  begin_asset_type(asset_list, Asset_tree);
-  add_bitmap_asset(asset_list, "../data/tree.bmp", {50, 115});
+  begin_asset_type(asset_list, Asset_shadow);
+  add_bitmap_asset(asset_list, "../data/test_hero_shadow.bmp", v2{0.5f, 0.156682029f});
   end_asset_type(asset_list);
   
+  begin_asset_type(asset_list, Asset_tree);
+  add_bitmap_asset(asset_list, "../data/tree.bmp", v2{0.434782594, 0.0169491526});
+  end_asset_type(asset_list);
+  
+  /*
+    george-front-0.bmp
+      x;0.520833313;float;
+    y;0.104166664;float;
+    
+    ship.bmp
+      x;0.5;float;
+    y;0.0394736826;float;
+    */
+  
   begin_asset_type(asset_list, Asset_sword);
-  add_bitmap_asset(asset_list, "../data/sword.bmp", {33, 29});
+  //add_bitmap_asset(asset_list, "../data/rock03.bmp", v2{0.5f, 0.65625f});
+  add_bitmap_asset(asset_list, "../data/sword.bmp");
   end_asset_type(asset_list);
   
   begin_asset_type(asset_list, Asset_grass);
@@ -283,10 +315,10 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
   end_asset_type(asset_list);
   
   begin_asset_type(asset_list, Asset_stone);
-  add_bitmap_asset(asset_list, "../data/ground00");
-  add_bitmap_asset(asset_list, "../data/ground01");
-  add_bitmap_asset(asset_list, "../data/ground02");
-  add_bitmap_asset(asset_list, "../data/ground03");
+  add_bitmap_asset(asset_list, "../data/ground00.bmp");
+  add_bitmap_asset(asset_list, "../data/ground01.bmp");
+  add_bitmap_asset(asset_list, "../data/ground02.bmp");
+  add_bitmap_asset(asset_list, "../data/ground03.bmp");
   end_asset_type(asset_list);
   
   Hero_bitmaps* bitmap = asset_list->hero_bitmaps;
@@ -313,6 +345,7 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
   bitmap->cape  = debug_load_bmp("../data/test_hero_front_cape.bmp");
   bitmap->torso = debug_load_bmp("../data/test_hero_front_torso.bmp");
   set_top_down_align(bitmap, v2{72, 182});
+  bitmap++;
   
   return asset_list;
 }

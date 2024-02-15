@@ -36,8 +36,7 @@ struct Asset_tag {
 enum Asset_type_id {
   Asset_null,
   
-  Asset_background,
-  
+  Asset_shadow,
   Asset_tree,
   Asset_sword,
   //Asset_stairwell,
@@ -88,10 +87,6 @@ struct Game_asset_list {
   Asset *asset_list;
   
   Hero_bitmaps hero_bitmaps[4];
-  
-  Loaded_bmp grass[2];
-  Loaded_bmp stone[4];
-  Loaded_bmp tuft[3];
   
   Asset_type asset_type_list[Asset_count];
   
