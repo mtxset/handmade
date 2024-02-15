@@ -844,6 +844,10 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
   
   push_clear(render_group, yellow_v4);
   
+  work->render_group = render_group;
+  work->buffer = bitmap_buffer;
+  work->task = task;
+  
   u32 random_number_index = 0;
   for (i32 chunk_offset_y = -1; chunk_offset_y <= 1; chunk_offset_y++) {
     for (i32 chunk_offset_x = -1; chunk_offset_x <= 1; chunk_offset_x++) {
@@ -859,25 +863,15 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
       for (u32 grass_index = 0; grass_index < 100; grass_index++) {
         macro_assert(random_number_index < macro_array_count(random_number_table));
         
-        Loaded_bmp* stamp;
-        
-        if (random_choise(&series, 2)) {
-          u32 count = macro_array_count(tran_state->asset_list->grass);
-          u32 random_index = random_choise(&series, count);
-          
-          stamp = tran_state->asset_list->grass + random_index;
-        }
-        else {
-          u32 count = macro_array_count(tran_state->asset_list->stone);
-          u32 random_index = random_choise(&series, count);
-          stamp = tran_state->asset_list->stone + random_index;
-        }
+        auto random_blob = random_choise(&series, 2) ? Asset_grass: Asset_stone;
+        Bitmap_id stamp = random_asset_from(tran_state->asset_list, random_blob, &series);
         
         v2 pos = 
           center + 
-          hadamard(half_dim, v2 { random_bilateral(&series), random_bilateral(&series) });
+          hadamard(half_dim, { random_bilateral(&series), random_bilateral(&series)});
         
         f32 splat_size = 2.0f;
+        
         push_bitmap(render_group, stamp, splat_size, v2_to_v3(pos, 0.0f));
       }
     }
@@ -897,11 +891,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
       for (u32 grass_index = 0; grass_index < 50; grass_index++) {
         macro_assert(random_number_index < macro_array_count(random_number_table));
         
-        Loaded_bmp* stamp;
-        
-        u32 count = macro_array_count(tran_state->asset_list->tuft);
-        u32 random_index = random_choise(&series, count);
-        stamp = tran_state->asset_list->tuft + random_index;
+        Bitmap_id stamp = random_asset_from(tran_state->asset_list, Asset_tuft, &series);
         
         v2 pos = 
           center + 
@@ -914,13 +904,11 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
   }
   
   if (all_resources_present(render_group)) {
-    
     ground_buffer->position = *chunk_pos;
-    
-    work->render_group = render_group;
-    work->buffer = bitmap_buffer;
-    work->task = task;
     platform_add_entry(tran_state->low_priority_queue, fill_ground_chunk_work, work);
+  }
+  else {
+    end_task_with_mem(work->task);
   }
 }
 
@@ -1537,8 +1525,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     game_state->test_diffuse = make_empty_bitmap(&tran_state->tran_arena, 256, 256, false);
     draw_rect_old(&game_state->test_diffuse, v2{0,0}, v2_i32(game_state->test_diffuse.width, game_state->test_diffuse.height), v4 {0.5f, 0.5f, 0.5f, 1.0f});
     
-    game_state->test_normal = make_empty_bitmap(&tran_state->tran_arena, 
-                                                game_state->test_diffuse.width, game_state->test_diffuse.height, false);
+    game_state->test_normal = make_empty_bitmap(&tran_state->tran_arena, game_state->test_diffuse.width, game_state->test_diffuse.height, false);
     
     make_sphere_normal_map(&game_state->test_normal, 0.0f);
     make_sphere_diffuse_map(&game_state->test_diffuse);
@@ -1682,6 +1669,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     camera_bounds_meters.min.z = -3.0f * game_state->typical_floor_height;
     camera_bounds_meters.max.z =  1.0f * game_state->typical_floor_height;
   }
+  
   
   // render ground chunks
   for (u32 ground_buffer_index = 0; ground_buffer_index < tran_state->ground_buffer_count; ground_buffer_index++) {
@@ -1910,6 +1898,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
       render_group->transform.offset_pos = get_entity_ground_point(entity);
       
       // post physics
+      
       switch (entity->type) {
         case Entity_type_hero: {
           
@@ -1929,13 +1918,13 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
             entity->t_bob -= TAU;
           }
           v3 offset = {0, 0, 0.5f * sin(entity->t_bob)};
-          Bitmap_id id = get_first_bitmap_id(tran_state->asset_list, Asset_familiar);
+          Bitmap_id id = get_first_bitmap_id(tran_state->asset_list, Asset_tree);
           push_bitmap(render_group, id, 1.0f, offset);
         } break;
         
         case Entity_type_monster: {
           
-          Bitmap_id id = get_first_bitmap_id(tran_state->asset_list, Asset_monster);
+          Bitmap_id id = get_first_bitmap_id(tran_state->asset_list, Asset_tree);
           push_bitmap(render_group, id, 1.0f, v3{0, 0, 0});
           draw_hitpoints(render_group, entity);
           
@@ -1943,7 +1932,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
         
         case Entity_type_sword: {
           
-          Bitmap_id id = get_first_bitmap_id(tran_state->asset_list, Asset_sword);
+          Bitmap_id id = get_first_bitmap_id(tran_state->asset_list, Asset_tree);
           push_bitmap(render_group, id, 1.0f, v3{0, 0, 0});
           
         } break;
@@ -1978,6 +1967,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
         } break;
         
       }
+      
       
       if (!is_set(entity, Entity_flag_non_spatial) &&
           is_set(entity, Entity_flag_moveable)) {

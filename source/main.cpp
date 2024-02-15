@@ -35,8 +35,8 @@
 */
 
 // if for recording of input and gamestate we use disk this will allocate file of PERMANENT_MEMORY_SIZE_MB + TRANSIENT_MEMORY_SIZE_MB size, and that will hang game till it's written
-global_var const i32           PERMANENT_MEMORY_SIZE_MB = 64;
-global_var const i32           TRANSIENT_MEMORY_SIZE_MB = 256;
+global_var const i32           PERMANENT_MEMORY_SIZE_MB = 256;
+global_var const i32           TRANSIENT_MEMORY_SIZE_MB = 1024;
 
 global_var bool                Global_game_running = true;
 global_var bool                Global_pause_sound_debug_sync = false;
