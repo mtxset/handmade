@@ -784,38 +784,6 @@ PLATFORM_WORK_QUEUE_CALLBACK(fill_ground_chunk_work)
   end_task_with_mem(work->task);
 }
 
-
-#if 0
-// no idea what it supposed to do on (day 133)
-internal
-i32
-pick_best(i32 info_count, Asset_bitmap_info *info_list, Asset_tag *tag_list, f32 *match_vector, f32 *weight_vector) {
-  
-  f32 best_diff = FLT_MAX;
-  i32 best_index = 0;
-  
-  for (i32 info_index = 0; info_index < info_count; info_index++) {
-    Asset_bitmap_info *info = info_list + info_index;
-    
-    f32 total_weight_diff = 0.0f;
-    for (u32 tag_index = info->first_tag_index; tag_index < info->one_past_last_tag_index; tag_index++) {
-      Asset_tag *tag = tag_list + tag_index;
-      f32 diff = match_vector[tag->id] - tag->value;
-      f32 weighted = weight_vector[tag->id] * absolute(diff);
-      total_weight_diff += weighted;
-    }
-    
-    if (best_diff > total_weight_diff) {
-      best_diff = total_weight_diff;
-      best_index = info_index;
-    }
-  }
-  
-  return best_index;
-}
-
-#endif
-
 internal
 void
 fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_buffer* ground_buffer, World_position* chunk_pos) {
@@ -1812,6 +1780,23 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
       }
       
       // pre physics
+      
+      Hero_bitmap_ids hero_bitmaps = {};
+      {
+        Asset_vector match_vector = {};
+        match_vector.e[Tag_facing_dir] = entity->facing_direction;
+        if (entity->type == Entity_type_hero)
+          printf("%f\n",entity->facing_direction);
+        
+        Asset_vector weight_vector = {};
+        weight_vector.e[Tag_facing_dir] = 1.0f;
+        
+        hero_bitmaps.head = best_match_asset(tran_state->asset_list, Asset_head, &match_vector, &weight_vector);
+        
+        hero_bitmaps.cape = best_match_asset(tran_state->asset_list, Asset_cape, &match_vector, &weight_vector);
+        
+        hero_bitmaps.torso = best_match_asset(tran_state->asset_list, Asset_torso, &match_vector, &weight_vector);
+      }
       switch (entity->type) {
         case Entity_type_hero: {
           
@@ -1902,11 +1887,11 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
       switch (entity->type) {
         case Entity_type_hero: {
           
-          Hero_bitmaps* hero_bitmap = &tran_state->asset_list->hero_bitmaps[entity->facing_direction];
           f32 hero_size = 2.5f;
-          push_bitmap(render_group, &hero_bitmap->torso, hero_size * 1.2f, v3{0, 0, 0});
-          push_bitmap(render_group, &hero_bitmap->cape, hero_size * 1.2f, v3{0, 0, 0});
-          push_bitmap(render_group, &hero_bitmap->head, hero_size * 1.2f, v3{0, 0, 0});
+          
+          push_bitmap(render_group, hero_bitmaps.torso, hero_size * 1.2f, v3{0, 0, 0});
+          push_bitmap(render_group, hero_bitmaps.cape, hero_size * 1.2f, v3{0, 0, 0});
+          push_bitmap(render_group, hero_bitmaps.head, hero_size * 1.2f, v3{0, 0, 0});
           
           draw_hitpoints(render_group, entity);
         } break;

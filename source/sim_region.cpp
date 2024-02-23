@@ -762,17 +762,8 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
   if (entity->velocity_d.x == 0 && entity->velocity_d.y == 0) {
     
   }
-  else if (absolute(entity->velocity_d.x) > absolute(entity->velocity_d.y)) {
-    if (entity->velocity_d.x > 0)
-      entity->facing_direction = 0;
-    else
-      entity->facing_direction = 2;
-  }
   else {
-    if (entity->velocity_d.y > 0)
-      entity->facing_direction = 1;
-    else
-      entity->facing_direction = 3;
+    entity->facing_direction = atan2(entity->velocity_d.y, entity->velocity_d.x);
   }
   
 #if 0

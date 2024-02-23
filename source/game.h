@@ -195,6 +195,12 @@ get_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
   return result;
 }
 
+struct Hero_bitmap_ids {
+  Bitmap_id head;
+  Bitmap_id cape;
+  Bitmap_id torso;
+};
+
 struct Game_state {
   bool is_initialized;
   Memory_arena world_arena;

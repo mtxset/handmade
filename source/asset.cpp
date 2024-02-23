@@ -184,6 +184,36 @@ load_sound(Game_asset_list *asset_list, u32 id) {
 
 internal
 Bitmap_id
+best_match_asset(Game_asset_list *asset_list, Asset_type_id type_id, Asset_vector *match_vector, Asset_vector *weight_vector) {
+  
+  Bitmap_id result = {};
+  
+  f32 best_diff = FLT_MAX;
+  
+  Asset_type *type = asset_list->asset_type_list + type_id;
+  
+  for (u32 asset_index = type->first_asset_index; asset_index < type->one_past_last_asset_index; asset_index++) {
+    Asset *asset = asset_list->asset_list + asset_index;
+    
+    f32 total_weight_diff = 0.0f;
+    for (u32 tag_index = asset->first_tag_index; tag_index < asset->one_past_last_tag_index; tag_index++) {
+      Asset_tag *tag = asset_list->tag_list + tag_index;
+      f32 diff = match_vector->e[tag->id] - tag->value;
+      f32 weighted = weight_vector->e[tag->id] * absolute(diff);
+      total_weight_diff += weighted;
+    }
+    
+    if (best_diff > total_weight_diff) {
+      best_diff = total_weight_diff;
+      result.value = asset->slot_id;
+    }
+  }
+  
+  return result;
+}
+
+internal
+Bitmap_id
 random_asset_from(Game_asset_list *asset_list, Asset_type_id type_id, Random_series *series) {
   Bitmap_id result = {};
   
@@ -232,6 +262,7 @@ end_asset_type(Game_asset_list *asset_list) {
   
   asset_list->debug_used_asset_count = asset_list->debug_asset_type->one_past_last_asset_index;
   asset_list->debug_asset_type = 0;
+  asset_list->debug_asset = 0;
 }
 
 internal
@@ -254,9 +285,23 @@ add_bitmap_asset(Game_asset_list *asset_list, char *filename, v2 align_pcent = {
   macro_assert(asset_list->debug_asset_type);
   
   Asset *asset = asset_list->asset_list + asset_list->debug_asset_type->one_past_last_asset_index++;
-  asset->first_tag_index = 0;
-  asset->one_past_last_tag_index = 0;
+  asset->first_tag_index = asset_list->debug_used_tag_count;
+  asset->one_past_last_tag_index = asset->first_tag_index;
   asset->slot_id = debug_add_bitmap_info(asset_list, filename, align_pcent).value;
+  
+  asset_list->debug_asset = asset;
+}
+
+internal
+void
+add_tag(Game_asset_list *asset_list, Asset_tag_id id, f32 value) {
+  macro_assert(asset_list->debug_asset);
+  
+  asset_list->debug_asset->one_past_last_tag_index++;
+  Asset_tag *tag = asset_list->tag_list + asset_list->debug_used_tag_count++;
+  
+  tag->id = id;
+  tag->value = value;
 }
 
 internal
@@ -276,6 +321,9 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
   
   asset_list->asset_count = asset_list->sound_count + asset_list->bitmap_count;
   asset_list->asset_list = mem_push_array(arena, asset_list->asset_count, Asset);
+  
+  asset_list->tag_count = 1024 * Asset_count;
+  asset_list->tag_list = mem_push_array(arena, asset_list->tag_count, Asset_tag);
   
   asset_list->debug_used_bitmap_count = 1;
   asset_list->debug_used_asset_count = 1;
@@ -321,9 +369,48 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
   add_bitmap_asset(asset_list, "../data/ground03.bmp");
   end_asset_type(asset_list);
   
-  Hero_bitmaps* bitmap = asset_list->hero_bitmaps;
+  f32 angle_right = 0.0f  * TAU;
+  f32 angle_back  = 0.25f * TAU;
+  f32 angle_left  = 0.5f  * TAU;
+  f32 angle_front = 0.75f * TAU;
   
-  bitmap->head  = debug_load_bmp("../data/test_hero_right_head.bmp");
+  begin_asset_type(asset_list, Asset_head);
+  add_bitmap_asset(asset_list, "../data/test_hero_right_head.bmp");
+  add_tag(asset_list, Tag_facing_dir, angle_right);
+  add_bitmap_asset(asset_list, "../data/test_hero_back_head.bmp");
+  add_tag(asset_list, Tag_facing_dir, angle_back);
+  add_bitmap_asset(asset_list, "../data/test_hero_left_head.bmp");
+  add_tag(asset_list, Tag_facing_dir, angle_left);
+  add_bitmap_asset(asset_list, "../data/test_hero_front_head.bmp");
+  add_tag(asset_list, Tag_facing_dir, angle_front);
+  end_asset_type(asset_list);
+  
+  begin_asset_type(asset_list, Asset_cape);
+  add_bitmap_asset(asset_list, "../data/test_hero_right_cape.bmp");
+  add_tag(asset_list, Tag_facing_dir, angle_right);
+  add_bitmap_asset(asset_list, "../data/test_hero_back_cape.bmp");
+  add_tag(asset_list, Tag_facing_dir, angle_back);
+  add_bitmap_asset(asset_list, "../data/test_hero_left_cape.bmp");
+  add_tag(asset_list, Tag_facing_dir, angle_left);
+  add_bitmap_asset(asset_list, "../data/test_hero_front_cape.bmp");
+  add_tag(asset_list, Tag_facing_dir, angle_front);
+  end_asset_type(asset_list);
+  
+  begin_asset_type(asset_list, Asset_torso);
+  add_bitmap_asset(asset_list, "../data/test_hero_right_torso.bmp");
+  add_tag(asset_list, Tag_facing_dir, angle_right);
+  add_bitmap_asset(asset_list, "../data/test_hero_back_torso.bmp");
+  add_tag(asset_list, Tag_facing_dir, angle_back);
+  add_bitmap_asset(asset_list, "../data/test_hero_left_torso.bmp");
+  add_tag(asset_list, Tag_facing_dir, angle_left);
+  add_bitmap_asset(asset_list, "../data/test_hero_front_torso.bmp");
+  add_tag(asset_list, Tag_facing_dir, angle_front);
+  end_asset_type(asset_list);
+  
+#if 0
+  
+  Hero_bitmaps* bitmap = asset_list->hero_bitmaps;
+  bitmap->head  = debug_load_bmp();
   bitmap->cape  = debug_load_bmp("../data/test_hero_right_cape.bmp");
   bitmap->torso = debug_load_bmp("../data/test_hero_right_torso.bmp");
   set_top_down_align(bitmap, v2{72, 182});
@@ -346,6 +433,6 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
   bitmap->torso = debug_load_bmp("../data/test_hero_front_torso.bmp");
   set_top_down_align(bitmap, v2{72, 182});
   bitmap++;
-  
+#endif
   return asset_list;
 }
