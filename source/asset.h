@@ -24,6 +24,7 @@ struct Asset_slot {
 enum Asset_tag_id {
   Tag_smoothness,
   Tag_flatness,
+  Tag_facing_dir,
   
   Tag_count,
 };
@@ -46,10 +47,18 @@ enum Asset_type_id {
   Asset_tuft,
   Asset_stone,
   
+  Asset_head,
+  Asset_cape,
+  Asset_torso,
+  
   //Asset_monster,
   //Asset_familiar,
   
   Asset_count
+};
+
+struct Asset_vector {
+  f32 e[Tag_count];
 };
 
 struct Asset_type {
@@ -86,13 +95,15 @@ struct Game_asset_list {
   u32 asset_count;
   Asset *asset_list;
   
-  Hero_bitmaps hero_bitmaps[4];
+  //Hero_bitmaps hero_bitmaps[4];
   
   Asset_type asset_type_list[Asset_count];
   
   u32 debug_used_bitmap_count;
   u32 debug_used_asset_count;
+  u32 debug_used_tag_count;
   Asset_type *debug_asset_type;
+  Asset *debug_asset;
 };
 
 

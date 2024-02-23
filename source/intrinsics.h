@@ -723,10 +723,10 @@ f32 cos(f32 value) {
 }
 
 inline
-f32 atan2(f32 x, f32 y) {
+f32 atan2(f32 y, f32 x) {
   f32 result = 0;
   
-  result = atan2f(x, y);
+  result = atan2f(y, x);
   
   return result;
 }
