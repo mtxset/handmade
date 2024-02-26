@@ -82,6 +82,8 @@ struct Game_asset_list {
   struct Transient_state *tran_state;
   Memory_arena arena;
   
+  f32 tag_range[Tag_count];
+  
   u32 bitmap_count;
   Asset_bitmap_info *bitmap_info_list;
   Asset_slot *bitmap_list;

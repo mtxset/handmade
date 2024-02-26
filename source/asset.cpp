@@ -198,8 +198,14 @@ best_match_asset(Game_asset_list *asset_list, Asset_type_id type_id, Asset_vecto
     f32 total_weight_diff = 0.0f;
     for (u32 tag_index = asset->first_tag_index; tag_index < asset->one_past_last_tag_index; tag_index++) {
       Asset_tag *tag = asset_list->tag_list + tag_index;
-      f32 diff = match_vector->e[tag->id] - tag->value;
-      f32 weighted = weight_vector->e[tag->id] * absolute(diff);
+      
+      f32 a = match_vector->e[tag->id];
+      f32 b = tag->value;
+      f32 d0 = absolute(a - b);
+      f32 d1 = absolute((a - asset_list->tag_range[tag->id] * sign_of(a)) - b);
+      f32 diff = min(d0, d1);
+      
+      f32 weighted = weight_vector->e[tag->id] * diff;
       total_weight_diff += weighted;
     }
     
@@ -312,6 +318,11 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
   sub_arena(&asset_list->arena, arena, size);
   asset_list->tran_state = tran_state;
   
+  for (u32 tag_type = 0; tag_type < Tag_count; tag_type++) {
+    asset_list->tag_range[tag_type] = 1000000.0f;
+  }
+  asset_list->tag_range[Tag_facing_dir] = TAU;
+  
   asset_list->bitmap_count = 256 * Asset_count;
   asset_list->bitmap_info_list = mem_push_array(arena, asset_list->bitmap_count, Asset_bitmap_info);
   asset_list->bitmap_list = mem_push_array(arena, asset_list->bitmap_count, Asset_slot);
@@ -374,65 +385,40 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
   f32 angle_left  = 0.5f  * TAU;
   f32 angle_front = 0.75f * TAU;
   
+  v2 hero_align = {0.5f, 0.156682029f};
+  
   begin_asset_type(asset_list, Asset_head);
-  add_bitmap_asset(asset_list, "../data/test_hero_right_head.bmp");
+  add_bitmap_asset(asset_list, "../data/test_hero_right_head.bmp", hero_align);
   add_tag(asset_list, Tag_facing_dir, angle_right);
-  add_bitmap_asset(asset_list, "../data/test_hero_back_head.bmp");
+  add_bitmap_asset(asset_list, "../data/test_hero_back_head.bmp", hero_align);
   add_tag(asset_list, Tag_facing_dir, angle_back);
-  add_bitmap_asset(asset_list, "../data/test_hero_left_head.bmp");
+  add_bitmap_asset(asset_list, "../data/test_hero_left_head.bmp", hero_align);
   add_tag(asset_list, Tag_facing_dir, angle_left);
-  add_bitmap_asset(asset_list, "../data/test_hero_front_head.bmp");
+  add_bitmap_asset(asset_list, "../data/test_hero_front_head.bmp", hero_align);
   add_tag(asset_list, Tag_facing_dir, angle_front);
   end_asset_type(asset_list);
   
   begin_asset_type(asset_list, Asset_cape);
-  add_bitmap_asset(asset_list, "../data/test_hero_right_cape.bmp");
+  add_bitmap_asset(asset_list, "../data/test_hero_right_cape.bmp", hero_align);
   add_tag(asset_list, Tag_facing_dir, angle_right);
-  add_bitmap_asset(asset_list, "../data/test_hero_back_cape.bmp");
+  add_bitmap_asset(asset_list, "../data/test_hero_back_cape.bmp", hero_align);
   add_tag(asset_list, Tag_facing_dir, angle_back);
-  add_bitmap_asset(asset_list, "../data/test_hero_left_cape.bmp");
+  add_bitmap_asset(asset_list, "../data/test_hero_left_cape.bmp", hero_align);
   add_tag(asset_list, Tag_facing_dir, angle_left);
-  add_bitmap_asset(asset_list, "../data/test_hero_front_cape.bmp");
+  add_bitmap_asset(asset_list, "../data/test_hero_front_cape.bmp", hero_align);
   add_tag(asset_list, Tag_facing_dir, angle_front);
   end_asset_type(asset_list);
   
   begin_asset_type(asset_list, Asset_torso);
-  add_bitmap_asset(asset_list, "../data/test_hero_right_torso.bmp");
+  add_bitmap_asset(asset_list, "../data/test_hero_right_torso.bmp", hero_align);
   add_tag(asset_list, Tag_facing_dir, angle_right);
-  add_bitmap_asset(asset_list, "../data/test_hero_back_torso.bmp");
+  add_bitmap_asset(asset_list, "../data/test_hero_back_torso.bmp", hero_align);
   add_tag(asset_list, Tag_facing_dir, angle_back);
-  add_bitmap_asset(asset_list, "../data/test_hero_left_torso.bmp");
+  add_bitmap_asset(asset_list, "../data/test_hero_left_torso.bmp", hero_align);
   add_tag(asset_list, Tag_facing_dir, angle_left);
-  add_bitmap_asset(asset_list, "../data/test_hero_front_torso.bmp");
+  add_bitmap_asset(asset_list, "../data/test_hero_front_torso.bmp", hero_align);
   add_tag(asset_list, Tag_facing_dir, angle_front);
   end_asset_type(asset_list);
   
-#if 0
-  
-  Hero_bitmaps* bitmap = asset_list->hero_bitmaps;
-  bitmap->head  = debug_load_bmp();
-  bitmap->cape  = debug_load_bmp("../data/test_hero_right_cape.bmp");
-  bitmap->torso = debug_load_bmp("../data/test_hero_right_torso.bmp");
-  set_top_down_align(bitmap, v2{72, 182});
-  bitmap++;
-  
-  bitmap->head  = debug_load_bmp("../data/test_hero_back_head.bmp");
-  bitmap->cape  = debug_load_bmp("../data/test_hero_back_cape.bmp");
-  bitmap->torso = debug_load_bmp("../data/test_hero_back_torso.bmp");
-  set_top_down_align(bitmap, v2{72, 182});
-  bitmap++;
-  
-  bitmap->head  = debug_load_bmp("../data/test_hero_left_head.bmp");
-  bitmap->cape  = debug_load_bmp("../data/test_hero_left_cape.bmp");
-  bitmap->torso = debug_load_bmp("../data/test_hero_left_torso.bmp");
-  set_top_down_align(bitmap, v2{72, 182});
-  bitmap++;
-  
-  bitmap->head  = debug_load_bmp("../data/test_hero_front_head.bmp");
-  bitmap->cape  = debug_load_bmp("../data/test_hero_front_cape.bmp");
-  bitmap->torso = debug_load_bmp("../data/test_hero_front_torso.bmp");
-  set_top_down_align(bitmap, v2{72, 182});
-  bitmap++;
-#endif
   return asset_list;
 }

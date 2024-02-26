@@ -655,6 +655,15 @@ i32 sign_of(i32 value) {
 }
 
 inline
+f32 sign_of(f32 value) {
+  f32 result;
+  
+  result = value >= 0 ? 1.0f : -1.0f;
+  
+  return result;
+}
+
+inline
 i32 round_f32_i32(f32 value) {
   i32 result;
   
