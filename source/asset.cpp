@@ -159,7 +159,8 @@ internal
 void 
 load_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
   
-  if (atomic_compare_exchange_u32((u32*)&asset_list->bitmap_list[id.value].state, Asset_state_unloaded, Asset_state_queued) != Asset_state_unloaded) 
+  if (id.value &&
+      atomic_compare_exchange_u32((u32*)&asset_list->bitmap_list[id.value].state, Asset_state_unloaded, Asset_state_queued) != Asset_state_unloaded) 
     return;
   
   Task_with_memory *task = begin_task_with_mem(asset_list->tran_state);
@@ -178,8 +179,100 @@ load_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
   platform_add_entry(asset_list->tran_state->low_priority_queue, load_bitmap_work, work);
 }
 
+#define RIFF_CODE(a,b,c,d) (((u32)(a) << 0) | ((u32)(b) << 8) | ((u32)(c) << 16) | ((u32)(d) << 24))
+
+// IFF - created by ea in amiga, big-endian
+
+enum {
+  WAVE_ChunkID_fmt  = RIFF_CODE('f', 'm', 't', ' '),
+  WAVE_ChunkID_RIFF = RIFF_CODE('R', 'I', 'F', 'F'),
+  WAVE_ChunkID_WAVE = RIFF_CODE('W', 'A', 'V', 'E'),
+};
+
+struct Wave_header {
+  u32 riffid;
+  u32 size;
+  u32 waveid;
+};
+
+// https://docs.fileformat.com/audio/wav/
+// https://onestepcode.com/modifying-wav-files-c/
+struct Wave_fmt {
+  u16 riff_header; // "RIFF"
+  u32 wav_size;    // file size?
+  u16 wave_header; // "WAVE"
+  u16 fmt_header;  // "fmt "
+  u32 fmt_chunk_size; // 16
+  
+  u16 audio_format; // 1 - PCM?
+  u16 channel_count; // 2
+  u32 sample_rate; // 44100 samples per second/ hertz
+  u32 byte_rate;   // (Sample Rate * BitsPerSample * Channels) / 8 // 176400
+  u16 block_align; // (BitsPerSample * Channels) / 8.1 - 8 bit mono2 - 8 bit stereo/16 bit mono4 - 16 bit stereo
+  u16 bits_per_sample; // 16
+  u16 data_header; // "data"
+  u32 data_size;  // size of data (samples)
+};
+
+internal
+Loaded_sound
+debug_load_wav(char *filename) {
+  Loaded_sound result = {};
+  
+  Debug_file_read_result read_result = debug_read_entire_file(filename);
+  macro_assert(read_result.content);
+  
+  Wave_header *header = (Wave_header*)read_result.content;
+  macro_assert(header->riffid == WAVE_ChunkID_RIFF);
+  macro_assert(header->waveid == WAVE_ChunkID_WAVE);
+  
+  return result;
+}
+
+struct Load_sound_work {
+  Game_asset_list *asset_list;
+  Sound_id id;
+  Task_with_memory *task;
+  Loaded_sound *sound;
+  
+  Asset_state final_state;
+};
+
+internal 
+PLATFORM_WORK_QUEUE_CALLBACK(load_sound_work) {
+  Load_sound_work *work = (Load_sound_work*)data;
+  
+  Asset_sound_info *info = work->asset_list->bitmap_sound_list + work->id.value;
+  *work->sound = debug_load_wav(info->filename);
+  
+  _WriteBarrier();
+  
+  work->asset_list->sound_list[work->id.value].sound = work->sound;
+  work->asset_list->sound_list[work->id.value].state = work->final_state;
+  
+  end_task_with_mem(work->task);
+}
+
 internal void
-load_sound(Game_asset_list *asset_list, u32 id) {
+load_sound(Game_asset_list *asset_list, Sound_id id) {
+  if (id.value &&
+      atomic_compare_exchange_u32((u32*)&asset_list->sound_list[id.value].state, Asset_state_unloaded, Asset_state_queued) != Asset_state_unloaded) 
+    return;
+  
+  Task_with_memory *task = begin_task_with_mem(asset_list->tran_state);
+  
+  if (!task)
+    return;
+  
+  Load_sound_work *work = mem_push_struct(&task->arena, Load_sound_work);
+  
+  work->asset_list = asset_list;
+  work->id = id;
+  work->task = task;
+  work->sound = mem_push_struct(&asset_list->arena, Loaded_sound);
+  work->final_state = Asset_state_loaded;
+  
+  platform_add_entry(asset_list->tran_state->low_priority_queue, load_sound_work, work);
 }
 
 internal

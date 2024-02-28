@@ -3,6 +3,11 @@
 #ifndef ASSET_H
 #define ASSET_H
 
+struct Loaded_sound {
+  i32 sample_count;
+  void *memory;
+};
+
 struct Hero_bitmaps {
   Loaded_bmp head;
   Loaded_bmp cape;
@@ -18,7 +23,10 @@ enum Asset_state {
 
 struct Asset_slot {
   Asset_state state;
-  Loaded_bmp *bitmap;
+  union {
+    Loaded_bmp *bitmap;
+    Loaded_sound *sound;
+  };
 };
 
 enum Asset_tag_id {
@@ -77,6 +85,10 @@ struct Asset_bitmap_info {
   v2 align_pcent;
 };
 
+struct Asset_sound_info {
+  char *filename;
+};
+
 struct Game_asset_list {
   
   struct Transient_state *tran_state;
@@ -89,6 +101,7 @@ struct Game_asset_list {
   Asset_slot *bitmap_list;
   
   u32 sound_count;
+  Asset_sound_info *bitmap_sound_list;
   Asset_slot *sound_list;
   
   u32 tag_count;
@@ -113,11 +126,11 @@ struct Bitmap_id {
   u32 value;
 };
 
-struct Audio_id {
+struct Sound_id {
   u32 value;
 };
 
 internal void load_bitmap(Game_asset_list *asset_list, Bitmap_id id);
-internal void load_sound(Game_asset_list *asset_list, Audio_id id);
+internal void load_sound(Game_asset_list *asset_list, Sound_id id);
 
 #endif //ASSET_H
