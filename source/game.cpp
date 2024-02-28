@@ -1785,8 +1785,6 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
       {
         Asset_vector match_vector = {};
         match_vector.e[Tag_facing_dir] = entity->facing_direction;
-        if (entity->type == Entity_type_hero)
-          printf("%f\n",entity->facing_direction);
         
         Asset_vector weight_vector = {};
         weight_vector.e[Tag_facing_dir] = 1.0f;
