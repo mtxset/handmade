@@ -1,30 +1,4 @@
-// struct is from: https://www.fileformat.info/format/bmp/egff.htm
-// preventing compiler padding this struct
-#pragma pack(push, 1)
-struct Bitmap_header {
-  u16 FileType;        /* File type, always 4D42h ("BM") */
-  u32 FileSize;        /* Size of the file in bytes */
-  u16 Reserved1;       /* Always 0 */
-  u16 Reserved2;       /* Always 0 */
-  u32 BitmapOffset;    /* Starting position of image data in bytes */
-  
-  u32 Size;            /* Size of this header in bytes */
-  i32 Width;           /* Image width in pixels */
-  i32 Height;          /* Image height in pixels */
-  u16 Planes;          /* Number of color planes */
-  u16 BitsPerPixel;    /* Number of bits per pixel */
-  u32 Compression;     /* Compression methods used */
-  u32 SizeOfBitmap;    /* Size of bitmap in bytes */
-  i32 HorzResolution;  /* Horizontal resolution in pixels per meter */
-  i32 VertResolution;  /* Vertical resolution in pixels per meter */
-  u32 ColorsUsed;      /* Number of colors in the image */
-  u32 ColorsImportant; /* Minimum number of important colors */
-  
-  u32 RedMask;         /* Mask identifying bits of red component */
-  u32 GreenMask;       /* Mask identifying bits of green component */
-  u32 BlueMask;        /* Mask identifying bits of blue component */
-};
-#pragma pack(pop)
+
 
 internal
 v2
@@ -179,40 +153,57 @@ load_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
   platform_add_entry(asset_list->tran_state->low_priority_queue, load_bitmap_work, work);
 }
 
-#define RIFF_CODE(a,b,c,d) (((u32)(a) << 0) | ((u32)(b) << 8) | ((u32)(c) << 16) | ((u32)(d) << 24))
-
-// IFF - created by ea in amiga, big-endian
-
-enum {
-  WAVE_ChunkID_fmt  = RIFF_CODE('f', 'm', 't', ' '),
-  WAVE_ChunkID_RIFF = RIFF_CODE('R', 'I', 'F', 'F'),
-  WAVE_ChunkID_WAVE = RIFF_CODE('W', 'A', 'V', 'E'),
+struct Riff_iterator {
+  u8 *at;
+  u8 *stop;
 };
 
-struct Wave_header {
-  u32 riffid;
-  u32 size;
-  u32 waveid;
-};
-
-// https://docs.fileformat.com/audio/wav/
-// https://onestepcode.com/modifying-wav-files-c/
-struct Wave_fmt {
-  u16 riff_header; // "RIFF"
-  u32 wav_size;    // file size?
-  u16 wave_header; // "WAVE"
-  u16 fmt_header;  // "fmt "
-  u32 fmt_chunk_size; // 16
+inline
+Riff_iterator
+parse_chunk_at(void *at, void *stop) {
+  Riff_iterator iterator;
   
-  u16 audio_format; // 1 - PCM?
-  u16 channel_count; // 2
-  u32 sample_rate; // 44100 samples per second/ hertz
-  u32 byte_rate;   // (Sample Rate * BitsPerSample * Channels) / 8 // 176400
-  u16 block_align; // (BitsPerSample * Channels) / 8.1 - 8 bit mono2 - 8 bit stereo/16 bit mono4 - 16 bit stereo
-  u16 bits_per_sample; // 16
-  u16 data_header; // "data"
-  u32 data_size;  // size of data (samples)
-};
+  iterator.at = (u8*)at;
+  iterator.stop = (u8*)stop;
+  
+  return iterator;
+}
+
+inline 
+Riff_iterator
+next_chunk(Riff_iterator iter) {
+  Wave_chunk *chunk = (Wave_chunk*)iter.at;
+  u32 size = (chunk->size + 1) & ~1;
+  iter.at += sizeof(Wave_chunk) + size;
+  
+  return iter;
+}
+
+inline
+void*
+get_chunk_data(Riff_iterator iter) {
+  void *result = iter.at + sizeof(Wave_chunk);
+  
+  return result;
+}
+
+inline
+u32
+get_type(Riff_iterator iter) {
+  Wave_chunk *chunk = (Wave_chunk*)iter.at;
+  u32 result = chunk->id;
+  
+  return result;
+}
+
+inline
+u32
+get_chunk_data_size(Riff_iterator iter) {
+  Wave_chunk *chunk = (Wave_chunk*)iter.at;
+  u32 result = chunk->size;
+  
+  return result;
+}
 
 internal
 Loaded_sound
@@ -223,8 +214,55 @@ debug_load_wav(char *filename) {
   macro_assert(read_result.content);
   
   Wave_header *header = (Wave_header*)read_result.content;
-  macro_assert(header->riffid == WAVE_ChunkID_RIFF);
-  macro_assert(header->waveid == WAVE_ChunkID_WAVE);
+  macro_assert(header->riffid == Wave_ChunkID_RIFF);
+  macro_assert(header->waveid == Wave_ChunkID_WAVE);
+  
+  u32 channel_count = 0;
+  u32 sample_data_size = 0;
+  i16 *sample_data = 0;
+  
+  for (Riff_iterator iter = parse_chunk_at(header + 1, (u8*)(header + 1) + header->size - 4);
+       iter.at < iter.stop;
+       iter = next_chunk(iter)) {
+    
+    switch (get_type(iter)) {
+      
+      case Wave_ChunkID_fmt: {
+        Wave_fmt *fmt = (Wave_fmt*)get_chunk_data(iter);
+        macro_assert(fmt->format_tag == 1);
+        macro_assert(fmt->samples_per_sec == 48000);
+        macro_assert(fmt->bits_per_sample == 16);
+        macro_assert(fmt->block_align == sizeof(i16) * fmt->channels);
+        channel_count = fmt->channels;
+        u32 u = 0;
+      } break;
+      
+      case Wave_ChunkID_data: {
+        sample_data = (i16*)get_chunk_data(iter);
+        sample_data_size = get_chunk_data_size(iter);
+      } break;
+      
+      //default: macro_assert(!"FAILURE");
+    }
+    
+  }
+  
+  macro_assert(channel_count && sample_data_size && sample_data);
+  
+  result.channel_count = channel_count;
+  result.sample_count = sample_data_size / (channel_count * sizeof(i16));
+  
+  macro_assert(channel_count == 2);
+  
+  result.samples[0] = sample_data;
+  result.samples[1] = sample_data + result.sample_count;
+  
+  for (u32 sample_index = 0; sample_index < result.sample_count; sample_index++) {
+    i16 source = sample_data[2 * sample_index];
+    
+    sample_data[2 * sample_index] = sample_data[sample_index];
+    sample_data[sample_index] = source;
+  }
   
   return result;
 }
