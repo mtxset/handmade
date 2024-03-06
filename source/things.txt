@@ -21,3 +21,5 @@ Sound/Music mixing
  frequency - pitch?
  amplitude - volume?
  clipping - wave mixer gets over max amplitude
+ 16 bit -> 2^16 = 65536 goes 65536 / 2 so from -32k to 32k
+ modularity, interpolation -> 
