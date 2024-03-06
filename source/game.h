@@ -251,6 +251,8 @@ struct Game_state {
   v2 p3_offset;
   
   f32 sin_cos_state;
+  u32 test_sample_index;
+  Loaded_sound test_sound;
 };
 
 struct Task_with_memory {

@@ -107,7 +107,6 @@ game_output_sound(Game_sound_buffer* sound_buffer, i32 tone_hz, Game_state* stat
     *sample_out++ = sample_value;
     state->t_sine += PI * 2.0f * (1.0f / (f32)wave_period);
     
-    // cuz sinf loses its floating point precision???
     if (state->t_sine > PI * 2.0f)
       state->t_sine -= PI * 2.0f;
   }
@@ -1202,6 +1201,8 @@ bezier_curves(Loaded_bmp* draw_buffer, Game_input* input, Game_state* game_state
   }
 }
 
+// to prevent name mangle by compiler, so function can looked up by name exactly
+
 extern "C"
 void 
 game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer) {
@@ -1246,6 +1247,8 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     World* world = game_state->world;
     
     game_state->typical_floor_height = 3.0f;
+    
+    game_state->test_sound = debug_load_wav("../data/sounds/music_test.wav");
     
     const f32 pixels_to_meters = 1.0f / 42.0f;
     v3 world_chunk_dim_meters = {
@@ -2104,5 +2107,15 @@ extern "C"
 void 
 game_get_sound_samples(Game_memory* memory, Game_sound_buffer* sound_buffer) {
   auto game_state = (Game_state*)memory->permanent_storage;
-  game_output_sound(sound_buffer, 400, game_state);
+  
+  i16 *sample_out = sound_buffer->samples;
+  for (i32 sample_index = 0; sample_index < sound_buffer->sample_count; sample_index++) {
+    u32 test_sample_index =  (game_state->test_sample_index + sample_index) % game_state->test_sound.sample_count;
+    i16 sample_value = game_state->test_sound.samples[0][test_sample_index];
+    
+    *sample_out++ = sample_value;
+    *sample_out++ = sample_value;
+  }
+  
+  game_state->test_sample_index += sound_buffer->sample_count;
 }
