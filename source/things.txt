@@ -16,3 +16,8 @@ Aligning memory
  2 A A B'B
 
  thus overwriting values of each other's work 	
+
+Sound/Music mixing
+ frequency - pitch?
+ amplitude - volume?
+ clipping - wave mixer gets over max amplitude

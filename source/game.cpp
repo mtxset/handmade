@@ -87,11 +87,11 @@ render_255_gradient(Loaded_bmp* bitmap_buffer, i32 blue_offset, i32 green_offset
 internal
 void
 game_output_sound(Game_sound_buffer* sound_buffer, i32 tone_hz, Game_state* state) {
-  i16 tone_volume = 3000;
+  i16 tone_volume = 1000;
   i32 wave_period = sound_buffer->samples_per_second / tone_hz;
   auto sample_out = sound_buffer->samples;
   
-#if 1
+#if 0
   for (i32 sample_index = 0; sample_index < sound_buffer->sample_count; sample_index++) {
     i16 sample_value = 0;
     
@@ -100,15 +100,25 @@ game_output_sound(Game_sound_buffer* sound_buffer, i32 tone_hz, Game_state* stat
   }
 #else
   for (i32 sample_index = 0; sample_index < sound_buffer->sample_count; sample_index++) {
-    f32 sine_val = sinf(state->t_sine);
+    f32 sine_val = sin(state->t_sine);
+    
+    f32 modulation_depth = 100.0f; 
+    f32 base_frequency = 100.0f; 
+    f32 mod_freq = sin(state->t_mod) * modulation_depth + base_frequency;
+    f32 phase_increment = PI * 2.0f * mod_freq / (f32)wave_period;
     i16 sample_value = (i16)(sine_val * tone_volume);
     
     *sample_out++ = sample_value;
     *sample_out++ = sample_value;
-    state->t_sine += PI * 2.0f * (1.0f / (f32)wave_period);
     
-    if (state->t_sine > PI * 2.0f)
-      state->t_sine -= PI * 2.0f;
+    state->t_sine += phase_increment;
+    state->t_mod += 0.1f;
+    
+    if (state->t_sine > TAU)
+      state->t_sine -= TAU;
+    
+    if (state->t_mod > TAU)
+      state->t_mod -= TAU;
   }
 #endif
 }
@@ -2108,6 +2118,8 @@ void
 game_get_sound_samples(Game_memory* memory, Game_sound_buffer* sound_buffer) {
   auto game_state = (Game_state*)memory->permanent_storage;
   
+#if 0
+  
   i16 *sample_out = sound_buffer->samples;
   for (i32 sample_index = 0; sample_index < sound_buffer->sample_count; sample_index++) {
     u32 test_sample_index =  (game_state->test_sample_index + sample_index) % game_state->test_sound.sample_count;
@@ -2118,4 +2130,7 @@ game_get_sound_samples(Game_memory* memory, Game_sound_buffer* sound_buffer) {
   }
   
   game_state->test_sample_index += sound_buffer->sample_count;
+#else
+  game_output_sound(sound_buffer, 100, game_state);
+#endif 
 }
