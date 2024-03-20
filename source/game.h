@@ -188,6 +188,14 @@ struct Ground_buffer {
 };
 
 inline
+Loaded_sound*
+get_sound(Game_asset_list *asset_list, Sound_id id) {
+  Loaded_sound *result = asset_list->sound_list[id.value].sound;
+  
+  return result;
+}
+
+inline
 Loaded_bmp*
 get_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
   Loaded_bmp *result = asset_list->bitmap_list[id.value].bitmap;
@@ -199,6 +207,13 @@ struct Hero_bitmap_ids {
   Bitmap_id head;
   Bitmap_id cape;
   Bitmap_id torso;
+};
+
+struct Playing_sound {
+  f32 volume[2];
+  Sound_id id;
+  u32 samples_played;
+  Playing_sound *next;
 };
 
 struct Game_state {
@@ -252,8 +267,9 @@ struct Game_state {
   v2 p3_offset;
   
   f32 sin_cos_state;
-  u32 test_sample_index;
-  Loaded_sound test_sound;
+  
+  Playing_sound *first_playing_sound;
+  Playing_sound *first_free_playing_sound;
 };
 
 struct Task_with_memory {

@@ -314,10 +314,10 @@ load_sound(Game_asset_list *asset_list, Sound_id id) {
 }
 
 internal
-Bitmap_id
-best_match_asset(Game_asset_list *asset_list, Asset_type_id type_id, Asset_vector *match_vector, Asset_vector *weight_vector) {
+u32
+get_best_match_asset_from(Game_asset_list *asset_list, Asset_type_id type_id, Asset_vector *match_vector, Asset_vector *weight_vector) {
   
-  Bitmap_id result = {};
+  u32 result = {};
   
   f32 best_diff = FLT_MAX;
   
@@ -342,7 +342,7 @@ best_match_asset(Game_asset_list *asset_list, Asset_type_id type_id, Asset_vecto
     
     if (best_diff > total_weight_diff) {
       best_diff = total_weight_diff;
-      result.value = asset->slot_id;
+      result = asset->slot_id;
     }
   }
   
@@ -350,9 +350,9 @@ best_match_asset(Game_asset_list *asset_list, Asset_type_id type_id, Asset_vecto
 }
 
 internal
-Bitmap_id
-random_asset_from(Game_asset_list *asset_list, Asset_type_id type_id, Random_series *series) {
-  Bitmap_id result = {};
+u32
+get_random_slot_from(Game_asset_list *asset_list, Asset_type_id type_id, Random_series *series) {
+  u32 result = {};
   
   Asset_type *type = asset_list->asset_type_list + type_id;
   
@@ -361,23 +361,80 @@ random_asset_from(Game_asset_list *asset_list, Asset_type_id type_id, Random_ser
     u32 choice = random_choise(series, count);
     
     Asset *asset = asset_list->asset_list + type->first_asset_index + choice;
-    result.value = asset->slot_id;
+    result = asset->slot_id;
   }
   
   return result;
 }
 
 internal
-Bitmap_id
-get_first_bitmap_id(Game_asset_list *asset_list, Asset_type_id type_id) {
-  Bitmap_id result = {};
+u32
+get_first_slot_from(Game_asset_list* asset_list, Asset_type_id type_id) {
+  
+  u32 result = 0;
   
   Asset_type *type = asset_list->asset_type_list + type_id;
   
   if (type->first_asset_index != type->one_past_last_asset_index) {
     Asset *asset = asset_list->asset_list + type->first_asset_index;
-    result.value = asset->slot_id;
+    result = asset->slot_id;
   }
+  
+  return result;
+  
+}
+
+inline
+Bitmap_id
+get_best_match_bitmap_from(Game_asset_list* asset_list, Asset_type_id type_id, Asset_vector *match_vector, Asset_vector* weight_vector) {
+  Bitmap_id result = {};
+  result.value = get_best_match_asset_from(asset_list, type_id, match_vector, weight_vector);
+  
+  return result;
+}
+
+inline
+Bitmap_id
+get_first_bitmap_from(Game_asset_list *asset_list, Asset_type_id type_id) {
+  Bitmap_id result = {};
+  result.value = get_first_slot_from(asset_list, type_id);
+  
+  return result;
+}
+
+inline
+Bitmap_id
+get_random_bitmap_from(Game_asset_list *asset_list, Asset_type_id type_id, Random_series *series) {
+  Bitmap_id result = {};
+  result.value = get_random_slot_from(asset_list, type_id, series);
+  
+  return result;
+}
+
+
+inline
+Sound_id
+get_best_match_sound_from(Game_asset_list* asset_list, Asset_type_id type_id, Asset_vector *match_vector, Asset_vector* weight_vector) {
+  Sound_id result = {};
+  result.value = get_best_match_asset_from(asset_list, type_id, match_vector, weight_vector);
+  
+  return result;
+}
+
+inline
+Sound_id
+get_first_sound_from(Game_asset_list *asset_list, Asset_type_id type_id) {
+  Sound_id result = {};
+  result.value = get_first_slot_from(asset_list, type_id);
+  
+  return result;
+}
+
+inline
+Sound_id
+get_random_sound_from(Game_asset_list *asset_list, Asset_type_id type_id, Random_series *series) {
+  Sound_id result = {};
+  result.value = get_random_slot_from(asset_list, type_id, series);
   
   return result;
 }
