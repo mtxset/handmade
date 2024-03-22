@@ -10,6 +10,7 @@
 #include "entity.h"
 #include "render_group.h"
 #include "asset.h"
+#include "random.h"
 
 #define BITMAP_BYTES_PER_PIXEL 4
 
@@ -188,6 +189,14 @@ struct Ground_buffer {
 };
 
 inline
+Loaded_sound*
+get_sound(Game_asset_list *asset_list, Sound_id id) {
+  Loaded_sound *result = asset_list->sound_list[id.value].sound;
+  
+  return result;
+}
+
+inline
 Loaded_bmp*
 get_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
   Loaded_bmp *result = asset_list->bitmap_list[id.value].bitmap;
@@ -201,9 +210,19 @@ struct Hero_bitmap_ids {
   Bitmap_id torso;
 };
 
+struct Playing_sound {
+  f32 volume[2];
+  Sound_id id;
+  u32 samples_played;
+  Playing_sound *next;
+};
+
 struct Game_state {
   bool is_initialized;
+  
+  Memory_arena meta_arena;
   Memory_arena world_arena;
+  
   World* world;
   
   f32 typical_floor_height;
@@ -236,6 +255,11 @@ struct Game_state {
   Loaded_bmp test_diffuse;
   Loaded_bmp test_normal;
   
+  Random_series general_entropy;
+  
+  Playing_sound *first_playing_sound;
+  Playing_sound *first_free_playing_sound;
+  
 #if 0
   Pacman_state pacman_state;
 #endif
@@ -252,8 +276,7 @@ struct Game_state {
   v2 p3_offset;
   
   f32 sin_cos_state;
-  u32 test_sample_index;
-  Loaded_sound test_sound;
+  
 };
 
 struct Task_with_memory {

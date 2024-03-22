@@ -841,7 +841,8 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
         macro_assert(random_number_index < macro_array_count(random_number_table));
         
         auto random_blob = random_choise(&series, 2) ? Asset_grass: Asset_stone;
-        Bitmap_id stamp = random_asset_from(tran_state->asset_list, random_blob, &series);
+        Bitmap_id stamp = get_random_bitmap_from(tran_state->asset_list,
+                                                 random_blob, &series);
         
         v2 pos = 
           center + 
@@ -868,7 +869,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
       for (u32 grass_index = 0; grass_index < 50; grass_index++) {
         macro_assert(random_number_index < macro_array_count(random_number_table));
         
-        Bitmap_id stamp = random_asset_from(tran_state->asset_list, Asset_tuft, &series);
+        Bitmap_id stamp = get_random_bitmap_from(tran_state->asset_list, Asset_tuft, &series);
         
         v2 pos = 
           center + 
@@ -1211,9 +1212,31 @@ bezier_curves(Loaded_bmp* draw_buffer, Game_input* input, Game_state* game_state
   }
 }
 
-// to prevent name mangle by compiler, so function can looked up by name exactly
 
-extern "C"
+internal
+Playing_sound*
+play_sound(Game_state *game_state, Sound_id sound_id) {
+  
+  if (!game_state->first_free_playing_sound) {
+    game_state->first_free_playing_sound = mem_push_struct(&game_state->world_arena, Playing_sound);
+    game_state->first_free_playing_sound->next = 0;
+  }
+  
+  Playing_sound *playing_sound = game_state->first_free_playing_sound;
+  game_state->first_free_playing_sound = playing_sound->next;
+  
+  playing_sound->samples_played = 0;
+  playing_sound->volume[0] = 1.0f;
+  playing_sound->volume[1] = 1.0f;
+  playing_sound->id = sound_id;
+  
+  playing_sound->next = game_state->first_playing_sound;
+  game_state->first_playing_sound = playing_sound;
+  
+  return playing_sound;
+}
+
+extern "C" // to prevent name mangle by compiler, so function can looked up by name exactly
 void 
 game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer) {
   
@@ -1245,6 +1268,9 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     const u32 tiles_per_width  = 17;
     const u32 tiles_per_height = 9;
     
+    game_state->typical_floor_height = 3.0f;
+    game_state->general_entropy = random_seed(1234);
+    
     // init memory arenas
     initialize_arena(&game_state->world_arena,
                      memory->permanent_storage_size - sizeof(Game_state),
@@ -1256,9 +1282,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     game_state->world = mem_push_struct(&game_state->world_arena, World);
     World* world = game_state->world;
     
-    game_state->typical_floor_height = 3.0f;
     
-    game_state->test_sound = debug_load_wav("../data/sounds/music_test.wav");
     
     const f32 pixels_to_meters = 1.0f / 42.0f;
     v3 world_chunk_dim_meters = {
@@ -1490,6 +1514,8 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     
     u32 size = macro_megabytes(64);
     tran_state->asset_list = allocate_game_asset_list(&tran_state->tran_arena, size, tran_state);
+    
+    play_sound(game_state, get_first_sound_from(tran_state->asset_list, Asset_music));
     
     tran_state->ground_buffer_count = 256;
     tran_state->ground_buffer_list = mem_push_array(&tran_state->tran_arena, tran_state->ground_buffer_count, Ground_buffer);
@@ -1802,11 +1828,11 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
         Asset_vector weight_vector = {};
         weight_vector.e[Tag_facing_dir] = 1.0f;
         
-        hero_bitmaps.head = best_match_asset(tran_state->asset_list, Asset_head, &match_vector, &weight_vector);
+        hero_bitmaps.head = get_best_match_bitmap_from(tran_state->asset_list, Asset_head, &match_vector, &weight_vector);
         
-        hero_bitmaps.cape = best_match_asset(tran_state->asset_list, Asset_cape, &match_vector, &weight_vector);
+        hero_bitmaps.cape = get_best_match_bitmap_from(tran_state->asset_list, Asset_cape, &match_vector, &weight_vector);
         
-        hero_bitmaps.torso = best_match_asset(tran_state->asset_list, Asset_torso, &match_vector, &weight_vector);
+        hero_bitmaps.torso = get_best_match_bitmap_from(tran_state->asset_list, Asset_torso, &match_vector, &weight_vector);
       }
       switch (entity->type) {
         case Entity_type_hero: {
@@ -1834,6 +1860,8 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
                   sword->distance_limit = 5.0f;
                   make_entity_spatial(sword, entity->position, v2_to_v3(5.0f * con_hero->d_sword, 0));
                   add_collision_rule(game_state, sword->storage_index, entity->storage_index, false);
+                  
+                  play_sound(game_state, get_random_sound_from(tran_state->asset_list, Asset_bloop, &game_state->general_entropy));
                 }
               }
             }
@@ -1914,13 +1942,13 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
             entity->t_bob -= TAU;
           }
           v3 offset = {0, 0, 0.5f * sin(entity->t_bob)};
-          Bitmap_id id = get_first_bitmap_id(tran_state->asset_list, Asset_tree);
+          Bitmap_id id = get_first_bitmap_from(tran_state->asset_list, Asset_tree);
           push_bitmap(render_group, id, 1.0f, offset);
         } break;
         
         case Entity_type_monster: {
           
-          Bitmap_id id = get_first_bitmap_id(tran_state->asset_list, Asset_tree);
+          Bitmap_id id = get_first_bitmap_from(tran_state->asset_list, Asset_tree);
           push_bitmap(render_group, id, 1.0f, v3{0, 0, 0});
           draw_hitpoints(render_group, entity);
           
@@ -1928,14 +1956,14 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
         
         case Entity_type_sword: {
           
-          Bitmap_id id = get_first_bitmap_id(tran_state->asset_list, Asset_tree);
+          Bitmap_id id = get_first_bitmap_from(tran_state->asset_list, Asset_tree);
           push_bitmap(render_group, id, 1.0f, v3{0, 0, 0});
           
         } break;
         
         case Entity_type_wall: {
           
-          Bitmap_id id = get_first_bitmap_id(tran_state->asset_list, Asset_tree);
+          Bitmap_id id = get_first_bitmap_from(tran_state->asset_list, Asset_tree);
           push_bitmap(render_group, id, 2.5f, v3{0,0,0});
           
         } break;
@@ -2113,24 +2141,84 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
 
 #endif
 
+
 extern "C" 
 void 
 game_get_sound_samples(Game_memory* memory, Game_sound_buffer* sound_buffer) {
   auto game_state = (Game_state*)memory->permanent_storage;
+  auto tran_state = (Transient_state*)memory->transient_storage;
   
-#if 0
+  Temp_memory mixer_memory = begin_temp_memory(&tran_state->tran_arena);
   
-  i16 *sample_out = sound_buffer->samples;
-  for (i32 sample_index = 0; sample_index < sound_buffer->sample_count; sample_index++) {
-    u32 test_sample_index =  (game_state->test_sample_index + sample_index) % game_state->test_sound.sample_count;
-    i16 sample_value = game_state->test_sound.samples[0][test_sample_index];
+  f32 *real_channel_0 = mem_push_array(&tran_state->tran_arena, sound_buffer->sample_count, f32);
+  f32 *real_channel_1 = mem_push_array(&tran_state->tran_arena, sound_buffer->sample_count, f32);
+  
+  {
+    f32 *dest_0 = real_channel_0;
+    f32 *dest_1 = real_channel_1;
     
-    *sample_out++ = sample_value;
-    *sample_out++ = sample_value;
+    for (i32 sample_index = 0; sample_index < sound_buffer->sample_count; sample_index++) {
+      *dest_0++ = 0.0f;
+      *dest_1++ = 0.0f;
+    }
   }
   
-  game_state->test_sample_index += sound_buffer->sample_count;
-#else
-  game_output_sound(sound_buffer, 100, game_state);
-#endif 
+  for (Playing_sound **play_sound_ptr = &game_state->first_playing_sound; *play_sound_ptr;) {
+    Playing_sound *playing_sound = *play_sound_ptr;
+    bool sound_finished = false;
+    
+    Loaded_sound *loaded_sound = get_sound(tran_state->asset_list, playing_sound->id);
+    
+    if (loaded_sound) {
+      f32 volume_0 = playing_sound->volume[0];
+      f32 volume_1 = playing_sound->volume[1];
+      f32 *dest_0 = real_channel_0;
+      f32 *dest_1 = real_channel_1;
+      
+      macro_assert(playing_sound->samples_played >= 0);
+      
+      u32 samples_to_mix = sound_buffer->sample_count;
+      u32 samples_remaining = loaded_sound->sample_count - playing_sound->samples_played;
+      
+      if (samples_to_mix > samples_remaining) {
+        samples_to_mix = samples_remaining;
+      }
+      
+      for (u32 sample_index = playing_sound->samples_played; sample_index < playing_sound->samples_played + samples_to_mix; sample_index++) {
+        f32 sample_value = loaded_sound->samples[0][sample_index];
+        *dest_0++ += volume_0 * sample_value;
+        *dest_1++ += volume_1 * sample_value;
+      }
+      
+      sound_finished = ((u32)playing_sound->samples_played == loaded_sound->sample_count);
+      
+      playing_sound->samples_played += samples_to_mix;
+    }
+    else {
+      load_sound(tran_state->asset_list, playing_sound->id);
+    }
+    
+    if (sound_finished) {
+      *play_sound_ptr = playing_sound->next;
+      playing_sound->next = game_state->first_free_playing_sound;
+      game_state->first_free_playing_sound = playing_sound;
+    }
+    else {
+      play_sound_ptr = &playing_sound->next;
+    }
+  }
+  
+  {
+    f32 *source_0 = real_channel_0;
+    f32 *source_1 = real_channel_1;
+    
+    i16 *sample_out = sound_buffer->samples;
+    for (i32 sample_index = 0; sample_index < sound_buffer->sample_count; sample_index++) {
+      
+      *sample_out++ = (i16)(*source_0++ + 0.5f);
+      *sample_out++ = (i16)(*source_1++ + 0.5f);
+    }
+  }
+  
+  end_temp_memory(mixer_memory);
 }

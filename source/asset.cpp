@@ -280,7 +280,7 @@ internal
 PLATFORM_WORK_QUEUE_CALLBACK(load_sound_work) {
   Load_sound_work *work = (Load_sound_work*)data;
   
-  Asset_sound_info *info = work->asset_list->bitmap_sound_list + work->id.value;
+  Asset_sound_info *info = work->asset_list->sound_info_list + work->id.value;
   *work->sound = debug_load_wav(info->filename);
   
   _WriteBarrier();
@@ -294,30 +294,32 @@ PLATFORM_WORK_QUEUE_CALLBACK(load_sound_work) {
 internal void
 load_sound(Game_asset_list *asset_list, Sound_id id) {
   if (id.value &&
-      atomic_compare_exchange_u32((u32*)&asset_list->sound_list[id.value].state, Asset_state_unloaded, Asset_state_queued) != Asset_state_unloaded) 
+      atomic_compare_exchange_u32((u32*)&asset_list->sound_list[id.value].state, Asset_state_queued, Asset_state_unloaded) != Asset_state_unloaded) 
     return;
   
   Task_with_memory *task = begin_task_with_mem(asset_list->tran_state);
   
-  if (!task)
-    return;
-  
-  Load_sound_work *work = mem_push_struct(&task->arena, Load_sound_work);
-  
-  work->asset_list = asset_list;
-  work->id = id;
-  work->task = task;
-  work->sound = mem_push_struct(&asset_list->arena, Loaded_sound);
-  work->final_state = Asset_state_loaded;
-  
-  platform_add_entry(asset_list->tran_state->low_priority_queue, load_sound_work, work);
+  if (task) {
+    Load_sound_work *work = mem_push_struct(&task->arena, Load_sound_work);
+    
+    work->asset_list = asset_list;
+    work->id = id;
+    work->task = task;
+    work->sound = mem_push_struct(&asset_list->arena, Loaded_sound);
+    work->final_state = Asset_state_loaded;
+    
+    platform_add_entry(asset_list->tran_state->low_priority_queue, load_sound_work, work);
+  }
+  else {
+    asset_list->sound_list[id.value].state = Asset_state_unloaded;
+  }
 }
 
 internal
-Bitmap_id
-best_match_asset(Game_asset_list *asset_list, Asset_type_id type_id, Asset_vector *match_vector, Asset_vector *weight_vector) {
+u32
+get_best_match_asset_from(Game_asset_list *asset_list, Asset_type_id type_id, Asset_vector *match_vector, Asset_vector *weight_vector) {
   
-  Bitmap_id result = {};
+  u32 result = {};
   
   f32 best_diff = FLT_MAX;
   
@@ -342,7 +344,7 @@ best_match_asset(Game_asset_list *asset_list, Asset_type_id type_id, Asset_vecto
     
     if (best_diff > total_weight_diff) {
       best_diff = total_weight_diff;
-      result.value = asset->slot_id;
+      result = asset->slot_id;
     }
   }
   
@@ -350,9 +352,9 @@ best_match_asset(Game_asset_list *asset_list, Asset_type_id type_id, Asset_vecto
 }
 
 internal
-Bitmap_id
-random_asset_from(Game_asset_list *asset_list, Asset_type_id type_id, Random_series *series) {
-  Bitmap_id result = {};
+u32
+get_random_slot_from(Game_asset_list *asset_list, Asset_type_id type_id, Random_series *series) {
+  u32 result = {};
   
   Asset_type *type = asset_list->asset_type_list + type_id;
   
@@ -361,23 +363,79 @@ random_asset_from(Game_asset_list *asset_list, Asset_type_id type_id, Random_ser
     u32 choice = random_choise(series, count);
     
     Asset *asset = asset_list->asset_list + type->first_asset_index + choice;
-    result.value = asset->slot_id;
+    result = asset->slot_id;
   }
   
   return result;
 }
 
 internal
-Bitmap_id
-get_first_bitmap_id(Game_asset_list *asset_list, Asset_type_id type_id) {
-  Bitmap_id result = {};
+u32
+get_first_slot_from(Game_asset_list* asset_list, Asset_type_id type_id) {
+  
+  u32 result = 0;
   
   Asset_type *type = asset_list->asset_type_list + type_id;
   
   if (type->first_asset_index != type->one_past_last_asset_index) {
     Asset *asset = asset_list->asset_list + type->first_asset_index;
-    result.value = asset->slot_id;
+    result = asset->slot_id;
   }
+  
+  return result;
+}
+
+inline
+Bitmap_id
+get_best_match_bitmap_from(Game_asset_list* asset_list, Asset_type_id type_id, Asset_vector *match_vector, Asset_vector* weight_vector) {
+  Bitmap_id result = {};
+  result.value = get_best_match_asset_from(asset_list, type_id, match_vector, weight_vector);
+  
+  return result;
+}
+
+inline
+Bitmap_id
+get_first_bitmap_from(Game_asset_list *asset_list, Asset_type_id type_id) {
+  Bitmap_id result = {};
+  result.value = get_first_slot_from(asset_list, type_id);
+  
+  return result;
+}
+
+inline
+Bitmap_id
+get_random_bitmap_from(Game_asset_list *asset_list, Asset_type_id type_id, Random_series *series) {
+  Bitmap_id result = {};
+  result.value = get_random_slot_from(asset_list, type_id, series);
+  
+  return result;
+}
+
+
+inline
+Sound_id
+get_best_match_sound_from(Game_asset_list* asset_list, Asset_type_id type_id, Asset_vector *match_vector, Asset_vector* weight_vector) {
+  Sound_id result = {};
+  result.value = get_best_match_asset_from(asset_list, type_id, match_vector, weight_vector);
+  
+  return result;
+}
+
+inline
+Sound_id
+get_first_sound_from(Game_asset_list *asset_list, Asset_type_id type_id) {
+  Sound_id result = {};
+  result.value = get_first_slot_from(asset_list, type_id);
+  
+  return result;
+}
+
+inline
+Sound_id
+get_random_sound_from(Game_asset_list *asset_list, Asset_type_id type_id, Random_series *series) {
+  Sound_id result = {};
+  result.value = get_random_slot_from(asset_list, type_id, series);
   
   return result;
 }
@@ -416,6 +474,20 @@ debug_add_bitmap_info(Game_asset_list* asset_list, char *filename, v2 align_pcen
   return id;
 }
 
+
+internal
+Sound_id
+debug_add_sound_info(Game_asset_list* asset_list, char *filename) {
+  macro_assert(asset_list->debug_used_sound_count < asset_list->sound_count);
+  
+  Sound_id id = {asset_list->debug_used_sound_count++};
+  
+  Asset_sound_info *info = asset_list->sound_info_list + id.value;
+  info->filename = filename;
+  
+  return id;
+}
+
 internal
 void
 add_bitmap_asset(Game_asset_list *asset_list, char *filename, v2 align_pcent = {0.5, 0.5}) {
@@ -428,6 +500,21 @@ add_bitmap_asset(Game_asset_list *asset_list, char *filename, v2 align_pcent = {
   
   asset_list->debug_asset = asset;
 }
+
+internal
+void
+add_sound_asset(Game_asset_list *asset_list, char *filename) {
+  macro_assert(asset_list->debug_asset_type);
+  macro_assert(asset_list->debug_asset_type->one_past_last_asset_index < asset_list->asset_count);
+  
+  Asset *asset = asset_list->asset_list + asset_list->debug_asset_type->one_past_last_asset_index++;
+  asset->first_tag_index = asset_list->debug_used_tag_count;
+  asset->one_past_last_tag_index = asset->first_tag_index;
+  asset->slot_id = debug_add_sound_info(asset_list, filename).value;
+  
+  asset_list->debug_asset = asset;
+}
+
 
 internal
 void
@@ -458,7 +545,8 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
   asset_list->bitmap_info_list = mem_push_array(arena, asset_list->bitmap_count, Asset_bitmap_info);
   asset_list->bitmap_list = mem_push_array(arena, asset_list->bitmap_count, Asset_slot);
   
-  asset_list->sound_count = 1;
+  asset_list->sound_count = 256 * Asset_count;
+  asset_list->sound_info_list = mem_push_array(arena, asset_list->sound_count, Asset_sound_info);
   asset_list->sound_list = mem_push_array(arena, asset_list->sound_count, Asset_slot);
   
   asset_list->asset_count = asset_list->sound_count + asset_list->bitmap_count;
@@ -469,6 +557,7 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
   
   asset_list->debug_used_bitmap_count = 1;
   asset_list->debug_used_asset_count = 1;
+  asset_list->debug_used_sound_count = 1;
   
   begin_asset_type(asset_list, Asset_shadow);
   add_bitmap_asset(asset_list, "../data/test_hero_shadow.bmp", v2{0.5f, 0.156682029f});
@@ -549,6 +638,37 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
   add_tag(asset_list, Tag_facing_dir, angle_left);
   add_bitmap_asset(asset_list, "../data/test_hero_front_torso.bmp", hero_align);
   add_tag(asset_list, Tag_facing_dir, angle_front);
+  end_asset_type(asset_list);
+  
+  ////////// Sounds
+  
+  begin_asset_type(asset_list, Asset_bloop);
+  add_sound_asset(asset_list, "../data/sounds/bloop_00.wav");
+  add_sound_asset(asset_list, "../data/sounds/bloop_01.wav");
+  add_sound_asset(asset_list, "../data/sounds/bloop_02.wav");
+  add_sound_asset(asset_list, "../data/sounds/bloop_03.wav");
+  add_sound_asset(asset_list, "../data/sounds/bloop_04.wav");
+  end_asset_type(asset_list);
+  
+  begin_asset_type(asset_list, Asset_crack);
+  add_sound_asset(asset_list, "../data/sounds/crack_00.wav");
+  end_asset_type(asset_list);
+  
+  begin_asset_type(asset_list, Asset_drop);
+  add_sound_asset(asset_list, "../data/sounds/drop_00.wav");
+  end_asset_type(asset_list);
+  
+  begin_asset_type(asset_list, Asset_glide);
+  add_sound_asset(asset_list, "../data/sounds/glide_00.wav");
+  end_asset_type(asset_list);
+  
+  begin_asset_type(asset_list, Asset_music);
+  add_sound_asset(asset_list, "../data/sounds/music_test.wav");
+  end_asset_type(asset_list);
+  
+  begin_asset_type(asset_list, Asset_puhp);
+  add_sound_asset(asset_list, "../data/sounds/puhp_00.wav");
+  add_sound_asset(asset_list, "../data/sounds/puhp_01.wav");
   end_asset_type(asset_list);
   
   return asset_list;

@@ -25,8 +25,8 @@
 
 #if COMPILER_MSVC
 #include <intrin.h>
-inline u32 atomic_compare_exchange_u32(u32 volatile *value, u32 expected, u32 new_value) {
-  u32 result = InterlockedCompareExchange(value, expected, new_value);
+inline u32 atomic_compare_exchange_u32(u32 volatile *value, u32 new_value, u32 expected) {
+  u32 result = InterlockedCompareExchange(value, new_value, expected);
   return result;
 }
 #endif
