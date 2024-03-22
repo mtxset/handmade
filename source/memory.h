@@ -105,7 +105,6 @@ mem_push_size_(Memory_arena* arena, size_t size_init, size_t alignment = 4) {
   return result;
 }
 
-
 inline
 void
 sub_arena(Memory_arena* result, Memory_arena *arena, size_t size, size_t alignment = 16) {

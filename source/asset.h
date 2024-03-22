@@ -146,6 +146,15 @@ enum Asset_type_id {
   //Asset_monster,
   //Asset_familiar,
   
+  ////////////////////////// Sounds
+  
+  Asset_bloop,
+  Asset_crack,
+  Asset_drop,
+  Asset_glide,
+  Asset_music,
+  Asset_puhp,
+  
   Asset_count
 };
 
@@ -185,7 +194,7 @@ struct Game_asset_list {
   Asset_slot *bitmap_list;
   
   u32 sound_count;
-  Asset_sound_info *bitmap_sound_list;
+  Asset_sound_info *sound_info_list;
   Asset_slot *sound_list;
   
   u32 tag_count;
@@ -199,8 +208,10 @@ struct Game_asset_list {
   Asset_type asset_type_list[Asset_count];
   
   u32 debug_used_bitmap_count;
+  u32 debug_used_sound_count;
   u32 debug_used_asset_count;
   u32 debug_used_tag_count;
+  
   Asset_type *debug_asset_type;
   Asset *debug_asset;
 };

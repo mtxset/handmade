@@ -10,6 +10,7 @@
 #include "entity.h"
 #include "render_group.h"
 #include "asset.h"
+#include "random.h"
 
 #define BITMAP_BYTES_PER_PIXEL 4
 
@@ -218,7 +219,10 @@ struct Playing_sound {
 
 struct Game_state {
   bool is_initialized;
+  
+  Memory_arena meta_arena;
   Memory_arena world_arena;
+  
   World* world;
   
   f32 typical_floor_height;
@@ -251,6 +255,11 @@ struct Game_state {
   Loaded_bmp test_diffuse;
   Loaded_bmp test_normal;
   
+  Random_series general_entropy;
+  
+  Playing_sound *first_playing_sound;
+  Playing_sound *first_free_playing_sound;
+  
 #if 0
   Pacman_state pacman_state;
 #endif
@@ -268,8 +277,6 @@ struct Game_state {
   
   f32 sin_cos_state;
   
-  Playing_sound *first_playing_sound;
-  Playing_sound *first_free_playing_sound;
 };
 
 struct Task_with_memory {
