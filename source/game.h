@@ -2,128 +2,24 @@
 #ifndef GAME_H
 #define GAME_H
 
+#include <math.h>
+
 #include "types.h"
-#include "utils.h"
+#include "platform.h"
 #include "memory.h"
+#include "file_io.h"
+
+#include "intrinsics.h"
+#include "math.h"
 #include "world.h"
 #include "sim_region.h"
 #include "entity.h"
 #include "render_group.h"
 #include "asset.h"
 #include "random.h"
+#include "audio.h"
 
 #define BITMAP_BYTES_PER_PIXEL 4
-
-struct Game_bitmap_buffer {
-  // pixels are always 32 bit, memory order BB GG RR XX (padding)
-  void* memory;
-  i32 width;
-  i32 height;
-  i32 pitch;
-  u32 window_width;
-  u32 window_height;
-};
-
-struct Game_sound_buffer {
-  i32 sample_count;
-  i32 samples_per_second;
-  i16* samples;
-};
-
-struct Game_button_state {
-  i32 half_transition_count;
-  bool ended_down;
-};
-
-struct Game_controller_input {
-  bool is_connected;
-  bool is_analog;
-  f32 stick_avg_x;
-  f32 stick_avg_y;
-  
-  union {
-    Game_button_state buttons[16];
-    struct {
-      Game_button_state action_up;
-      Game_button_state action_down;
-      Game_button_state action_left;
-      Game_button_state action_right;
-      
-      Game_button_state up;
-      Game_button_state down;
-      Game_button_state left;
-      Game_button_state right;
-      
-      Game_button_state cross_or_a;
-      Game_button_state circle_or_b;
-      Game_button_state triangle_or_y;
-      Game_button_state box_or_x;
-      
-      Game_button_state shift;
-      Game_button_state action;
-      
-      Game_button_state start;
-      // if assert fails increase buttons[x] by amount of new buttons, so total matches count of buttons in this struct
-      // back button has to be last entry cuz there is macro which relies on that
-      // file: game.cpp function: game_update_render
-      Game_button_state back;
-    };
-  };
-};
-
-struct Game_input {
-  Game_button_state mouse_buttons[3];
-  i32 mouse_x, mouse_y;
-  
-  // seconds to advance over update
-  f32 time_delta;
-  
-  // 1 - keyboard, other gamepads
-  Game_controller_input gamepad[5];
-  
-  bool executable_reloaded;
-};
-
-#if INTERNAL
-enum Debug_cycle_counter_type {
-  Debug_cycle_counter_type_game_update_render,      // 0
-  Debug_cycle_counter_type_render_group_to_output,  // 1
-  Debug_cycle_counter_type_render_draw_rect_slow,   // 2
-  Debug_cycle_counter_type_process_pixel,           // 3
-  Debug_cycle_counter_type_render_draw_rect_quak,   // 4
-  Debug_cycle_counter_count
-};
-
-typedef struct Debug_cycle_counter {
-  u64 cycle_count;
-  u32 hit_count;
-} Debug_cycle_counter;
-#endif
-
-struct Platform_work_queue;
-#define PLATFORM_WORK_QUEUE_CALLBACK(name) void name(Platform_work_queue *queue, void *data)
-typedef PLATFORM_WORK_QUEUE_CALLBACK(Platform_work_queue_callback);
-
-typedef void Platform_add_entry(Platform_work_queue *queue, Platform_work_queue_callback *callback, void *data);
-typedef void Platform_complete_all_work(Platform_work_queue *queue);
-
-typedef struct Game_memory {
-  u64 permanent_storage_size;
-  void* permanent_storage;
-  
-  u64 transient_storage_size;
-  void* transient_storage;
-  
-  Platform_work_queue *high_priority_queue;
-  Platform_work_queue *low_priority_queue;
-  
-  Platform_add_entry *platform_add_entry;
-  Platform_complete_all_work *platform_complete_all_work;
-  
-#if INTERNAL
-  Debug_cycle_counter counter_list[Debug_cycle_counter_count];
-#endif
-} Game_memory;
 
 struct drop {
   bool active;
@@ -197,6 +93,24 @@ get_sound(Game_asset_list *asset_list, Sound_id id) {
 }
 
 inline
+bool
+is_valid(Sound_id id) {
+  bool result = (id.value != 0);
+  
+  return result;
+}
+
+inline
+Asset_sound_info*
+get_sound_info(Game_asset_list *asset_list, Sound_id id) {
+  assert(id.value <= asset_list->sound_count);
+  
+  Asset_sound_info *result = asset_list->sound_info_list + id.value;
+  
+  return result;
+}
+
+inline
 Loaded_bmp*
 get_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
   Loaded_bmp *result = asset_list->bitmap_list[id.value].bitmap;
@@ -208,13 +122,6 @@ struct Hero_bitmap_ids {
   Bitmap_id head;
   Bitmap_id cape;
   Bitmap_id torso;
-};
-
-struct Playing_sound {
-  f32 volume[2];
-  Sound_id id;
-  u32 samples_played;
-  Playing_sound *next;
 };
 
 struct Game_state {
@@ -257,8 +164,7 @@ struct Game_state {
   
   Random_series general_entropy;
   
-  Playing_sound *first_playing_sound;
-  Playing_sound *first_free_playing_sound;
+  Audio_state audio_state;
   
 #if 0
   Pacman_state pacman_state;
@@ -303,20 +209,6 @@ struct Transient_state {
   
   Game_asset_list *asset_list;
 };
-
-Game_controller_input* 
-get_gamepad(Game_input* input, i32 input_index) {
-  macro_assert(input_index >= 0);
-  macro_assert(input_index < macro_array_count(input->gamepad));
-  
-  return &input->gamepad[input_index];
-}
-
-typedef 
-void (game_update_render_signature) (Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer);
-
-typedef 
-void (game_get_sound_samples_signature) (Game_memory* memory, Game_sound_buffer* sound_buffer);
 
 internal
 Low_entity* get_low_entity(Game_state* game_state, u32 index) {

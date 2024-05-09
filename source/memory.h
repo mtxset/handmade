@@ -53,16 +53,16 @@ inline
 void
 end_temp_memory(Temp_memory temp_memory) {
   Memory_arena* arena = temp_memory.arena;
-  macro_assert(arena->used >= temp_memory.used);
+  assert(arena->used >= temp_memory.used);
   arena->used = temp_memory.used;
-  macro_assert(arena->temp_count > 0);
+  assert(arena->temp_count > 0);
   arena->temp_count--;
 }
 
 inline
 void
 check_arena(Memory_arena* arena) {
-  macro_assert(arena->temp_count == 0);
+  assert(arena->temp_count == 0);
 }
 
 inline
@@ -95,12 +95,12 @@ mem_push_size_(Memory_arena* arena, size_t size_init, size_t alignment = 4) {
   size_t alignment_offset = get_alignment_offset(arena, alignment);
   size += alignment_offset;
   
-  macro_assert((arena->used + size) <= arena->size);
+  assert((arena->used + size) <= arena->size);
   
   void* result = arena->base + arena->used + alignment_offset;
   arena->used += size;
   
-  macro_assert(size >= size_init);
+  assert(size >= size_init);
   
   return result;
 }

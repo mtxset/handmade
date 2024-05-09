@@ -12,7 +12,7 @@ store_entity_ref(Entity_ref* ref) {
 internal
 Sim_entity_hash* 
 get_hash_from_storage_index(Sim_region* sim_region, u32 storage_index) {
-  macro_assert(storage_index);
+  assert(storage_index);
   
   Sim_entity_hash* result = 0;
   
@@ -36,7 +36,7 @@ internal
 void
 map_storage_index_to_entity(Sim_region* sim_region, u32 storage_index, Sim_entity* entity) {
   Sim_entity_hash* entry = get_hash_from_storage_index(sim_region, storage_index);
-  macro_assert(entry->index == 0 || entry->index == storage_index);
+  assert(entry->index == 0 || entry->index == storage_index);
   entry->index = storage_index;
   entry->pointer = entity;
 }
@@ -100,7 +100,7 @@ internal
 Sim_entity* 
 add_entity_raw(Game_state* game_state, Sim_region* sim_region, u32 storage_index, Low_entity* source) {
   
-  macro_assert(storage_index);
+  assert(storage_index);
   Sim_entity* entity = 0;
   
   Sim_entity_hash* entry = get_hash_from_storage_index(sim_region, storage_index);
@@ -117,7 +117,7 @@ add_entity_raw(Game_state* game_state, Sim_region* sim_region, u32 storage_index
         *entity = source->sim;
         load_entity_ref(game_state, sim_region, &entity->sword);
         
-        macro_assert(!is_set(&source->sim, Entity_flag_simming));
+        assert(!is_set(&source->sim, Entity_flag_simming));
         add_flags(&source->sim, Entity_flag_simming);
       }
       
@@ -125,7 +125,7 @@ add_entity_raw(Game_state* game_state, Sim_region* sim_region, u32 storage_index
       entity->updatable = false;
     }
     else {
-      macro_assert(!"INVALID");
+      assert(!"INVALID");
     }
   }
   
@@ -212,9 +212,9 @@ end_sim(Sim_region* region, Game_state* game_state) {
     
     Low_entity* stored = game_state->low_entity_list + entity->storage_index;
     
-    macro_assert(is_set(&stored->sim, Entity_flag_simming));
+    assert(is_set(&stored->sim, Entity_flag_simming));
     stored->sim = *entity;
-    macro_assert(!is_set(&stored->sim, Entity_flag_simming));
+    assert(!is_set(&stored->sim, Entity_flag_simming));
     
     store_entity_ref(&stored->sim.sword);
     
@@ -482,7 +482,7 @@ internal
 void
 move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, f32 time_delta, Move_spec* move_spec, v3 player_acceleration_dd) {
   
-  macro_assert(!is_set(entity, Entity_flag_non_spatial));
+  assert(!is_set(entity, Entity_flag_non_spatial));
   
   World* world = sim_region->world;
   
@@ -515,7 +515,7 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
   entity->velocity_d = player_acceleration_dd * time_delta + entity->velocity_d;
   
 #if 0 // to allow for fast movement, but collision may be off
-  // macro_assert(length_squared(entity->velocity_d) <= square(sim_region->max_entity_velocity));
+  // assert(length_squared(entity->velocity_d) <= square(sim_region->max_entity_velocity));
 #endif
   
   // p' = ... + p

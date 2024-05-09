@@ -1,23 +1,12 @@
-#include <stdio.h>
-
-#include "types.h"
-#include "file_io.h"
-#include "file_io.cpp"
-#include "utils.h"
-#include "utils.cpp"
-#include "intrinsics.h"
-
 #include "game.h"
-#include "render_group.h"
+
+#include "file_io.cpp"
 #include "render_group.cpp"
-#include "world.h"
 #include "world.cpp"
-#include "random.h"
-#include "color.h"
-#include "test.cpp"
 #include "sim_region.cpp"
 #include "entity.cpp"
 #include "asset.cpp"
+#include "audio.cpp"
 
 #if 0
 #define RUN_RAY
@@ -82,45 +71,6 @@ render_255_gradient(Loaded_bmp* bitmap_buffer, i32 blue_offset, i32 green_offset
   
   if (offset <= 0)
     go_up = true;
-}
-
-internal
-void
-game_output_sound(Game_sound_buffer* sound_buffer, i32 tone_hz, Game_state* state) {
-  i16 tone_volume = 1000;
-  i32 wave_period = sound_buffer->samples_per_second / tone_hz;
-  auto sample_out = sound_buffer->samples;
-  
-#if 0
-  for (i32 sample_index = 0; sample_index < sound_buffer->sample_count; sample_index++) {
-    i16 sample_value = 0;
-    
-    *sample_out++ = sample_value;
-    *sample_out++ = sample_value;
-  }
-#else
-  for (i32 sample_index = 0; sample_index < sound_buffer->sample_count; sample_index++) {
-    f32 sine_val = sin(state->t_sine);
-    
-    f32 modulation_depth = 100.0f; 
-    f32 base_frequency = 100.0f; 
-    f32 mod_freq = sin(state->t_mod) * modulation_depth + base_frequency;
-    f32 phase_increment = PI * 2.0f * mod_freq / (f32)wave_period;
-    i16 sample_value = (i16)(sine_val * tone_volume);
-    
-    *sample_out++ = sample_value;
-    *sample_out++ = sample_value;
-    
-    state->t_sine += phase_increment;
-    state->t_mod += 0.1f;
-    
-    if (state->t_sine > TAU)
-      state->t_sine -= TAU;
-    
-    if (state->t_mod > TAU)
-      state->t_mod -= TAU;
-  }
-#endif
 }
 
 internal
@@ -515,7 +465,7 @@ subpixel_test_update(Loaded_bmp* buffer, Game_state* game_state, Game_input* inp
 internal
 Add_low_entity_result
 add_low_entity(Game_state* game_state, Entity_type type, World_position pos) {
-  macro_assert(game_state->low_entity_count < macro_array_count(game_state->low_entity_list));
+  assert(game_state->low_entity_count < macro_array_count(game_state->low_entity_list));
   
   Add_low_entity_result result;
   u32 entity_index = game_state->low_entity_count++;
@@ -537,7 +487,7 @@ add_low_entity(Game_state* game_state, Entity_type type, World_position pos) {
 internal
 void
 init_hit_points(Low_entity* entity_low, u32 hit_point_count) {
-  macro_assert(hit_point_count <= macro_array_count(entity_low->sim.hit_point));
+  assert(hit_point_count <= macro_array_count(entity_low->sim.hit_point));
   entity_low->sim.hit_points_max = hit_point_count;
   
   for (u32 hit_point_index = 0; hit_point_index < entity_low->sim.hit_points_max; hit_point_index++) {
@@ -572,7 +522,7 @@ chunk_pos_from_tile_pos(World* world, i32 abs_tile_x, i32 abs_tile_y, i32 abs_ti
   v3 offset = hadamard(tile_side_dim, abs_tile_dim);
   
   result = map_into_chunk_space(world, base_pos, offset + additional_offset);
-  macro_assert(is_canonical(world, result._offset));
+  assert(is_canonical(world, result._offset));
   
   return result;
 }
@@ -809,7 +759,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
   
   f32 width  = game_state->world->chunk_dim_meters.x;
   f32 height = game_state->world->chunk_dim_meters.y;
-  macro_assert(width == height);
+  assert(width == height);
   
   v2 half_dim = 0.5f * v2{width, height};
   //half_dim = 2.0f * half_dim;
@@ -838,7 +788,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
       v2 center = v2 {chunk_offset_x * width, chunk_offset_y * height};
       
       for (u32 grass_index = 0; grass_index < 100; grass_index++) {
-        macro_assert(random_number_index < macro_array_count(random_number_table));
+        assert(random_number_index < macro_array_count(random_number_table));
         
         auto random_blob = random_choise(&series, 2) ? Asset_grass: Asset_stone;
         Bitmap_id stamp = get_random_bitmap_from(tran_state->asset_list,
@@ -867,7 +817,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
       v2 center = {chunk_offset_x * width, chunk_offset_y * height}; 
       
       for (u32 grass_index = 0; grass_index < 50; grass_index++) {
-        macro_assert(random_number_index < macro_array_count(random_number_table));
+        assert(random_number_index < macro_array_count(random_number_table));
         
         Bitmap_id stamp = get_random_bitmap_from(tran_state->asset_list, Asset_tuft, &series);
         
@@ -1097,7 +1047,7 @@ make_cylinder_normal_map_x(Loaded_bmp* bitmap, f32 roughness) {
       v3 normal = {0,normalized,normalized};
       f32 nz = 0.0f;
       
-      macro_assert(root_term >= 0.0f);
+      assert(root_term >= 0.0f);
       
       nz = square_root(root_term);
       normal = { nx, ny, nz };
@@ -1212,30 +1162,6 @@ bezier_curves(Loaded_bmp* draw_buffer, Game_input* input, Game_state* game_state
   }
 }
 
-
-internal
-Playing_sound*
-play_sound(Game_state *game_state, Sound_id sound_id) {
-  
-  if (!game_state->first_free_playing_sound) {
-    game_state->first_free_playing_sound = mem_push_struct(&game_state->world_arena, Playing_sound);
-    game_state->first_free_playing_sound->next = 0;
-  }
-  
-  Playing_sound *playing_sound = game_state->first_free_playing_sound;
-  game_state->first_free_playing_sound = playing_sound->next;
-  
-  playing_sound->samples_played = 0;
-  playing_sound->volume[0] = 1.0f;
-  playing_sound->volume[1] = 1.0f;
-  playing_sound->id = sound_id;
-  
-  playing_sound->next = game_state->first_playing_sound;
-  game_state->first_playing_sound = playing_sound;
-  
-  return playing_sound;
-}
-
 extern "C" // to prevent name mangle by compiler, so function can looked up by name exactly
 void 
 game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer) {
@@ -1255,8 +1181,8 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   u32 ground_buffer_width  = 256;
   u32 ground_buffer_height = 256;
   
-  macro_assert(&input->gamepad[0].back - &input->gamepad[0].buttons[0] == macro_array_count(input->gamepad[0].buttons) - 1); // we need to ensure that we take last element in union
-  macro_assert(sizeof(Game_state) <= memory->permanent_storage_size);
+  assert(&input->gamepad[0].back - &input->gamepad[0].buttons[0] == macro_array_count(input->gamepad[0].buttons) - 1); // we need to ensure that we take last element in union
+  assert(sizeof(Game_state) <= memory->permanent_storage_size);
   
   Game_state* game_state = (Game_state*)memory->permanent_storage;
   
@@ -1276,13 +1202,13 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
                      memory->permanent_storage_size - sizeof(Game_state),
                      (u8*)memory->permanent_storage + sizeof(Game_state));
     
+    initialize_audio_state(&game_state->audio_state, &game_state->world_arena);
+    
     // reserve null entity for ?
     add_low_entity(game_state, Entity_type_null, null_position());
     
     game_state->world = mem_push_struct(&game_state->world_arena, World);
     World* world = game_state->world;
-    
-    
     
     const f32 pixels_to_meters = 1.0f / 42.0f;
     v3 world_chunk_dim_meters = {
@@ -1494,7 +1420,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   }
   
   // transient init
-  macro_assert(sizeof(Transient_state) <= memory->transient_storage_size);
+  assert(sizeof(Transient_state) <= memory->transient_storage_size);
   Transient_state* tran_state = (Transient_state*)memory->transient_storage;
   if (!tran_state->is_initialized) {
     
@@ -1515,7 +1441,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     u32 size = macro_megabytes(64);
     tran_state->asset_list = allocate_game_asset_list(&tran_state->tran_arena, size, tran_state);
     
-    play_sound(game_state, get_first_sound_from(tran_state->asset_list, Asset_music));
+    play_sound(&game_state->audio_state, get_first_sound_from(tran_state->asset_list, Asset_music));
     
     tran_state->ground_buffer_count = 256;
     tran_state->ground_buffer_list = mem_push_array(&tran_state->tran_arena, tran_state->ground_buffer_count, Ground_buffer);
@@ -1569,7 +1495,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   World* world = game_state->world;
   
   //f32 meters_to_pixels = game_state->meters_to_pixels;
-  macro_assert(world);
+  assert(world);
   
   // check input and move player
   {
@@ -1861,7 +1787,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
                   make_entity_spatial(sword, entity->position, v2_to_v3(5.0f * con_hero->d_sword, 0));
                   add_collision_rule(game_state, sword->storage_index, entity->storage_index, false);
                   
-                  play_sound(game_state, get_random_sound_from(tran_state->asset_list, Asset_bloop, &game_state->general_entropy));
+                  play_sound(&game_state->audio_state, get_random_sound_from(tran_state->asset_list, Asset_bloop, &game_state->general_entropy));
                 }
               }
             }
@@ -1987,7 +1913,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
         } break;
         
         default: {
-          macro_assert(!"INVALID");
+          assert(!"INVALID");
         } break;
         
       }
@@ -2141,84 +2067,11 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
 
 #endif
 
-
 extern "C" 
 void 
-game_get_sound_samples(Game_memory* memory, Game_sound_buffer* sound_buffer) {
+game_get_sound_samples(Game_memory *memory, Game_sound_buffer *sound_buffer) {
   auto game_state = (Game_state*)memory->permanent_storage;
   auto tran_state = (Transient_state*)memory->transient_storage;
   
-  Temp_memory mixer_memory = begin_temp_memory(&tran_state->tran_arena);
-  
-  f32 *real_channel_0 = mem_push_array(&tran_state->tran_arena, sound_buffer->sample_count, f32);
-  f32 *real_channel_1 = mem_push_array(&tran_state->tran_arena, sound_buffer->sample_count, f32);
-  
-  {
-    f32 *dest_0 = real_channel_0;
-    f32 *dest_1 = real_channel_1;
-    
-    for (i32 sample_index = 0; sample_index < sound_buffer->sample_count; sample_index++) {
-      *dest_0++ = 0.0f;
-      *dest_1++ = 0.0f;
-    }
-  }
-  
-  for (Playing_sound **play_sound_ptr = &game_state->first_playing_sound; *play_sound_ptr;) {
-    Playing_sound *playing_sound = *play_sound_ptr;
-    bool sound_finished = false;
-    
-    Loaded_sound *loaded_sound = get_sound(tran_state->asset_list, playing_sound->id);
-    
-    if (loaded_sound) {
-      f32 volume_0 = playing_sound->volume[0];
-      f32 volume_1 = playing_sound->volume[1];
-      f32 *dest_0 = real_channel_0;
-      f32 *dest_1 = real_channel_1;
-      
-      macro_assert(playing_sound->samples_played >= 0);
-      
-      u32 samples_to_mix = sound_buffer->sample_count;
-      u32 samples_remaining = loaded_sound->sample_count - playing_sound->samples_played;
-      
-      if (samples_to_mix > samples_remaining) {
-        samples_to_mix = samples_remaining;
-      }
-      
-      for (u32 sample_index = playing_sound->samples_played; sample_index < playing_sound->samples_played + samples_to_mix; sample_index++) {
-        f32 sample_value = loaded_sound->samples[0][sample_index];
-        *dest_0++ += volume_0 * sample_value;
-        *dest_1++ += volume_1 * sample_value;
-      }
-      
-      sound_finished = ((u32)playing_sound->samples_played == loaded_sound->sample_count);
-      
-      playing_sound->samples_played += samples_to_mix;
-    }
-    else {
-      load_sound(tran_state->asset_list, playing_sound->id);
-    }
-    
-    if (sound_finished) {
-      *play_sound_ptr = playing_sound->next;
-      playing_sound->next = game_state->first_free_playing_sound;
-      game_state->first_free_playing_sound = playing_sound;
-    }
-    else {
-      play_sound_ptr = &playing_sound->next;
-    }
-  }
-  
-  {
-    f32 *source_0 = real_channel_0;
-    f32 *source_1 = real_channel_1;
-    
-    i16 *sample_out = sound_buffer->samples;
-    for (i32 sample_index = 0; sample_index < sound_buffer->sample_count; sample_index++) {
-      
-      *sample_out++ = (i16)(*source_0++ + 0.5f);
-      *sample_out++ = (i16)(*source_1++ + 0.5f);
-    }
-  }
-  
-  end_temp_memory(mixer_memory);
+  output_playing_sounds(&game_state->audio_state, sound_buffer, tran_state->asset_list, &tran_state->tran_arena);
 }

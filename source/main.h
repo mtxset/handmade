@@ -3,10 +3,6 @@
 #ifndef MAIN_H
 #define MAIN_H
 
-#include "types.h"
-#include "game.h"
-#include "platform.h"
-
 struct Win32_bitmap_buffer {
   // pixels are always 32 bit, memory order BB GG RR XX (padding)
   BITMAPINFO info;
@@ -70,24 +66,5 @@ struct Win32_state {
   char exe_file_name[MAX_PATH];
   char* last_slash;
 };
-
-
-
-extern struct Game_memory* debug_global_memory;
-#if INTERNAL
-internal
-void
-debug_end_timer(Debug_cycle_counter_type type, u64 start_cycle_count) {
-  debug_global_memory->counter_list[type].cycle_count += __rdtsc() - start_cycle_count;
-  debug_global_memory->counter_list[type].hit_count++;
-}
-
-internal
-void
-debug_end_timer(Debug_cycle_counter_type type, u64 start_cycle_count, u32 count) {
-  debug_global_memory->counter_list[type].cycle_count += __rdtsc() - start_cycle_count;
-  debug_global_memory->counter_list[type].hit_count += count;
-}
-#endif
 
 #endif //MAIN_H

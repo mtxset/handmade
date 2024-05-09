@@ -1,17 +1,17 @@
 // https://youtu.be/UuqcgQxpfO8?t=1643
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
+#include "types.h"
+#include "platform.h"
+
 #include <stdio.h>
 #include <stdint.h>
 #include <windows.h>
 #include <xinput.h>
 #include <dsound.h>
 
+#include "file_io.h"
 #include "main.h"
-#include "utils.h"
-#include "utils.cpp"
-#include "game.h" 
-
 // some race condition happening and introduced in 126 day
 // does not crash on -Od, crashes with -O2
 // most likely somehere race condition happens
@@ -63,6 +63,78 @@ typedef HRESULT WINAPI direct_sound_create(LPCGUID pcGuidDevice, LPDIRECTSOUND* 
 global_var direct_sound_create* DirectSoundCreate_;                                                             // define variable to hold it
 #define DirectSoundCreate DirectSoundCreate_                                                                // change name by which we reference upper-line mentioned variable
 
+template <typename T> 
+inline 
+void swap(T& a, T& b) {
+  T c(a);
+  a = b;
+  b = c;
+}
+
+void debug_free_file(void* handle) {
+  if (handle) { 
+    VirtualFree(handle, 0, MEM_RELEASE);
+  }
+}
+
+Debug_file_read_result 
+debug_read_entire_file(char* file_name) {
+  Debug_file_read_result result = {};
+  
+  auto file_handle = CreateFileA(file_name, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, 0);
+  
+  if (file_handle == INVALID_HANDLE_VALUE) {
+    goto exit;
+  }
+  
+  LARGE_INTEGER file_size;
+  if (!GetFileSizeEx(file_handle, &file_size) || file_size.QuadPart == 0)
+    goto exit;
+  
+  auto file_size_32 = truncate_u64_u32(file_size.QuadPart);
+  result.content = VirtualAlloc(0, file_size_32, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+  
+  if (!result.content) 
+    goto exit;
+  
+  DWORD bytes_read;
+  if (!ReadFile(file_handle, result.content, file_size_32, &bytes_read, 0)) {
+    debug_free_file(result.content);
+    goto exit;
+  }
+  
+  if (file_size_32 != bytes_read)
+    goto exit;
+  
+  result.bytes_read = bytes_read;
+  
+  exit:
+  CloseHandle(file_handle);
+  return result;
+}
+
+bool debug_write_entire_file(char* file_name, u32 memory_size, void* memory) {
+  auto file_handle = CreateFileA(file_name, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+  
+  if (file_handle == INVALID_HANDLE_VALUE)
+    goto error;
+  
+  DWORD bytes_written;
+  if (!WriteFile(file_handle, memory, memory_size, &bytes_written, 0)) {
+    goto error;
+  }
+  
+  if (memory_size != bytes_written)
+    goto error;
+  
+  CloseHandle(file_handle);
+  return true;
+  
+  error:
+  CloseHandle(file_handle);
+  return false;
+}
+
 internal
 void
 win32_get_exe_filename(Win32_state* win_state) {
@@ -72,6 +144,38 @@ win32_get_exe_filename(Win32_state* win_state) {
     if (*scan == '\\')
       win_state->last_slash = scan + 1;
   }
+}
+
+i32 
+string_len(char* string) {
+  i32 result = 0;
+  
+  // *string dereference value
+  // string++ advances poi32er
+  // search for null terminator
+  while (*string++ != 0) {
+    result++;
+  }
+  
+  return result;
+}
+
+void 
+string_concat(size_t src_a_count, char* src_a, size_t src_b_count, char* src_b, size_t dest_count, char* dest) {
+  
+  auto left_space = dest_count;
+  
+  for (u32 i = 0; i < src_a_count && left_space > 1; i++) {
+    *dest++ = *src_a++;
+    left_space--;
+  }
+  
+  for (u32 i = 0; i < src_b_count && left_space > 1; i++) {
+    *dest++ = *src_b++;
+    left_space--;
+  }
+  
+  *dest++ = 0;
 }
 
 internal
@@ -561,7 +665,7 @@ win32_window_proc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
     case WM_KEYDOWN:
     case WM_SYSKEYUP:
     case WM_SYSKEYDOWN: {
-      macro_assert(!"Should never hit it here");
+      assert(!"Should never hit it here");
     } break;
     case WM_SIZE: {
     } break;
@@ -659,12 +763,12 @@ win32_debug_sync_display(Win32_bitmap_buffer* backbuffer, i32 marker_count, i32 
     i32 bottom = y_padding + line_height;
     
     auto current_marker = &markers[i];
-    macro_assert(current_marker->output_play_cursor  < sound_output->buffer_size);
-    macro_assert(current_marker->play_cursor         < sound_output->buffer_size);
-    macro_assert(current_marker->output_write_cursor < sound_output->buffer_size);
-    macro_assert(current_marker->write_cursor        < sound_output->buffer_size);
-    macro_assert(current_marker->output_location     < sound_output->buffer_size);
-    macro_assert(current_marker->output_bytes        < sound_output->buffer_size);
+    assert(current_marker->output_play_cursor  < sound_output->buffer_size);
+    assert(current_marker->play_cursor         < sound_output->buffer_size);
+    assert(current_marker->output_write_cursor < sound_output->buffer_size);
+    assert(current_marker->write_cursor        < sound_output->buffer_size);
+    assert(current_marker->output_location     < sound_output->buffer_size);
+    assert(current_marker->output_bytes        < sound_output->buffer_size);
     
     if (i == current_marker_index) {
       top += line_height + y_padding;
@@ -803,7 +907,7 @@ void
 win32_add_entry(Platform_work_queue *queue, Platform_work_queue_callback *callback, void *data) {
   u32 new_entry_to_write = (queue->next_entry_to_write + 1) % macro_array_count(queue->entry_list);
   
-  macro_assert(new_entry_to_write != queue->next_entry_to_read);
+  assert(new_entry_to_write != queue->next_entry_to_read);
   
   Platform_work_queue_entry *entry = queue->entry_list + queue->next_entry_to_write;
   
@@ -900,7 +1004,7 @@ win32_make_queue(Platform_work_queue *queue, u32 thread_count) {
                                        0,            // flags
                                        SEMAPHORE_ALL_ACCESS);
   
-  macro_assert(queue->semaphore != NULL);
+  assert(queue->semaphore != NULL);
   
   for (u32 thread_index = 0; thread_index < thread_count; ++thread_index) {
     DWORD thread_id;
@@ -911,7 +1015,7 @@ win32_make_queue(Platform_work_queue *queue, u32 thread_count) {
                                         0,    // start right away
                                         &thread_id);
     
-    macro_assert(thread_handle != NULL);
+    assert(thread_handle != NULL);
     CloseHandle(thread_handle); // it will not terminate thread
     // but later in c runtime lib windows will call ExitProcess which will kill all threads
   }
@@ -1010,7 +1114,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
   HWND window_handle = create_default_window((LRESULT)win32_window_proc, current_instance, "GG", 
                                              initial_window_width, initial_window_height);
   
-  macro_assert(window_handle);
+  assert(window_handle);
   
   // set refresh rate and target seconds per frame
   i32 refresh_rate = 60;
@@ -1065,7 +1169,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     memory.permanent_storage = win_state.game_memory_block;
     memory.transient_storage = (u8*)memory.permanent_storage + memory.permanent_storage_size;
     
-    macro_assert(samples && memory.permanent_storage && memory.transient_storage);
+    assert(samples && memory.permanent_storage && memory.transient_storage);
   }
   
   win32_init_direct_sound(window_handle, sound_output.samples_per_second, sound_output.buffer_size);
@@ -1285,7 +1389,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       if (safe_write_cursor < play_cursor)
         safe_write_cursor += sound_output.buffer_size;
       
-      macro_assert(safe_write_cursor >= play_cursor);
+      assert(safe_write_cursor >= play_cursor);
       
       safe_write_cursor += sound_output.safety_bytes;
       bool audio_is_low_latency = safe_write_cursor < expected_frame_boundry_byte;
@@ -1387,7 +1491,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       {
         DWORD temp_play_cursor, temp_write_cursor;
         if (Global_sound_buffer->GetCurrentPosition(&temp_play_cursor, &temp_write_cursor) == DS_OK) {
-          macro_assert(debug_last_marker_index < macro_array_count(debug_time_marker_list));
+          assert(debug_last_marker_index < macro_array_count(debug_time_marker_list));
           auto marker = &debug_time_marker_list[debug_last_marker_index];
           marker->play_cursor = temp_play_cursor;
           marker->write_cursor = temp_write_cursor;

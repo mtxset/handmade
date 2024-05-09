@@ -28,12 +28,12 @@ debug_load_bmp(char* file_name, v2 align_pcent = v2{.5, .5}) {
   
   Debug_file_read_result file_result = debug_read_entire_file(file_name);
   
-  macro_assert(file_result.bytes_read != 0);
+  assert(file_result.bytes_read != 0);
   
   Bitmap_header* header = (Bitmap_header*)file_result.content;
   
-  macro_assert(result.height >= 0);
-  macro_assert(header->Compression == 3);
+  assert(result.height >= 0);
+  assert(header->Compression == 3);
   
   result.memory = (u32*)((u8*)file_result.content + header->BitmapOffset);
   
@@ -54,10 +54,10 @@ debug_load_bmp(char* file_name, v2 align_pcent = v2{.5, .5}) {
   Bit_scan_result scan_blue  = find_least_significant_first_bit(mask_blue);
   Bit_scan_result scan_alpha = find_least_significant_first_bit(mask_alpha);
   
-  macro_assert(scan_red.found);
-  macro_assert(scan_green.found);
-  macro_assert(scan_blue.found);
-  macro_assert(scan_alpha.found);
+  assert(scan_red.found);
+  assert(scan_green.found);
+  assert(scan_blue.found);
+  assert(scan_alpha.found);
   
   i32 shift_alpha_down = (i32)scan_alpha.index;
   i32 shift_red_down   = (i32)scan_red.index;
@@ -134,23 +134,24 @@ void
 load_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
   
   if (id.value &&
-      atomic_compare_exchange_u32((u32*)&asset_list->bitmap_list[id.value].state, Asset_state_unloaded, Asset_state_queued) != Asset_state_unloaded) 
-    return;
-  
-  Task_with_memory *task = begin_task_with_mem(asset_list->tran_state);
-  
-  if (!task)
-    return;
-  
-  Load_bitmap_work *work = mem_push_struct(&task->arena, Load_bitmap_work);
-  
-  work->asset_list = asset_list;
-  work->id = id;
-  work->task = task;
-  work->bitmap = mem_push_struct(&asset_list->arena, Loaded_bmp);
-  work->final_state = Asset_state_loaded;
-  
-  platform_add_entry(asset_list->tran_state->low_priority_queue, load_bitmap_work, work);
+      atomic_compare_exchange_u32((u32*)&asset_list->bitmap_list[id.value].state, Asset_state_queued, Asset_state_unloaded) != Asset_state_unloaded) {
+    
+    
+    Task_with_memory *task = begin_task_with_mem(asset_list->tran_state);
+    
+    if (!task)
+      return;
+    
+    Load_bitmap_work *work = mem_push_struct(&task->arena, Load_bitmap_work);
+    
+    work->asset_list = asset_list;
+    work->id = id;
+    work->task = task;
+    work->bitmap = mem_push_struct(&asset_list->arena, Loaded_bmp);
+    work->final_state = Asset_state_loaded;
+    
+    platform_add_entry(asset_list->tran_state->low_priority_queue, load_bitmap_work, work);
+  }
 }
 
 struct Riff_iterator {
@@ -207,15 +208,15 @@ get_chunk_data_size(Riff_iterator iter) {
 
 internal
 Loaded_sound
-debug_load_wav(char *filename) {
+debug_load_wav(char *filename, u32 first_sample_index, u32 sample_count) {
   Loaded_sound result = {};
   
   Debug_file_read_result read_result = debug_read_entire_file(filename);
-  macro_assert(read_result.content);
+  assert(read_result.content);
   
   Wave_header *header = (Wave_header*)read_result.content;
-  macro_assert(header->riffid == Wave_ChunkID_RIFF);
-  macro_assert(header->waveid == Wave_ChunkID_WAVE);
+  assert(header->riffid == Wave_ChunkID_RIFF);
+  assert(header->waveid == Wave_ChunkID_WAVE);
   
   u32 channel_count = 0;
   u32 sample_data_size = 0;
@@ -229,10 +230,10 @@ debug_load_wav(char *filename) {
       
       case Wave_ChunkID_fmt: {
         Wave_fmt *fmt = (Wave_fmt*)get_chunk_data(iter);
-        macro_assert(fmt->format_tag == 1);
-        macro_assert(fmt->samples_per_sec == 48000);
-        macro_assert(fmt->bits_per_sample == 16);
-        macro_assert(fmt->block_align == sizeof(i16) * fmt->channels);
+        assert(fmt->format_tag == 1);
+        assert(fmt->samples_per_sec == 48000);
+        assert(fmt->bits_per_sample == 16);
+        assert(fmt->block_align == sizeof(i16) * fmt->channels);
         channel_count = fmt->channels;
         u32 u = 0;
       } break;
@@ -242,27 +243,48 @@ debug_load_wav(char *filename) {
         sample_data_size = get_chunk_data_size(iter);
       } break;
       
-      //default: macro_assert(!"FAILURE");
+      //default: assert(!"FAILURE");
     }
     
   }
   
-  macro_assert(channel_count && sample_data_size && sample_data);
+  assert(channel_count && sample_data_size && sample_data);
   
   result.channel_count = channel_count;
   result.sample_count = sample_data_size / (channel_count * sizeof(i16));
   
-  macro_assert(channel_count == 2);
-  
-  result.samples[0] = sample_data;
-  result.samples[1] = sample_data + result.sample_count;
-  
-  for (u32 sample_index = 0; sample_index < result.sample_count; sample_index++) {
-    i16 source = sample_data[2 * sample_index];
+  if (channel_count == 1) {
+    result.samples[0] = sample_data;
+    result.samples[1] = 0;
+  } 
+  else if (channel_count == 2) {
     
-    sample_data[2 * sample_index] = sample_data[sample_index];
-    sample_data[sample_index] = source;
+    result.samples[0] = sample_data;
+    result.samples[1] = sample_data + result.sample_count;
+    
+    for (u32 sample_index = 0; sample_index < result.sample_count; sample_index++) {
+      i16 source = sample_data[2 * sample_index];
+      
+      sample_data[2 * sample_index] = sample_data[sample_index];
+      sample_data[sample_index] = source;
+    }
   }
+  else {
+    assert(!"CANT BE");
+  }
+  
+  result.channel_count = 1;
+  
+  if (sample_count) {
+    assert((first_sample_index + sample_count) <= result.sample_count);
+    result.sample_count = sample_count;
+    
+    for (u32 channel_index = 0; channel_index < channel_count; channel_index++) {
+      result.samples[channel_index] += first_sample_index;
+    }
+    
+  }
+  
   
   return result;
 }
@@ -281,7 +303,7 @@ PLATFORM_WORK_QUEUE_CALLBACK(load_sound_work) {
   Load_sound_work *work = (Load_sound_work*)data;
   
   Asset_sound_info *info = work->asset_list->sound_info_list + work->id.value;
-  *work->sound = debug_load_wav(info->filename);
+  *work->sound = debug_load_wav(info->filename, info->first_sample_index, info->sample_count);
   
   _WriteBarrier();
   
@@ -294,24 +316,24 @@ PLATFORM_WORK_QUEUE_CALLBACK(load_sound_work) {
 internal void
 load_sound(Game_asset_list *asset_list, Sound_id id) {
   if (id.value &&
-      atomic_compare_exchange_u32((u32*)&asset_list->sound_list[id.value].state, Asset_state_queued, Asset_state_unloaded) != Asset_state_unloaded) 
-    return;
-  
-  Task_with_memory *task = begin_task_with_mem(asset_list->tran_state);
-  
-  if (task) {
-    Load_sound_work *work = mem_push_struct(&task->arena, Load_sound_work);
+      atomic_compare_exchange_u32((u32*)&asset_list->sound_list[id.value].state, Asset_state_queued, Asset_state_unloaded) != Asset_state_unloaded) {
     
-    work->asset_list = asset_list;
-    work->id = id;
-    work->task = task;
-    work->sound = mem_push_struct(&asset_list->arena, Loaded_sound);
-    work->final_state = Asset_state_loaded;
+    Task_with_memory *task = begin_task_with_mem(asset_list->tran_state);
     
-    platform_add_entry(asset_list->tran_state->low_priority_queue, load_sound_work, work);
-  }
-  else {
-    asset_list->sound_list[id.value].state = Asset_state_unloaded;
+    if (task) {
+      Load_sound_work *work = mem_push_struct(&task->arena, Load_sound_work);
+      
+      work->asset_list = asset_list;
+      work->id = id;
+      work->task = task;
+      work->sound = mem_push_struct(&asset_list->arena, Loaded_sound);
+      work->final_state = Asset_state_loaded;
+      
+      platform_add_entry(asset_list->tran_state->low_priority_queue, load_sound_work, work);
+    }
+    else {
+      asset_list->sound_list[id.value].state = Asset_state_unloaded;
+    }
   }
 }
 
@@ -354,7 +376,7 @@ get_best_match_asset_from(Game_asset_list *asset_list, Asset_type_id type_id, As
 internal
 u32
 get_random_slot_from(Game_asset_list *asset_list, Asset_type_id type_id, Random_series *series) {
-  u32 result = {};
+  u32 result = 0;
   
   Asset_type *type = asset_list->asset_type_list + type_id;
   
@@ -443,7 +465,7 @@ get_random_sound_from(Game_asset_list *asset_list, Asset_type_id type_id, Random
 internal
 void
 begin_asset_type(Game_asset_list *asset_list, Asset_type_id type_id) {
-  macro_assert(asset_list->debug_asset_type == 0);
+  assert(asset_list->debug_asset_type == 0);
   
   asset_list->debug_asset_type = asset_list->asset_type_list + type_id;
   asset_list->debug_asset_type->first_asset_index = asset_list->debug_used_asset_count;
@@ -453,7 +475,7 @@ begin_asset_type(Game_asset_list *asset_list, Asset_type_id type_id) {
 internal
 void
 end_asset_type(Game_asset_list *asset_list) {
-  macro_assert(asset_list->debug_asset_type);
+  assert(asset_list->debug_asset_type);
   
   asset_list->debug_used_asset_count = asset_list->debug_asset_type->one_past_last_asset_index;
   asset_list->debug_asset_type = 0;
@@ -463,7 +485,7 @@ end_asset_type(Game_asset_list *asset_list) {
 internal
 Bitmap_id
 debug_add_bitmap_info(Game_asset_list* asset_list, char *filename, v2 align_pcent) {
-  macro_assert(asset_list->debug_used_bitmap_count < asset_list->bitmap_count);
+  assert(asset_list->debug_used_bitmap_count < asset_list->bitmap_count);
   
   Bitmap_id id = {asset_list->debug_used_bitmap_count++};
   
@@ -477,13 +499,16 @@ debug_add_bitmap_info(Game_asset_list* asset_list, char *filename, v2 align_pcen
 
 internal
 Sound_id
-debug_add_sound_info(Game_asset_list* asset_list, char *filename) {
-  macro_assert(asset_list->debug_used_sound_count < asset_list->sound_count);
+debug_add_sound_info(Game_asset_list* asset_list, char *filename, u32 first_sample_index, u32 sample_count) {
+  assert(asset_list->debug_used_sound_count < asset_list->sound_count);
   
   Sound_id id = {asset_list->debug_used_sound_count++};
   
   Asset_sound_info *info = asset_list->sound_info_list + id.value;
   info->filename = filename;
+  info->first_sample_index = first_sample_index;
+  info->sample_count = sample_count;
+  info->next_id_to_play.value = 0;
   
   return id;
 }
@@ -491,7 +516,7 @@ debug_add_sound_info(Game_asset_list* asset_list, char *filename) {
 internal
 void
 add_bitmap_asset(Game_asset_list *asset_list, char *filename, v2 align_pcent = {0.5, 0.5}) {
-  macro_assert(asset_list->debug_asset_type);
+  assert(asset_list->debug_asset_type);
   
   Asset *asset = asset_list->asset_list + asset_list->debug_asset_type->one_past_last_asset_index++;
   asset->first_tag_index = asset_list->debug_used_tag_count;
@@ -502,24 +527,26 @@ add_bitmap_asset(Game_asset_list *asset_list, char *filename, v2 align_pcent = {
 }
 
 internal
-void
-add_sound_asset(Game_asset_list *asset_list, char *filename) {
-  macro_assert(asset_list->debug_asset_type);
-  macro_assert(asset_list->debug_asset_type->one_past_last_asset_index < asset_list->asset_count);
+Asset*
+add_sound_asset(Game_asset_list *asset_list, char *filename, u32 first_sample_index = 0, u32 sample_count = 0) {
+  assert(asset_list->debug_asset_type);
+  assert(asset_list->debug_asset_type->one_past_last_asset_index < asset_list->asset_count);
   
   Asset *asset = asset_list->asset_list + asset_list->debug_asset_type->one_past_last_asset_index++;
   asset->first_tag_index = asset_list->debug_used_tag_count;
   asset->one_past_last_tag_index = asset->first_tag_index;
-  asset->slot_id = debug_add_sound_info(asset_list, filename).value;
+  asset->slot_id = debug_add_sound_info(asset_list, filename, first_sample_index, sample_count).value;
   
   asset_list->debug_asset = asset;
+  
+  return asset;
 }
 
 
 internal
 void
 add_tag(Game_asset_list *asset_list, Asset_tag_id id, f32 value) {
-  macro_assert(asset_list->debug_asset);
+  assert(asset_list->debug_asset);
   
   asset_list->debug_asset->one_past_last_tag_index++;
   Asset_tag *tag = asset_list->tag_list + asset_list->debug_used_tag_count++;
@@ -662,9 +689,30 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
   add_sound_asset(asset_list, "../data/sounds/glide_00.wav");
   end_asset_type(asset_list);
   
-  begin_asset_type(asset_list, Asset_music);
-  add_sound_asset(asset_list, "../data/sounds/music_test.wav");
-  end_asset_type(asset_list);
+  {
+    u32 music_chunk = 48000 * 10;
+    u32 total_music_sample_count = 7468095;
+    begin_asset_type(asset_list, Asset_music);
+    Asset *last_piece = 0;
+    char *path_to_music = "../data/sounds/music_test.wav";
+    for (u32 first_sample_index = 0; first_sample_index < total_music_sample_count; first_sample_index += music_chunk) {
+      
+      u32 sample_count = total_music_sample_count - first_sample_index;
+      
+      if (sample_count > music_chunk) {
+        sample_count = music_chunk;
+      }
+      
+      Asset *this_piece = add_sound_asset(asset_list, path_to_music, first_sample_index, sample_count);
+      
+      if (last_piece) {
+        asset_list->sound_info_list[last_piece->slot_id].next_id_to_play.value = this_piece->slot_id;
+      }
+      last_piece = this_piece;
+    }
+    
+    end_asset_type(asset_list);
+  }
   
   begin_asset_type(asset_list, Asset_puhp);
   add_sound_asset(asset_list, "../data/sounds/puhp_00.wav");

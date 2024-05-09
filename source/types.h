@@ -3,6 +3,8 @@
 #ifndef TYPES_H
 #define TYPES_H
 
+#include <intrin.h>
+
 typedef signed char        i8;
 typedef short              i16;
 typedef int                i32;
