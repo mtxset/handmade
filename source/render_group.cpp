@@ -1,4 +1,4 @@
-#include "main.h"
+
 #include "color.h"
 
 inline
@@ -127,7 +127,7 @@ push_render_element_(Render_group* group, u32 size, Render_group_entry_type type
     group->push_buffer_size += size;
   }
   else {
-    macro_assert(!"INVALID");
+    assert(!"INVALID");
   }
   
   return result;
@@ -324,7 +324,7 @@ distance_from_map_z - how far the map is from sample point in z, in meters
   
   // pick LOD
   u32 lod_index = (u32)(roughness * (f32)(macro_array_count(map->lod) - 1) + 0.05f);
-  macro_assert(lod_index < macro_array_count(map->lod));
+  assert(lod_index < macro_array_count(map->lod));
   
   Loaded_bmp* lod = &map->lod[lod_index];
   
@@ -350,8 +350,8 @@ distance_from_map_z - how far the map is from sample point in z, in meters
   f32 f_x = t_x -(f32)x;
   f32 f_y = t_y -(f32)y;
   
-  macro_assert(x >= 0 && x < lod->width);
-  macro_assert(y >= 0 && y < lod->height);
+  assert(x >= 0 && x < lod->width);
+  assert(y >= 0 && y < lod->height);
   
   bool show_where_sampling_is_coming_from = false;
   
@@ -873,8 +873,8 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
         f32 u = inverse_x_axis_squared * inner(d, x_axis);
         f32 v = inverse_y_axis_squared * inner(d, y_axis);
         
-        //macro_assert(u >= 0.0f && u <= 1.0f);
-        //macro_assert(v >= 0.0f && v <= 1.0f);
+        //assert(u >= 0.0f && u <= 1.0f);
+        //assert(v >= 0.0f && v <= 1.0f);
         
         f32 t_x = (u * ((f32)(bitmap->width - 2)));
         f32 t_y = (v * ((f32)(bitmap->height - 2)));
@@ -885,8 +885,8 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
         f32 f_x = t_x - (f32)x_i32;
         f32 f_y = t_y - (f32)y_i32;
         
-        macro_assert(x_i32 >= 0 && x_i32 < bitmap->width);
-        macro_assert(y_i32 >= 0 && y_i32 < bitmap->height);
+        assert(x_i32 >= 0 && x_i32 < bitmap->width);
+        assert(y_i32 >= 0 && y_i32 < bitmap->height);
         
         Bilinear_sample texel_sample = bilinear_sample(bitmap, x_i32, y_i32);
         v4 texel = srgb_bilinear_blend(texel_sample, f_x, f_y);
@@ -1098,7 +1098,7 @@ draw_bitmap(Loaded_bmp* bitmap_buffer, Loaded_bmp* bitmap, v2 start, f32 c_alpha
   //* (bitmap->height - 1) 
   i32 bytes_per_pixel = BITMAP_BYTES_PER_PIXEL;
   u8* source_row = ((u8*)bitmap->memory + source_offset_y * bitmap->pitch + bytes_per_pixel * source_offset_x);
-  macro_assert(source_row);
+  assert(source_row);
   u8* dest_row = ((u8*)bitmap_buffer->memory +
                   min_x * bytes_per_pixel   + 
                   min_y * bitmap_buffer->pitch);
@@ -1201,7 +1201,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target, Re
       case Render_group_entry_type_Render_entry_bitmap: {
         Render_entry_bitmap* entry = (Render_entry_bitmap*)data;
         
-        macro_assert(entry->bitmap);
+        assert(entry->bitmap);
         
 #if 0
         draw_rect_slow(output_target, entry->pos, 
@@ -1258,7 +1258,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target, Re
       } break;
       
       default: {
-        macro_assert(!"CRASH");
+        assert(!"CRASH");
       } break;
     }
   }
@@ -1289,7 +1289,7 @@ internal
 void
 render_group_to_output(Render_group *render_group, Loaded_bmp *output_target) {
   
-  macro_assert(((uintptr)output_target->memory & 15) == 0);
+  assert(((uintptr)output_target->memory & 15) == 0);
   
   Rect2i clip_rect;
   
@@ -1317,7 +1317,7 @@ tiled_render_group_to_output(Platform_work_queue *render_queue,
   i32 const tile_count_y = 9;
   Tile_render_work work_array[tile_count_y * tile_count_x];
   
-  macro_assert(((uintptr)output_target->memory & 15) == 0);
+  assert(((uintptr)output_target->memory & 15) == 0);
   
   i32 tile_width = output_target->width / tile_count_x;
   i32 tile_height = output_target->height / tile_count_y;

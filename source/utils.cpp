@@ -12,45 +12,6 @@ win32_debug_msg(char* format, ...) {
   OutputDebugStringA((char*)buffer);
 }
 
-template <typename T> 
-void swap(T& a, T& b) {
-  T c(a);
-  a = b;
-  b = c;
-}
-
-void 
-string_concat(size_t src_a_count, char* src_a, size_t src_b_count, char* src_b, size_t dest_count, char* dest) {
-  
-  auto left_space = dest_count;
-  
-  for (u32 i = 0; i < src_a_count && left_space > 1; i++) {
-    *dest++ = *src_a++;
-    left_space--;
-  }
-  
-  for (u32 i = 0; i < src_b_count && left_space > 1; i++) {
-    *dest++ = *src_b++;
-    left_space--;
-  }
-  
-  *dest++ = 0;
-}
-
-i32 
-string_len(char* string) {
-  i32 result = 0;
-  
-  // *string dereference value
-  // string++ advances poi32er
-  // search for null terminator
-  while (*string++ != 0) {
-    result++;
-  }
-  
-  return result;
-}
-
 i32 
 string_to_binary(char* str) {
 	i32 size = string_len(str);
@@ -77,43 +38,4 @@ i32_to_string(i32 n) {
 		n <<= 1;
 	}
 	return binary;
-}
-
-i32 
-clamp_i32(i32 val, i32 min_value = 0, i32 max_value = 1) {
-  i32 result = val;
-  
-  if (val < min_value)
-    result = min_value;
-  
-  if (val > max_value)
-    result = max_value;
-  
-  return result;
-}
-
-u32 
-clamp_u32(u32 val, u32 min_value = 0, u32 max_value = 1) {
-  u32 result = val;
-  
-  if (val < min_value)
-    result = min_value;
-  
-  if (val > max_value)
-    result = max_value;
-  
-  return result;
-}
-
-f32 
-clamp_f32(f32 val, f32 min_value = 0.0f, f32 max_value = 1.0f) {
-  f32 result = val;
-  
-  if (val < min_value)
-    result = min_value;
-  
-  if (val > max_value)
-    result = max_value;
-  
-  return result;
 }

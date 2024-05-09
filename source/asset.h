@@ -86,6 +86,14 @@ struct Wave_fmt_ {
 
 #pragma pack(pop)
 
+struct Bitmap_id {
+  u32 value;
+};
+
+struct Sound_id {
+  u32 value;
+};
+
 struct Loaded_sound {
   u32 sample_count;
   u32 channel_count;
@@ -180,6 +188,9 @@ struct Asset_bitmap_info {
 
 struct Asset_sound_info {
   char *filename;
+  u32 first_sample_index;
+  u32 sample_count;
+  Sound_id next_id_to_play;
 };
 
 struct Game_asset_list {
@@ -216,16 +227,19 @@ struct Game_asset_list {
   Asset *debug_asset;
 };
 
-
-struct Bitmap_id {
-  u32 value;
-};
-
-struct Sound_id {
-  u32 value;
-};
-
 internal void load_bitmap(Game_asset_list *asset_list, Bitmap_id id);
 internal void load_sound(Game_asset_list *asset_list, Sound_id id);
+
+inline
+void 
+prefetch_bitmap(Game_asset_list *asset_list, Bitmap_id id) { 
+  load_bitmap(asset_list, id);
+}
+
+inline
+void 
+prefetch_sound(Game_asset_list *asset_list, Sound_id id) { 
+  load_sound(asset_list, id);
+}
 
 #endif //ASSET_H
