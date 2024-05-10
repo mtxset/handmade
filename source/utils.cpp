@@ -8,7 +8,7 @@ win32_debug_msg(char* format, ...) {
   va_start(args, format);
   
   char buffer[1024];
-  vsprintf_s((char*)buffer, macro_array_count(buffer), format, args); 
+  vsprintf_s((char*)buffer, array_count(buffer), format, args); 
   OutputDebugStringA((char*)buffer);
 }
 

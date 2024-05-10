@@ -5,7 +5,7 @@
 internal 
 void win32_check_record_index(i32 index) {
   Win32_state win_state {};
-  assert(index < macro_array_count(win_state.recording_memory));
+  assert(index < array_count(win_state.recording_memory));
   assert(index >= 0);
 }
 

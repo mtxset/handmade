@@ -6,14 +6,13 @@
 #include <math.h>
 
 union v2 {
-  struct {
-    f32 x, y;
-  };
-  struct {
-    f32 u, v;
-  };
+  struct { f32 x, y; };
+  struct { f32 u, v; };
+  struct { f32 width, height; };
   f32 e[2];
 };
+
+const v2 v2_zero = {0, 0}, v2_one = {1, 1}, v2_x = {1, 0}, v2_y = {0, 1}, v2_half = {.5, .5};
 
 union v2i32 {
   struct {

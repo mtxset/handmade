@@ -855,7 +855,7 @@ void
 handle_debug_cycle_count(Game_memory* memory) {
 #if INTERNAL
   
-  for (u32 counter_index = 0; counter_index < macro_array_count(memory->counter_list); counter_index++) {
+  for (u32 counter_index = 0; counter_index < array_count(memory->counter_list); counter_index++) {
     
     Debug_cycle_counter* counter = memory->counter_list + counter_index;
     
@@ -905,7 +905,7 @@ struct String_entry {
 internal
 void
 win32_add_entry(Platform_work_queue *queue, Platform_work_queue_callback *callback, void *data) {
-  u32 new_entry_to_write = (queue->next_entry_to_write + 1) % macro_array_count(queue->entry_list);
+  u32 new_entry_to_write = (queue->next_entry_to_write + 1) % array_count(queue->entry_list);
   
   assert(new_entry_to_write != queue->next_entry_to_read);
   
@@ -931,7 +931,7 @@ win32_do_next_work_q_entry(Platform_work_queue *queue) {
   bool we_should_sleep = false;
   
   u32 original_next_entry_to_read = queue->next_entry_to_read;
-  u32 new_entry_to_read = (original_next_entry_to_read + 1) % macro_array_count(queue->entry_list);
+  u32 new_entry_to_read = (original_next_entry_to_read + 1) % array_count(queue->entry_list);
   
   if (original_next_entry_to_read != queue->next_entry_to_write) {
     
@@ -1225,7 +1225,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       auto new_keyboard_input = &new_input->gamepad[0];
       *new_keyboard_input = {};
       
-      for (i32 i = 0; i < macro_array_count(new_keyboard_input->buttons); i++) {
+      for (i32 i = 0; i < array_count(new_keyboard_input->buttons); i++) {
         new_keyboard_input->buttons[i].ended_down = old_keyboard_input->buttons[i].ended_down;
       }
       
@@ -1258,8 +1258,8 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     // managing controller
     if (xinput_ready) {
       DWORD max_gamepad_count = XUSER_MAX_COUNT;
-      if (max_gamepad_count > macro_array_count(new_input->gamepad) - 1) {
-        max_gamepad_count = macro_array_count(new_input->gamepad) - 1;
+      if (max_gamepad_count > array_count(new_input->gamepad) - 1) {
+        max_gamepad_count = array_count(new_input->gamepad) - 1;
       }
       
       for (DWORD i = 0; i < max_gamepad_count; i++) {
@@ -1445,7 +1445,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       
       if (draw_debug_sound_markers)
         win32_debug_sync_display(&Global_backbuffer, 
-                                 macro_array_count(debug_time_marker_list), debug_last_marker_index - 1,
+                                 array_count(debug_time_marker_list), debug_last_marker_index - 1,
                                  debug_time_marker_list, &sound_output, target_seconds_per_frame);
       
 #endif
@@ -1491,14 +1491,14 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       {
         DWORD temp_play_cursor, temp_write_cursor;
         if (Global_sound_buffer->GetCurrentPosition(&temp_play_cursor, &temp_write_cursor) == DS_OK) {
-          assert(debug_last_marker_index < macro_array_count(debug_time_marker_list));
+          assert(debug_last_marker_index < array_count(debug_time_marker_list));
           auto marker = &debug_time_marker_list[debug_last_marker_index];
           marker->play_cursor = temp_play_cursor;
           marker->write_cursor = temp_write_cursor;
         }
         
         debug_last_marker_index++;
-        if (debug_last_marker_index == macro_array_count(debug_time_marker_list)) {
+        if (debug_last_marker_index == array_count(debug_time_marker_list)) {
           debug_last_marker_index = 0;
         }
       }
