@@ -361,14 +361,14 @@ drops_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) {
       drop->a = 0;
       drop->pos = mouse_start;
       
-      if (state->drop_index >= macro_array_count(state->drops))
+      if (state->drop_index >= array_count(state->drops))
         state->drop_index = 0;
     }
   }
   
   // move drops
   {
-    for (int i = 0; i < macro_array_count(state->drops); i++) {
+    for (int i = 0; i < array_count(state->drops); i++) {
       auto drop = &state->drops[i];
       
       if (!drop->active)
@@ -385,7 +385,7 @@ drops_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) {
   
   // draw drops
   {
-    for (int i = 0; i < macro_array_count(state->drops); i++) {
+    for (int i = 0; i < array_count(state->drops); i++) {
       auto drop = &state->drops[i];
       
       if (!drop->active)
@@ -465,7 +465,7 @@ subpixel_test_update(Loaded_bmp* buffer, Game_state* game_state, Game_input* inp
 internal
 Add_low_entity_result
 add_low_entity(Game_state* game_state, Entity_type type, World_position pos) {
-  assert(game_state->low_entity_count < macro_array_count(game_state->low_entity_list));
+  assert(game_state->low_entity_count < array_count(game_state->low_entity_list));
   
   Add_low_entity_result result;
   u32 entity_index = game_state->low_entity_count++;
@@ -487,7 +487,7 @@ add_low_entity(Game_state* game_state, Entity_type type, World_position pos) {
 internal
 void
 init_hit_points(Low_entity* entity_low, u32 hit_point_count) {
-  assert(hit_point_count <= macro_array_count(entity_low->sim.hit_point));
+  assert(hit_point_count <= array_count(entity_low->sim.hit_point));
   entity_low->sim.hit_points_max = hit_point_count;
   
   for (u32 hit_point_index = 0; hit_point_index < entity_low->sim.hit_points_max; hit_point_index++) {
@@ -704,7 +704,7 @@ begin_task_with_mem(Transient_state *tran_state) {
   
   Task_with_memory *found_task = {};
   
-  for (u32 task_index = 0; task_index < macro_array_count(tran_state->task_list); task_index++) {
+  for (u32 task_index = 0; task_index < array_count(tran_state->task_list); task_index++) {
     Task_with_memory *task = tran_state->task_list + task_index;
     
     if (!task->being_used) {
@@ -788,7 +788,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
       v2 center = v2 {chunk_offset_x * width, chunk_offset_y * height};
       
       for (u32 grass_index = 0; grass_index < 100; grass_index++) {
-        assert(random_number_index < macro_array_count(random_number_table));
+        assert(random_number_index < array_count(random_number_table));
         
         auto random_blob = random_choise(&series, 2) ? Asset_grass: Asset_stone;
         Bitmap_id stamp = get_random_bitmap_from(tran_state->asset_list,
@@ -817,7 +817,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
       v2 center = {chunk_offset_x * width, chunk_offset_y * height}; 
       
       for (u32 grass_index = 0; grass_index < 50; grass_index++) {
-        assert(random_number_index < macro_array_count(random_number_table));
+        assert(random_number_index < array_count(random_number_table));
         
         Bitmap_id stamp = get_random_bitmap_from(tran_state->asset_list, Asset_tuft, &series);
         
@@ -1181,7 +1181,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   u32 ground_buffer_width  = 256;
   u32 ground_buffer_height = 256;
   
-  assert(&input->gamepad[0].back - &input->gamepad[0].buttons[0] == macro_array_count(input->gamepad[0].buttons) - 1); // we need to ensure that we take last element in union
+  assert(&input->gamepad[0].back - &input->gamepad[0].buttons[0] == array_count(input->gamepad[0].buttons) - 1); // we need to ensure that we take last element in union
   assert(sizeof(Game_state) <= memory->permanent_storage_size);
   
   Game_state* game_state = (Game_state*)memory->permanent_storage;
@@ -1431,7 +1431,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     tran_state->high_priority_queue = memory->high_priority_queue;
     tran_state->low_priority_queue = memory->low_priority_queue;
     
-    for (u32 task_index = 0; task_index < macro_array_count(tran_state->task_list); task_index++) {
+    for (u32 task_index = 0; task_index < array_count(tran_state->task_list); task_index++) {
       Task_with_memory *task = tran_state->task_list + task_index;
       
       task->being_used = false;
@@ -1441,7 +1441,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     u32 size = macro_megabytes(64);
     tran_state->asset_list = allocate_game_asset_list(&tran_state->tran_arena, size, tran_state);
     
-    play_sound(&game_state->audio_state, get_first_sound_from(tran_state->asset_list, Asset_music));
+    game_state->music = play_sound(&game_state->audio_state, get_first_sound_from(tran_state->asset_list, Asset_music));
     
     tran_state->ground_buffer_count = 256;
     tran_state->ground_buffer_list = mem_push_array(&tran_state->tran_arena, tran_state->ground_buffer_count, Ground_buffer);
@@ -1468,11 +1468,11 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     tran_state->env_map_width = 512;
     tran_state->env_map_height = 256;
     
-    for (u32 map_index = 0; map_index < macro_array_count(tran_state->env_map_list); map_index += 1) {
+    for (u32 map_index = 0; map_index < array_count(tran_state->env_map_list); map_index += 1) {
       Env_map* map = tran_state->env_map_list + map_index;
       u32 width = tran_state->env_map_width;
       u32 height = tran_state->env_map_height;
-      for (u32 lod_index = 0; lod_index < macro_array_count(map->lod); lod_index++) {
+      for (u32 lod_index = 0; lod_index < array_count(map->lod); lod_index++) {
         map->lod[lod_index] = make_empty_bitmap(&tran_state->tran_arena, width, height, false);
         
         width >>= 1;
@@ -1499,7 +1499,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   
   // check input and move player
   {
-    i32 controller_count = macro_array_count(input->gamepad);
+    i32 controller_count = array_count(input->gamepad);
     for (i32 controller_index = 0; controller_index < controller_count; controller_index++) {
       auto input_state = get_gamepad(input, controller_index);
       Controlled_hero* controlled = game_state->controlled_hero_list + controller_index;
@@ -1549,15 +1549,19 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
         {
           if (input_state->action_up.ended_down) {
             controlled->d_sword = { 0.0f, 1.0f };
+            change_volume(&game_state->audio_state, game_state->music, 10.0f, v2_one);
           }
           if (input_state->action_down.ended_down) {
             controlled->d_sword = { 0.0f, -1.0f };
+            change_volume(&game_state->audio_state, game_state->music, 10.0f, v2_zero);
           }
           if (input_state->action_left.ended_down) {
             controlled->d_sword = { -1.0f, 0.0f };
+            change_volume(&game_state->audio_state, game_state->music, 5.0f, v2_x);
           }
           if (input_state->action_right.ended_down) {
             controlled->d_sword = { 1.0f, 0.0f };
+            change_volume(&game_state->audio_state, game_state->music, 5.0f, v2_y);
           }
         }
       }
@@ -1763,7 +1767,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
       switch (entity->type) {
         case Entity_type_hero: {
           
-          u32 hero_count = macro_array_count(game_state->controlled_hero_list);
+          u32 hero_count = array_count(game_state->controlled_hero_list);
           for (u32 control_index = 0; control_index < hero_count; control_index++) {
             Controlled_hero* con_hero = game_state->controlled_hero_list + control_index;
             
@@ -1937,7 +1941,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
       {0,0,1},
     };
     
-    for (u32 map_index = 0; map_index < macro_array_count(tran_state->env_map_list); map_index++) {
+    for (u32 map_index = 0; map_index < array_count(tran_state->env_map_list); map_index++) {
       Env_map* map = tran_state->env_map_list + map_index;
       Loaded_bmp* lod = map->lod + 0;
       bool row_checker_on = false;
@@ -2006,7 +2010,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
                     tran_state->env_map_list + 0);
   
   v2 map_pos = { 0.0f, 0.0f };
-  for (u32 map_index = 0; map_index < macro_array_count(tran_state->env_map_list); map_index++) {
+  for (u32 map_index = 0; map_index < array_count(tran_state->env_map_list); map_index++) {
     
     Env_map* map = tran_state->env_map_list + map_index;
     Loaded_bmp* lod = &map->lod[0];

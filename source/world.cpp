@@ -31,8 +31,8 @@ World_chunk* get_world_chunk(World* world, i32 x, i32 y, i32 z, Memory_arena* ar
   assert(z < TILE_CHUNK_SAFE_MARGIN);
   
   u32 hash_value = 19 * x + 7 * y + 3 * z;
-  u32 hash_slot = hash_value & (macro_array_count(world->chunk_hash) - 1);
-  assert(hash_slot < macro_array_count(world->chunk_hash));
+  u32 hash_slot = hash_value & (array_count(world->chunk_hash) - 1);
+  assert(hash_slot < array_count(world->chunk_hash));
   
   World_chunk* chunk = world->chunk_hash + hash_slot;
   do {
@@ -168,7 +168,7 @@ void init_world(World* world, v3 chunk_dim_meters) {
   world->chunk_dim_meters = chunk_dim_meters;
   world->first_free = 0;
   
-  for (u32 tile_chunk_index = 0; tile_chunk_index < macro_array_count(world->chunk_hash); tile_chunk_index++) {
+  for (u32 tile_chunk_index = 0; tile_chunk_index < array_count(world->chunk_hash); tile_chunk_index++) {
     world->chunk_hash[tile_chunk_index].chunk_x = TILE_CHUNK_UNINITIALIZED;
     world->chunk_hash[tile_chunk_index].first_block.entity_count = 0;
   }
@@ -222,7 +222,7 @@ void change_entity_location_raw(Memory_arena* arena, World* world, u32 low_entit
       assert(chunk);
       
       World_entity_block* block = &chunk->first_block;
-      if (block->entity_count == macro_array_count(block->low_entity_index)) {
+      if (block->entity_count == array_count(block->low_entity_index)) {
         // new block
         World_entity_block* old_block = world->first_free;
         
@@ -238,7 +238,7 @@ void change_entity_location_raw(Memory_arena* arena, World* world, u32 low_entit
         block->entity_count = 0;
       }
       
-      assert(block->entity_count < macro_array_count(block->low_entity_index));
+      assert(block->entity_count < array_count(block->low_entity_index));
       block->low_entity_index[block->entity_count++] = low_entity_index;
     }
   }

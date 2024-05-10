@@ -17,9 +17,9 @@ get_hash_from_storage_index(Sim_region* sim_region, u32 storage_index) {
   Sim_entity_hash* result = 0;
   
   u32 hash_value = storage_index;
-  for (u32 offset = 0; offset < macro_array_count(sim_region->hash); offset++) {
+  for (u32 offset = 0; offset < array_count(sim_region->hash); offset++) {
     // look for first free entry
-    u32 hash_mask = macro_array_count(sim_region->hash) - 1;
+    u32 hash_mask = array_count(sim_region->hash) - 1;
     u32 hash_index = (hash_value + offset) & hash_mask;
     Sim_entity_hash* entry = sim_region->hash + hash_index;
     
@@ -295,7 +295,7 @@ add_collision_rule(Game_state* game_state, u32 storage_index_a, u32 storage_inde
   }
   
   Pairwise_collision_rule* found = 0;
-  u32 hash_bucket = storage_index_a & (macro_array_count(game_state->collision_rule_hash) - 1);
+  u32 hash_bucket = storage_index_a & (array_count(game_state->collision_rule_hash) - 1);
   for (Pairwise_collision_rule* rule = game_state->collision_rule_hash[hash_bucket]; rule; rule = rule->next_in_hash) {
     if (rule->storage_index_a == storage_index_a &&
         rule->storage_index_b == storage_index_b) {
@@ -356,7 +356,7 @@ handle_collision(Game_state* game_state, Sim_entity* a_entity, Sim_entity* b_ent
 internal
 void
 clear_collision_rule(Game_state* game_state, u32 storage_index) {
-  for (u32 hash_bucket = 0; hash_bucket < macro_array_count(game_state->collision_rule_hash); hash_bucket++) {
+  for (u32 hash_bucket = 0; hash_bucket < array_count(game_state->collision_rule_hash); hash_bucket++) {
     for (Pairwise_collision_rule** rule = & game_state->collision_rule_hash[hash_bucket]; *rule;) {
       
       if ((*rule)->storage_index_a == storage_index || 
@@ -395,7 +395,7 @@ can_collide(Game_state* game_state, Sim_entity* a_entity, Sim_entity* b_entity) 
     result = true;
   }
   
-  u32 hash_bucket = a_entity->storage_index & (macro_array_count(game_state->collision_rule_hash) - 1);
+  u32 hash_bucket = a_entity->storage_index & (array_count(game_state->collision_rule_hash) - 1);
   for (Pairwise_collision_rule* rule = game_state->collision_rule_hash[hash_bucket]; rule; rule = rule->next_in_hash) {
     if (rule->storage_index_a == a_entity->storage_index &&
         rule->storage_index_b == b_entity->storage_index) {
@@ -621,7 +621,7 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
                   
                   v3 test_wall_normal = {};
                   
-                  for (u32 wall_index = 0; wall_index < macro_array_count(wall_list); wall_index++) 
+                  for (u32 wall_index = 0; wall_index < array_count(wall_list); wall_index++) 
                   {
                     Test_wall* wall = wall_list + wall_index;
                     

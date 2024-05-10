@@ -138,7 +138,7 @@ struct Game_state {
   f32 t_sine;
   f32 t_mod;
   
-  Controlled_hero controlled_hero_list[macro_array_count(((Game_input*)0)->gamepad)]; // "c"
+  Controlled_hero controlled_hero_list[array_count(((Game_input*)0)->gamepad)]; // "c"
   
   u32 low_entity_count;
   Low_entity low_entity_list[100000];
@@ -165,6 +165,7 @@ struct Game_state {
   Random_series general_entropy;
   
   Audio_state audio_state;
+  Playing_sound *music;
   
 #if 0
   Pacman_state pacman_state;

@@ -323,8 +323,8 @@ distance_from_map_z - how far the map is from sample point in z, in meters
 */
   
   // pick LOD
-  u32 lod_index = (u32)(roughness * (f32)(macro_array_count(map->lod) - 1) + 0.05f);
-  assert(lod_index < macro_array_count(map->lod));
+  u32 lod_index = (u32)(roughness * (f32)(array_count(map->lod) - 1) + 0.05f);
+  assert(lod_index < array_count(map->lod));
   
   Loaded_bmp* lod = &map->lod[lod_index];
   
@@ -407,7 +407,7 @@ draw_rect_quak(Loaded_bmp *buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
     origin + y_axis
   };
   
-  for (i32 i = 0; i < macro_array_count(p); i++) {
+  for (i32 i = 0; i < array_count(p); i++) {
     v2 test_pos = p[i];
     
     int floor_x = floor_f32_i32(test_pos.x);
@@ -819,7 +819,7 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
     origin + y_axis
   };
   
-  for (i32 i = 0; i < macro_array_count(p); i++) {
+  for (i32 i = 0; i < array_count(p); i++) {
     v2 test_pos = p[i];
     
     int floor_x = floor_f32_i32(test_pos.x);
@@ -1249,7 +1249,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target, Re
         
         draw_rect(output_target, end - dim, end + dim, corner_color, clip_rect, even);
 #if 0
-        for (u32 i = 0; i < macro_array_count(entry->points); i++) {
+        for (u32 i = 0; i < array_count(entry->points); i++) {
           v2 p = entry->points[i];
           p = entry->origin + p.x * entry->x_axis + p.y * entry->y_axis;
           draw_rect(output_target, p - dim, p + dim, corner_color);
