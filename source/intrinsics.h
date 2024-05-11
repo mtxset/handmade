@@ -12,8 +12,6 @@ inline u32 atomic_compare_exchange_u32(u32 volatile *value, u32 new_value, u32 e
 }
 #endif
 
-// RECT3 END
-
 //
 /*
 inline

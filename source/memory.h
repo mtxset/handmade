@@ -36,6 +36,51 @@ mem_push_size_(arena, size, ## __VA_ARGS__)
 
 #define mem_zero_struct(instance) mem_zero_size_(sizeof(instance), &(instance))
 
+inline
+size_t
+get_alignment_offset(Memory_arena *arena, size_t alignment = 4) {
+  size_t result_pointer = (size_t)arena->base + arena->used;
+  size_t current_alignment = result_pointer & (alignment - 1);
+  size_t alignment_offset = (alignment - current_alignment) & (alignment - 1);
+  
+  return alignment_offset;
+}
+
+inline
+void* 
+mem_push_size_(Memory_arena* arena, size_t size_init, size_t alignment = 4) {
+  
+  size_t size = size_init;
+  
+  size_t alignment_offset = get_alignment_offset(arena, alignment);
+  size += alignment_offset;
+  
+  assert((arena->used + size) <= arena->size);
+  
+  void* result = arena->base + arena->used + alignment_offset;
+  arena->used += size;
+  
+  assert(size >= size_init);
+  
+  return result;
+}
+
+inline 
+char*
+mem_push_string(Memory_arena *arena, char *src)
+{
+  u32 size = 1;
+  for (char *at = src; *at; ++at) {
+    ++size;
+  }
+  
+  char *dst = (char*)mem_push_size_(arena, size);
+  for (u32 char_index = 0; char_index < size; ++char_index) {
+    dst[char_index] = src[char_index];
+  }
+  
+  return dst;
+}
 
 inline
 Temp_memory
@@ -67,16 +112,6 @@ check_arena(Memory_arena* arena) {
 
 inline
 size_t
-get_alignment_offset(Memory_arena *arena, size_t alignment = 4) {
-  size_t result_pointer = (size_t)arena->base + arena->used;
-  size_t current_alignment = result_pointer & (alignment - 1);
-  size_t alignment_offset = (alignment - current_alignment) & (alignment - 1);
-  
-  return alignment_offset;
-}
-
-inline
-size_t
 get_arena_size_remaining(Memory_arena *arena, size_t alignment = 4) {
   size_t result = 0;
   
@@ -86,24 +121,6 @@ get_arena_size_remaining(Memory_arena *arena, size_t alignment = 4) {
   return result;
 }
 
-inline
-void* 
-mem_push_size_(Memory_arena* arena, size_t size_init, size_t alignment = 4) {
-  
-  size_t size = size_init;
-  
-  size_t alignment_offset = get_alignment_offset(arena, alignment);
-  size += alignment_offset;
-  
-  assert((arena->used + size) <= arena->size);
-  
-  void* result = arena->base + arena->used + alignment_offset;
-  arena->used += size;
-  
-  assert(size >= size_init);
-  
-  return result;
-}
 
 inline
 void

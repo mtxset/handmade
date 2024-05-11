@@ -134,23 +134,26 @@ void
 load_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
   
   if (id.value &&
-      atomic_compare_exchange_u32((u32*)&asset_list->bitmap_list[id.value].state, Asset_state_queued, Asset_state_unloaded) != Asset_state_unloaded) {
-    
+      atomic_compare_exchange_u32((u32*)&asset_list->bitmap_list[id.value].state, Asset_state_queued, Asset_state_unloaded) == Asset_state_unloaded) {
     
     Task_with_memory *task = begin_task_with_mem(asset_list->tran_state);
     
-    if (!task)
-      return;
+    if (task) {
+      
+      Load_bitmap_work *work = mem_push_struct(&task->arena, Load_bitmap_work);
+      
+      work->asset_list = asset_list;
+      work->id = id;
+      work->task = task;
+      work->bitmap = mem_push_struct(&asset_list->arena, Loaded_bmp);
+      work->final_state = Asset_state_loaded;
+      
+      platform_add_entry(asset_list->tran_state->low_priority_queue, load_bitmap_work, work);
+    }
+    else {
+      asset_list->bitmap_list[id.value].state = Asset_state_unloaded;
+    }
     
-    Load_bitmap_work *work = mem_push_struct(&task->arena, Load_bitmap_work);
-    
-    work->asset_list = asset_list;
-    work->id = id;
-    work->task = task;
-    work->bitmap = mem_push_struct(&asset_list->arena, Loaded_bmp);
-    work->final_state = Asset_state_loaded;
-    
-    platform_add_entry(asset_list->tran_state->low_priority_queue, load_bitmap_work, work);
   }
 }
 
@@ -316,7 +319,7 @@ PLATFORM_WORK_QUEUE_CALLBACK(load_sound_work) {
 internal void
 load_sound(Game_asset_list *asset_list, Sound_id id) {
   if (id.value &&
-      atomic_compare_exchange_u32((u32*)&asset_list->sound_list[id.value].state, Asset_state_queued, Asset_state_unloaded) != Asset_state_unloaded) {
+      (atomic_compare_exchange_u32((u32*)&asset_list->sound_list[id.value].state, Asset_state_queued, Asset_state_unloaded) == Asset_state_unloaded)) {
     
     Task_with_memory *task = begin_task_with_mem(asset_list->tran_state);
     
@@ -490,7 +493,8 @@ debug_add_bitmap_info(Game_asset_list* asset_list, char *filename, v2 align_pcen
   Bitmap_id id = {asset_list->debug_used_bitmap_count++};
   
   Asset_bitmap_info *info = asset_list->bitmap_info_list + id.value;
-  info->filename = filename;
+  info->filename = mem_push_string(&asset_list->arena, filename);
+  //info->filename = filename;
   info->align_pcent = align_pcent;
   
   return id;
@@ -505,7 +509,8 @@ debug_add_sound_info(Game_asset_list* asset_list, char *filename, u32 first_samp
   Sound_id id = {asset_list->debug_used_sound_count++};
   
   Asset_sound_info *info = asset_list->sound_info_list + id.value;
-  info->filename = filename;
+  info->filename = mem_push_string(&asset_list->arena, filename);
+  //info->filename = filename;
   info->first_sample_index = first_sample_index;
   info->sample_count = sample_count;
   info->next_id_to_play.value = 0;

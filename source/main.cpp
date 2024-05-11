@@ -1209,6 +1209,9 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       auto new_dll_write_time = win32_get_last_write_time(game_code_dll_name);
       
       if (CompareFileTime(&new_dll_write_time, &game_code.dll_last_write_time) != 0) {
+        win32_complete_all_work(&high_priority_queue);
+        win32_complete_all_work(&low_priority_queue);
+        
         win32_unload_game_code(&game_code);
         
         game_code = win32_load_game_code(game_code_full_path, 

@@ -8,8 +8,10 @@ struct Playing_sound {
   v2 d_current_volume;
   v2 target_volume;
   
+  f32 d_sample;
+  
   Sound_id id;
-  u32 samples_played;
+  f32 samples_played;
   Playing_sound *next;
 };
 
