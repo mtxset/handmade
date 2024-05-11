@@ -1497,6 +1497,13 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   //f32 meters_to_pixels = game_state->meters_to_pixels;
   assert(world);
   
+  {
+    v2 music_volume;
+    music_volume.y = safe_ratio_0((f32)input->mouse_x, (f32)bitmap_buffer->width);
+    music_volume.x = 1.0f - music_volume.y;
+    change_volume(&game_state->audio_state, game_state->music, 0.01f, music_volume);
+  }
+  
   // check input and move player
   {
     i32 controller_count = array_count(input->gamepad);

@@ -38,6 +38,12 @@ output_test_sine_wave(Game_state* state, Game_sound_buffer* sound_buffer, i32 to
 #endif
 }
 
+static
+void
+change_pitch(Audio_state *audio_state, Playing_sound *sound, f32 d_sample) {
+  sound->d_sample = d_sample;
+}
+
 internal
 Playing_sound*
 play_sound(Audio_state *audio_state, Sound_id sound_id) {
@@ -55,6 +61,7 @@ play_sound(Audio_state *audio_state, Sound_id sound_id) {
   playing_sound->target_volume = v2_one;
   playing_sound->d_current_volume = v2_zero;
   playing_sound->id = sound_id;
+  playing_sound->d_sample = 1.0f;
   
   playing_sound->next = audio_state->first_playing_sound;
   audio_state->first_playing_sound = playing_sound;
@@ -106,23 +113,23 @@ output_playing_sounds(Audio_state *audio_state, Game_sound_buffer *sound_buffer,
     u32 total_samples_to_mix = sound_buffer->sample_count;
     f32 *dest_0 = real_channel_0;
     f32 *dest_1 = real_channel_1;
-    
     while (total_samples_to_mix && !sound_finished) {
       
       Loaded_sound *loaded_sound = get_sound(asset_list, playing_sound->id);
       
       if (loaded_sound) {
-        
         Asset_sound_info *info = get_sound_info(asset_list, playing_sound->id);
         prefetch_sound(asset_list, info->next_id_to_play);
         
         v2 volume = playing_sound->current_volume;
         v2 d_volume = seconds_per_sample * playing_sound->d_current_volume;
+        f32 d_sample = playing_sound->d_sample;
         
-        assert(playing_sound->samples_played >= 0);
+        assert(playing_sound->samples_played >= 0.0f);
         
         u32 samples_to_mix = total_samples_to_mix;
-        u32 samples_remaining = loaded_sound->sample_count - playing_sound->samples_played;
+        f32 real_sample_remaining_in_sound = (loaded_sound->sample_count - round_f32_i32(playing_sound->samples_played)) / d_sample;
+        u32 samples_remaining = round_f32_i32(real_sample_remaining_in_sound); 
         
         if (samples_to_mix > samples_remaining) {
           samples_to_mix = samples_remaining;
@@ -144,17 +151,24 @@ output_playing_sounds(Audio_state *audio_state, Game_sound_buffer *sound_buffer,
           
         }
         
-        for (u32 sample_index = playing_sound->samples_played; sample_index < playing_sound->samples_played + samples_to_mix; sample_index++) {
+        f32 sample_pos = playing_sound->samples_played;
+        for (u32 index = 0; index < samples_to_mix; index++) {
           
-          f32 sample_value = loaded_sound->samples[0][sample_index];
+          u32 sample_index = floor_f32_i32(sample_pos);
+          
+          f32 frac = sample_pos - (f32)sample_index;
+          f32 sample_0 = (f32)loaded_sound->samples[0][sample_index];
+          f32 sample_1 = (f32)loaded_sound->samples[0][sample_index + 1];
+          f32 sample_value = lerp(sample_0, frac, sample_1);
+          
           *dest_0++ += audio_state->master_volume.e[0] * volume.e[0] * sample_value;
           *dest_1++ += audio_state->master_volume.e[1] * volume.e[1] * sample_value;
           
           volume += d_volume;
+          sample_pos += d_sample;
         }
         
         playing_sound->current_volume = volume;
-        
         for (u32 channel_index = 0; channel_index < array_count(volume_ended); channel_index++) {
           if (volume_ended[channel_index]) {
             playing_sound->current_volume.e[channel_index] = playing_sound->target_volume.e[channel_index];
@@ -176,6 +190,7 @@ output_playing_sounds(Audio_state *audio_state, Game_sound_buffer *sound_buffer,
             sound_finished = true;
           }
         }
+        
       }
       else {
         load_sound(asset_list, playing_sound->id);
@@ -192,6 +207,7 @@ output_playing_sounds(Audio_state *audio_state, Game_sound_buffer *sound_buffer,
       play_sound_ptr = &playing_sound->next;
     }
   }
+  
   
   {
     f32 *source_0 = real_channel_0;
