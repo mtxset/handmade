@@ -227,8 +227,8 @@ struct Game_asset_list {
   Asset *debug_asset;
 };
 
-internal void load_bitmap(Game_asset_list *asset_list, Bitmap_id id);
-internal void load_sound(Game_asset_list *asset_list, Sound_id id);
+void load_bitmap(Game_asset_list *asset_list, Bitmap_id id);
+void load_sound(Game_asset_list *asset_list, Sound_id id);
 
 inline
 void 

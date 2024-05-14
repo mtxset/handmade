@@ -84,24 +84,32 @@ change_volume(Audio_state *audio_state, Playing_sound *sound, f32 fade_duration_
   
 }
 
+
+#define f32x4 __m128  // simd 4x32 bytes floats?
+#define i32x4 __m128i // simd 4x32 bytes ints OR 8x16 shorts
+
 static
 void
 output_playing_sounds(Audio_state *audio_state, Game_sound_buffer *sound_buffer, Game_asset_list *asset_list, Memory_arena *temp_arena) {
   
   Temp_memory mixer_memory = begin_temp_memory(temp_arena);
   
-  f32 *real_channel_0 = mem_push_array(temp_arena, sound_buffer->sample_count, f32);
-  f32 *real_channel_1 = mem_push_array(temp_arena, sound_buffer->sample_count, f32);
+  u32 sample_count_align4 = align_04(sound_buffer->sample_count);
+  u32 sample_count_4      = sample_count_align4 / 4;
+  
+  f32x4 *real_channel_0 = mem_push_array(temp_arena, sample_count_4, f32x4);
+  f32x4 *real_channel_1 = mem_push_array(temp_arena, sample_count_4, f32x4);
   
   f32 seconds_per_sample = 1.0f / sound_buffer->samples_per_second;
   
+  f32x4 zero = _mm_set1_ps(0.0f);
   {
-    f32 *dest_0 = real_channel_0;
-    f32 *dest_1 = real_channel_1;
+    f32x4 *dest_0 = real_channel_0;
+    f32x4 *dest_1 = real_channel_1;
     
-    for (i32 sample_index = 0; sample_index < sound_buffer->sample_count; sample_index++) {
-      *dest_0++ = 0.0f;
-      *dest_1++ = 0.0f;
+    for (u32 sample_index = 0; sample_index < sample_count_4; sample_index++) {
+      _mm_store_ps((f32*)dest_0++, zero);
+      _mm_store_ps((f32*)dest_1++, zero);
     }
   }
   
@@ -111,8 +119,9 @@ output_playing_sounds(Audio_state *audio_state, Game_sound_buffer *sound_buffer,
     bool sound_finished = false;
     
     u32 total_samples_to_mix = sound_buffer->sample_count;
-    f32 *dest_0 = real_channel_0;
-    f32 *dest_1 = real_channel_1;
+    f32 *dest_0 = (f32*)real_channel_0;
+    f32 *dest_1 = (f32*)real_channel_1;
+    
     while (total_samples_to_mix && !sound_finished) {
       
       Loaded_sound *loaded_sound = get_sound(asset_list, playing_sound->id);
@@ -208,16 +217,28 @@ output_playing_sounds(Audio_state *audio_state, Game_sound_buffer *sound_buffer,
     }
   }
   
-  
   {
-    f32 *source_0 = real_channel_0;
-    f32 *source_1 = real_channel_1;
+    f32x4 *source_0 = real_channel_0;
+    f32x4 *source_1 = real_channel_1;
     
-    i16 *sample_out = sound_buffer->samples;
-    for (i32 sample_index = 0; sample_index < sound_buffer->sample_count; sample_index++) {
+    i32x4 *sample_out = (i32x4*)sound_buffer->samples;
+    
+    for (u32 sample_index = 0; sample_index < sample_count_4; sample_index++) {
       
-      *sample_out++ = (i16)(*source_0++ + 0.5f);
-      *sample_out++ = (i16)(*source_1++ + 0.5f);
+      f32x4 s0 = _mm_load_ps((f32*)source_0++); // load 4 floats 
+      f32x4 s1 = _mm_load_ps((f32*)source_1++); 
+      
+      i32x4 L = _mm_cvtps_epi32(s0);              // convert them to ints
+      i32x4 R = _mm_cvtps_epi32(s1);
+      
+      i32x4 lr0 = _mm_unpacklo_epi32(L, R);       // from L and R take low  half
+      i32x4 lr1 = _mm_unpackhi_epi32(L, R);       // from L and R take high half
+      // it will pack interleaved so it goes lr0_0, lr0_1
+      // so we have packed sample from left and right interleaved
+      
+      i32x4 sample = _mm_packs_epi32(lr0, lr1);   // convert 32 ints from lr0,lr1 to 16-bit
+      
+      *sample_out++ = sample;
     }
   }
   

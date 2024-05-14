@@ -30,7 +30,10 @@ for /F "tokens=1-4 delims=:.," %%a in ("%time%") do (
 :: lock is done so that vs has time to create debug file for dll, so breakpoints work for new code
 :: game wont load new code till there is lock file
 echo Waiting for pbd > lock.tmp
-cl.exe %include_iaca% %common_compiler_flags% "..\source\game.cpp" /LD /link -incremental:no -opt:ref -PDB:game%random%.pdb  -EXPORT:game_get_sound_samples -EXPORT:game_update_render
+
+cl %include_iaca% %common_compiler_flags% -O2 -c ..\source\optimized.cpp -Fooptimized.obj -LD
+
+cl.exe %include_iaca% %common_compiler_flags% "..\source\game.cpp" optimized.obj /LD /link -incremental:no -opt:ref -PDB:game%random%.pdb  -EXPORT:game_get_sound_samples -EXPORT:game_update_render
 del lock.tmp
 cl.exe %common_compiler_flags% "..\source\main.cpp" /link %common_linker_flags%
 popd

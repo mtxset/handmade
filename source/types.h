@@ -21,7 +21,10 @@ typedef double             f64;
 typedef intptr_t           intptr;
 typedef uintptr_t          uintptr;
 
+#if !defined(internal)
 #define internal static
+#endif
+
 #define global_var static
 #define local_persist static
 

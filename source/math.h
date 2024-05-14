@@ -141,7 +141,7 @@ clamp01(f32 value) {
   return result;
 }
 
-
+inline
 i32 
 clamp_i32(i32 val, i32 min_value = 0, i32 max_value = 1) {
   i32 result = val;
@@ -155,6 +155,7 @@ clamp_i32(i32 val, i32 min_value = 0, i32 max_value = 1) {
   return result;
 }
 
+inline
 u32 
 clamp_u32(u32 val, u32 min_value = 0, u32 max_value = 1) {
   u32 result = val;
@@ -168,6 +169,7 @@ clamp_u32(u32 val, u32 min_value = 0, u32 max_value = 1) {
   return result;
 }
 
+inline
 f32 
 clamp_f32(f32 val, f32 min_value = 0.0f, f32 max_value = 1.0f) {
   f32 result = val;
@@ -541,6 +543,7 @@ f32 dot(v3 a, v3 b) {
   return inner(a, b);
 }
 
+inline
 v3 cross(v3 a, v3 b) {
   v3 result;
   
@@ -753,6 +756,7 @@ i32 floor_f32_i32(f32 value) {
   return result;
 }
 
+inline
 f32 sin(f32 value) {
   f32 result = 0;
   
