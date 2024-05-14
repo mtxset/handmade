@@ -1497,11 +1497,30 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   //f32 meters_to_pixels = game_state->meters_to_pixels;
   assert(world);
   
+  if (0)
   {
     v2 music_volume;
     music_volume.y = safe_ratio_0((f32)input->mouse_x, (f32)bitmap_buffer->width);
     music_volume.x = 1.0f - music_volume.y;
     change_volume(&game_state->audio_state, game_state->music, 0.01f, music_volume);
+  }
+  else {
+    v2 screen_pos = {
+      safe_ratio_0((f32)input->mouse_x, (f32)bitmap_buffer->width),
+      safe_ratio_0((f32)bitmap_buffer->height - (f32)input->mouse_y, (f32)bitmap_buffer->height),
+    };
+    
+    f32 current_volume = screen_pos.y;
+    
+    v2 volume = {
+      current_volume * (1.0f - screen_pos.x),
+      current_volume * screen_pos.x
+    };
+    
+    volume.x = clamp(volume.x, 0.0f, 1.0f);
+    volume.y = clamp(volume.y, 0.0f, 1.0f);
+    
+    change_volume(&game_state->audio_state, game_state->music, 0.01f, volume);
   }
   
   // check input and move player

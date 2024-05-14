@@ -54,6 +54,7 @@ global_var const float TAU = 6.28318530717958647692f;;
 #define macro_terabytes(value) (macro_gigabytes(value) * 1024ull)
 #define array_count(array) (sizeof(array) / sizeof((array)[0])) // array is in parenthesis because we can pass x + y and we want to have (x + y)[0]
 
+#define align_04(value) ((value +  3) &  ~3)
 #define align_16(value) ((value + 15) & ~15)
 
 inline
@@ -179,6 +180,7 @@ void (game_update_render_signature) (Game_memory* memory, Game_input* input, Gam
 typedef 
 void (game_get_sound_samples_signature) (Game_memory* memory, Game_sound_buffer* sound_buffer);
 
+inline
 Game_controller_input* 
 get_gamepad(Game_input* input, i32 input_index) {
   assert(input_index >= 0);

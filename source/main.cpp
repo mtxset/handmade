@@ -1138,7 +1138,8 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     sound_output.safety_bytes = i32((f32)sound_output.samples_per_second * (f32)sound_output.bytes_per_sample / game_update_refresh_rate / 3.0f);
     sound_output.buffer_size = sound_output.samples_per_second * sound_output.bytes_per_sample;
     
-    samples = (i16*)VirtualAlloc(0, sound_output.buffer_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+    u32 max_possible_overrun = 2 * 4 * sizeof(u16);
+    samples = (i16*)VirtualAlloc(0, sound_output.buffer_size + max_possible_overrun, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
   }
   
   // memory allocation

@@ -129,7 +129,6 @@ PLATFORM_WORK_QUEUE_CALLBACK(load_bitmap_work) {
   end_task_with_mem(work->task);
 }
 
-internal
 void 
 load_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
   
@@ -316,7 +315,7 @@ PLATFORM_WORK_QUEUE_CALLBACK(load_sound_work) {
   end_task_with_mem(work->task);
 }
 
-internal void
+void
 load_sound(Game_asset_list *asset_list, Sound_id id) {
   if (id.value &&
       (atomic_compare_exchange_u32((u32*)&asset_list->sound_list[id.value].state, Asset_state_queued, Asset_state_unloaded) == Asset_state_unloaded)) {
