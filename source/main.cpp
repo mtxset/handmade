@@ -1138,7 +1138,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     sound_output.safety_bytes = i32((f32)sound_output.samples_per_second * (f32)sound_output.bytes_per_sample / game_update_refresh_rate / 3.0f);
     sound_output.buffer_size = sound_output.samples_per_second * sound_output.bytes_per_sample;
     
-    u32 max_possible_overrun = 2 * 4 * sizeof(u16);
+    u32 max_possible_overrun = 2 * 8 * sizeof(u16);
     samples = (i16*)VirtualAlloc(0, sound_output.buffer_size + max_possible_overrun, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
   }
   
@@ -1415,7 +1415,8 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       
       // i16 samples[48000 * 2];
       sound_buffer.samples_per_second = sound_output.samples_per_second;
-      sound_buffer.sample_count = bytes_to_write / sound_output.bytes_per_sample;
+      sound_buffer.sample_count = align_08(bytes_to_write / sound_output.bytes_per_sample);
+      bytes_to_write = sound_buffer.sample_count * sound_output.bytes_per_sample;
       sound_buffer.samples = samples;
       
       if (game_code.get_sound_samples)
