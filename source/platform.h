@@ -55,6 +55,7 @@ global_var const float TAU = 6.28318530717958647692f;;
 #define array_count(array) (sizeof(array) / sizeof((array)[0])) // array is in parenthesis because we can pass x + y and we want to have (x + y)[0]
 
 #define align_04(value) ((value +  3) &  ~3)
+#define align_08(value) ((value +  7) &  ~7)
 #define align_16(value) ((value + 15) & ~15)
 
 inline

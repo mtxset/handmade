@@ -210,7 +210,7 @@ get_chunk_data_size(Riff_iterator iter) {
 
 internal
 Loaded_sound
-debug_load_wav(char *filename, u32 first_sample_index, u32 sample_count) {
+debug_load_wav(char *filename, u32 section_first_sample_index, u32 section_sample_count) {
   Loaded_sound result = {};
   
   Debug_file_read_result read_result = debug_read_entire_file(filename);
@@ -250,10 +250,10 @@ debug_load_wav(char *filename, u32 first_sample_index, u32 sample_count) {
     
   }
   
-  assert(channel_count && sample_data_size && sample_data);
+  assert(channel_count && sample_data);
   
   result.channel_count = channel_count;
-  result.sample_count = sample_data_size / (channel_count * sizeof(i16));
+  u32 sample_count = sample_data_size / (channel_count * sizeof(i16));
   
   if (channel_count == 1) {
     result.samples[0] = sample_data;
@@ -262,31 +262,43 @@ debug_load_wav(char *filename, u32 first_sample_index, u32 sample_count) {
   else if (channel_count == 2) {
     
     result.samples[0] = sample_data;
-    result.samples[1] = sample_data + result.sample_count;
+    result.samples[1] = sample_data + sample_count;
     
-    for (u32 sample_index = 0; sample_index < result.sample_count; sample_index++) {
+    for (u32 sample_index = 0; sample_index < sample_count; sample_index++) {
       i16 source = sample_data[2 * sample_index];
       
       sample_data[2 * sample_index] = sample_data[sample_index];
       sample_data[sample_index] = source;
     }
+    
   }
   else {
     assert(!"CANT BE");
   }
   
+  bool at_end = true;
   result.channel_count = 1;
   
-  if (sample_count) {
-    assert((first_sample_index + sample_count) <= result.sample_count);
-    result.sample_count = sample_count;
+  if (section_sample_count) {
+    assert((section_first_sample_index + section_sample_count) <= sample_count);
+    at_end = (section_first_sample_index + section_sample_count == sample_count);
+    sample_count = section_sample_count;
     
-    for (u32 channel_index = 0; channel_index < channel_count; channel_index++) {
-      result.samples[channel_index] += first_sample_index;
+    for (u32 channel_index = 0; channel_index < result.channel_count; channel_index++) {
+      result.samples[channel_index] += section_first_sample_index;
     }
-    
   }
   
+  if (at_end) {
+    
+    for (u32 channel_index = 0; channel_index < result.channel_count; channel_index++) {
+      for (u32 sample_index = 0; sample_index < result.channel_count + 8; sample_index++) {
+        result.samples[channel_index][sample_index] = 0;
+      }
+    }
+  }
+  
+  result.sample_count = sample_count;
   
   return result;
 }
