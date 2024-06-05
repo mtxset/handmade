@@ -87,7 +87,7 @@ struct Ground_buffer {
 inline
 Loaded_sound*
 get_sound(Game_asset_list *asset_list, Sound_id id) {
-  Loaded_sound *result = asset_list->sound_list[id.value].sound;
+  Loaded_sound *result = asset_list->slot_list[id.value].sound;
   
   return result;
 }
@@ -103,9 +103,9 @@ is_valid(Sound_id id) {
 inline
 Asset_sound_info*
 get_sound_info(Game_asset_list *asset_list, Sound_id id) {
-  assert(id.value <= asset_list->sound_count);
+  assert(id.value <= asset_list->asset_count);
   
-  Asset_sound_info *result = asset_list->sound_info_list + id.value;
+  Asset_sound_info *result = &asset_list->asset_list[id.value].sound;
   
   return result;
 }
@@ -113,7 +113,8 @@ get_sound_info(Game_asset_list *asset_list, Sound_id id) {
 inline
 Loaded_bmp*
 get_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
-  Loaded_bmp *result = asset_list->bitmap_list[id.value].bitmap;
+  assert(id.value <= asset_list->asset_count);
+  Loaded_bmp *result = asset_list->slot_list[id.value].bitmap;
   
   return result;
 }

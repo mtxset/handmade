@@ -3,6 +3,8 @@
 #ifndef ASSET_H
 #define ASSET_H
 
+#include "asset_type_id.h"
+
 #pragma pack(push, 1)
 // struct is from: https://www.fileformat.info/format/bmp/egff.htm
 // preventing compiler padding this struct
@@ -134,38 +136,6 @@ struct Asset_tag {
   f32 value;
 };
 
-enum Asset_type_id {
-  Asset_null,
-  
-  Asset_shadow,
-  Asset_tree,
-  Asset_sword,
-  //Asset_stairwell,
-  Asset_rock,
-  
-  Asset_grass,
-  Asset_tuft,
-  Asset_stone,
-  
-  Asset_head,
-  Asset_cape,
-  Asset_torso,
-  
-  //Asset_monster,
-  //Asset_familiar,
-  
-  ////////////////////////// Sounds
-  
-  Asset_bloop,
-  Asset_crack,
-  Asset_drop,
-  Asset_glide,
-  Asset_music,
-  Asset_puhp,
-  
-  Asset_count
-};
-
 struct Asset_vector {
   f32 e[Tag_count];
 };
@@ -173,12 +143,6 @@ struct Asset_vector {
 struct Asset_type {
   u32 first_asset_index;
   u32 one_past_last_asset_index;
-};
-
-struct Asset {
-  u32 first_tag_index;
-  u32 one_past_last_tag_index;
-  u32 slot_id;
 };
 
 struct Asset_bitmap_info {
@@ -193,6 +157,16 @@ struct Asset_sound_info {
   Sound_id next_id_to_play;
 };
 
+struct Asset {
+  u32 first_tag_index;
+  u32 one_past_last_tag_index;
+  
+  union {
+    Asset_bitmap_info bitmap;
+    Asset_sound_info  sound;
+  };
+};
+
 struct Game_asset_list {
   
   struct Transient_state *tran_state;
@@ -200,19 +174,13 @@ struct Game_asset_list {
   
   f32 tag_range[Tag_count];
   
-  u32 bitmap_count;
-  Asset_bitmap_info *bitmap_info_list;
-  Asset_slot *bitmap_list;
-  
-  u32 sound_count;
-  Asset_sound_info *sound_info_list;
-  Asset_slot *sound_list;
-  
   u32 tag_count;
   Asset_tag *tag_list;
   
   u32 asset_count;
   Asset *asset_list;
+  
+  Asset_slot *slot_list;
   
   //Hero_bitmaps hero_bitmaps[4];
   
