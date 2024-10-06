@@ -123,14 +123,6 @@ struct Asset_slot {
   };
 };
 
-enum Asset_tag_id {
-  Tag_smoothness,
-  Tag_flatness,
-  Tag_facing_dir,
-  
-  Tag_count,
-};
-
 struct Asset_tag {
   u32 id;
   f32 value;
@@ -186,8 +178,6 @@ struct Game_asset_list {
   
   Asset_type asset_type_list[Asset_count];
   
-  u32 debug_used_bitmap_count;
-  u32 debug_used_sound_count;
   u32 debug_used_asset_count;
   u32 debug_used_tag_count;
   

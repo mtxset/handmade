@@ -67,8 +67,7 @@ mem_push_size_(Memory_arena* arena, size_t size_init, size_t alignment = 4) {
 
 inline 
 char*
-mem_push_string(Memory_arena *arena, char *src)
-{
+mem_push_string(Memory_arena *arena, char *src) {
   u32 size = 1;
   for (char *at = src; *at; ++at) {
     ++size;

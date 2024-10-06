@@ -31,7 +31,7 @@ for /F "tokens=1-4 delims=:.," %%a in ("%time%") do (
 :: game wont load new code till there is lock file
 echo Waiting for pbd > lock.tmp
 
-:: cl.exe %common_compiler_flags% "..\source\asset_builder.cpp" /link %common_linker_flags%
+cl.exe %common_compiler_flags% "..\source\asset_builder.cpp" /link %common_linker_flags%
 
 cl %include_iaca% %common_compiler_flags% -O2 -c ..\source\optimized.cpp -Fooptimized.obj -LD
 

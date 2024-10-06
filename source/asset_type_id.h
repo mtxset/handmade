@@ -3,6 +3,14 @@
 #ifndef ASSET_TYPE_ID_H
 #define ASSET_TYPE_ID_H
 
+enum Asset_tag_id {
+  Tag_smoothness,
+  Tag_flatness,
+  Tag_facing_dir,
+  
+  Tag_count,
+};
+
 enum Asset_type_id {
   Asset_null,
   
