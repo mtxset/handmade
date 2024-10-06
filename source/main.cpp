@@ -1,4 +1,4 @@
-// https://youtu.be/UuqcgQxpfO8?t=1643
+// https://youtu.be/UNXHK8O-B_g?t=2519
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include "types.h"
@@ -14,7 +14,6 @@
 #include "main.h"
 // some race condition happening and introduced in 126 day
 // does not crash on -Od, crashes with -O2
-// most likely somehere race condition happens
 // very lame
 // running as exe as admin helps???
 #pragma optimize("", off)

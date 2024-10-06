@@ -566,9 +566,7 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
   asset_list->tag_count = 1024 * Asset_count;
   asset_list->tag_list = mem_push_array(arena, asset_list->tag_count, Asset_tag);
   
-  asset_list->debug_used_bitmap_count = 1;
   asset_list->debug_used_asset_count = 1;
-  asset_list->debug_used_sound_count = 1;
   
   begin_asset_type(asset_list, Asset_shadow);
   add_bitmap_asset(asset_list, "../data/test_hero_shadow.bmp", v2{0.5f, 0.156682029f});
