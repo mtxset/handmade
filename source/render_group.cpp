@@ -18,36 +18,6 @@ unpack_4x8(u32 packed) {
 
 inline
 v4
-srgb255_to_linear1(v4 color) {
-  v4 result;
-  
-  f32 inv_255 = 1.0f / 255.0f;
-  
-  result.r = square(inv_255 * color.r);
-  result.g = square(inv_255 * color.g);
-  result.b = square(inv_255 * color.b);
-  result.a = inv_255 * color.a;
-  
-  return result;
-}
-
-inline
-v4
-linear1_to_srgb255(v4 color) {
-  v4 result;
-  
-  f32 one_255 = 255.0f;
-  
-  result.a = one_255 * color.a;
-  result.r = one_255 * square_root(color.r);
-  result.g = one_255 * square_root(color.g);
-  result.b = one_255 * square_root(color.b);
-  
-  return result;
-}
-
-inline
-v4
 unscale_bias_normal(v4 normal) {
   v4 result;
   

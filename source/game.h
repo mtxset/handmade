@@ -8,6 +8,7 @@
 #include "platform.h"
 #include "memory.h"
 #include "file_io.h"
+#include "file_formats.h"
 
 #include "intrinsics.h"
 #include "math.h"
@@ -18,8 +19,6 @@
 #include "asset.h"
 #include "random.h"
 #include "audio.h"
-
-#define BITMAP_BYTES_PER_PIXEL 4
 
 struct drop {
   bool active;

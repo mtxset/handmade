@@ -8,10 +8,10 @@
 #pragma pack(push, 1)
 
 struct Hha_header {
-#define MAGIC_VALUE CODE('h','h','a','f');
+#define HHA_MAGIC_VALUE CODE('h','h','a','f')
   u32 magic_value;
   
-#define VERSION 0
+#define HHA_VERSION 0
   u32 version;
   
   u32 tag_count;
@@ -40,8 +40,8 @@ struct Hha_bitmap {
 };
 
 struct Hha_sound {
-  u32 first_asset_index;
   u32 sample_count;
+  u32 channel_count;
   u32 next_id_to_play;
 };
 

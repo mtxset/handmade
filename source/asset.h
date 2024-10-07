@@ -171,18 +171,19 @@ struct Game_asset_list {
   
   u32 asset_count;
   Asset *asset_list;
-  
   Asset_slot *slot_list;
-  
-  //Hero_bitmaps hero_bitmaps[4];
   
   Asset_type asset_type_list[Asset_count];
   
+  //Hero_bitmaps hero_bitmaps[4];
+  
+#if  0
   u32 debug_used_asset_count;
   u32 debug_used_tag_count;
   
   Asset_type *debug_asset_type;
   Asset *debug_asset;
+#endif
 };
 
 void load_bitmap(Game_asset_list *asset_list, Bitmap_id id);

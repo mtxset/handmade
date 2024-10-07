@@ -28,6 +28,8 @@
 #include <limits.h>
 #include <float.h>
 
+#define BITMAP_BYTES_PER_PIXEL 4
+
 global_var f32 MAX_F32 = 3.402823466e+38F;
 global_var f32 MIN_F32 = 1.175494351e-38F;
 
