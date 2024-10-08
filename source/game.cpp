@@ -1,6 +1,5 @@
 #include "game.h"
 
-#include "file_io.cpp"
 #include "render_group.cpp"
 #include "world.cpp"
 #include "sim_region.cpp"
@@ -76,10 +75,10 @@ render_255_gradient(Loaded_bmp* bitmap_buffer, i32 blue_offset, i32 green_offset
 internal
 void
 debug_read_and_write_random_file() {
-  auto bitmap_read = debug_read_entire_file(__FILE__);
+  auto bitmap_read = platform.debug_read_entire_file(__FILE__);
   if (bitmap_read.content) {
-    debug_write_entire_file("temp.cpp", bitmap_read.bytes_read, bitmap_read.content);
-    debug_free_file(bitmap_read.content);
+    platform.debug_write_entire_file("temp.cpp", bitmap_read.bytes_read, bitmap_read.content);
+    platform.debug_free_file_memory(bitmap_read.content);
   }
 }
 
@@ -833,7 +832,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
   
   if (all_resources_present(render_group)) {
     ground_buffer->position = *chunk_pos;
-    platform_add_entry(tran_state->low_priority_queue, fill_ground_chunk_work, work);
+    platform.add_entry(tran_state->low_priority_queue, fill_ground_chunk_work, work);
   }
   else {
     end_task_with_mem(work->task);
@@ -1166,8 +1165,7 @@ extern "C" // to prevent name mangle by compiler, so function can looked up by n
 void 
 game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer) {
   
-  platform_add_entry = memory->platform_add_entry;
-  platform_complete_all_work = memory->platform_complete_all_work;
+  platform = memory->platform_api;
   
 #if INTERNAL
   debug_global_memory = memory;
@@ -1424,7 +1422,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   Transient_state* tran_state = (Transient_state*)memory->transient_storage;
   if (!tran_state->is_initialized) {
     
-    initialize_arena(&tran_state->tran_arena,
+    initialize_arena(&tran_state->arena,
                      memory->transient_storage_size - sizeof(Transient_state),
                      (u8*)memory->transient_storage + sizeof(Transient_state));
     
@@ -1435,30 +1433,30 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
       Task_with_memory *task = tran_state->task_list + task_index;
       
       task->being_used = false;
-      sub_arena(&task->arena, &tran_state->tran_arena, macro_megabytes(1));
+      sub_arena(&task->arena, &tran_state->arena, megabytes(1));
     }
     
-    u32 size = macro_megabytes(64);
-    tran_state->asset_list = allocate_game_asset_list(&tran_state->tran_arena, size, tran_state);
+    u32 size = megabytes(64);
+    tran_state->asset_list = allocate_game_asset_list(&tran_state->arena, size, tran_state);
     
     game_state->music = play_sound(&game_state->audio_state, get_first_sound_from(tran_state->asset_list, Asset_music));
     
     tran_state->ground_buffer_count = 256;
-    tran_state->ground_buffer_list = mem_push_array(&tran_state->tran_arena, tran_state->ground_buffer_count, Ground_buffer);
+    tran_state->ground_buffer_list = mem_push_array(&tran_state->arena, tran_state->ground_buffer_count, Ground_buffer);
     
     for (u32 ground_buffer_index = 0; ground_buffer_index < tran_state->ground_buffer_count; ground_buffer_index++) {
       Ground_buffer* ground_buffer = tran_state->ground_buffer_list + ground_buffer_index;
-      ground_buffer->bitmap = make_empty_bitmap(&tran_state->tran_arena,
+      ground_buffer->bitmap = make_empty_bitmap(&tran_state->arena,
                                                 ground_buffer_width,
                                                 ground_buffer_height,
                                                 false);
       ground_buffer->position = null_position();
     }
     
-    game_state->test_diffuse = make_empty_bitmap(&tran_state->tran_arena, 256, 256, false);
+    game_state->test_diffuse = make_empty_bitmap(&tran_state->arena, 256, 256, false);
     draw_rect_old(&game_state->test_diffuse, v2{0,0}, v2_i32(game_state->test_diffuse.width, game_state->test_diffuse.height), v4 {0.5f, 0.5f, 0.5f, 1.0f});
     
-    game_state->test_normal = make_empty_bitmap(&tran_state->tran_arena, game_state->test_diffuse.width, game_state->test_diffuse.height, false);
+    game_state->test_normal = make_empty_bitmap(&tran_state->arena, game_state->test_diffuse.width, game_state->test_diffuse.height, false);
     
     make_sphere_normal_map(&game_state->test_normal, 0.0f);
     make_sphere_diffuse_map(&game_state->test_diffuse);
@@ -1473,7 +1471,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
       u32 width = tran_state->env_map_width;
       u32 height = tran_state->env_map_height;
       for (u32 lod_index = 0; lod_index < array_count(map->lod); lod_index++) {
-        map->lod[lod_index] = make_empty_bitmap(&tran_state->tran_arena, width, height, false);
+        map->lod[lod_index] = make_empty_bitmap(&tran_state->arena, width, height, false);
         
         width >>= 1;
         height >>= 1;
@@ -1601,9 +1599,9 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   draw_buffer->pitch  = bitmap_buffer->pitch;
   draw_buffer->memory = bitmap_buffer->memory;
   
-  Temp_memory render_memory = begin_temp_memory(&tran_state->tran_arena);
+  Temp_memory render_memory = begin_temp_memory(&tran_state->arena);
   
-  Render_group* render_group = allocate_render_group(tran_state->asset_list, &tran_state->tran_arena, macro_megabytes(4));
+  Render_group* render_group = allocate_render_group(tran_state->asset_list, &tran_state->arena, megabytes(4));
   
   f32 width_of_monitor = 0.635f;
   f32 meters_to_pixels = (f32)draw_buffer->width * width_of_monitor;
@@ -1722,8 +1720,8 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     v3 sim_bound_expansion = {15.0f, 15.0f, 0};
     sim_camera_bounds = add_radius_to(camera_bounds_meters, sim_bound_expansion);
     
-    sim_memory = begin_temp_memory(&tran_state->tran_arena);
-    sim_region = begin_sim(&tran_state->tran_arena, 
+    sim_memory = begin_temp_memory(&tran_state->arena);
+    sim_region = begin_sim(&tran_state->arena, 
                            game_state, game_state->world, 
                            game_state->camera_pos, sim_camera_bounds, input->time_delta);
   }
@@ -1775,7 +1773,6 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
       }
       
       // pre physics
-      
       Hero_bitmap_ids hero_bitmaps = {};
       {
         Asset_vector match_vector = {};
@@ -1790,6 +1787,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
         
         hero_bitmaps.torso = get_best_match_bitmap_from(tran_state->asset_list, Asset_torso, &match_vector, &weight_vector);
       }
+      
       switch (entity->type) {
         case Entity_type_hero: {
           
@@ -2063,7 +2061,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   end_temp_memory(render_memory);
   
   check_arena(&game_state->world_arena);
-  check_arena(&tran_state->tran_arena);
+  check_arena(&tran_state->arena);
   
 #if 0
   bezier_curves(draw_buffer, input, game_state);
@@ -2103,5 +2101,5 @@ game_get_sound_samples(Game_memory *memory, Game_sound_buffer *sound_buffer) {
   auto game_state = (Game_state*)memory->permanent_storage;
   auto tran_state = (Transient_state*)memory->transient_storage;
   
-  output_playing_sounds(&game_state->audio_state, sound_buffer, tran_state->asset_list, &tran_state->tran_arena);
+  output_playing_sounds(&game_state->audio_state, sound_buffer, tran_state->asset_list, &tran_state->arena);
 }

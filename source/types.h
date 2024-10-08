@@ -21,6 +21,8 @@ typedef double             f64;
 typedef intptr_t           intptr;
 typedef uintptr_t          uintptr;
 
+#define _(x)
+
 #if !defined(internal)
 #define internal static
 #endif

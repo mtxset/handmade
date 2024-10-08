@@ -84,7 +84,6 @@ change_volume(Audio_state *audio_state, Playing_sound *sound, f32 fade_duration_
   
 }
 
-
 #define f32x4 __m128  // simd 4x32 bytes floats?
 #define i32x4 __m128i // simd 4x32 bytes ints OR 8x16 shorts
 
@@ -129,8 +128,8 @@ output_playing_sounds(Audio_state *audio_state, Game_sound_buffer *sound_buffer,
       Loaded_sound *loaded_sound = get_sound(asset_list, playing_sound->id);
       
       if (loaded_sound) {
-        Asset_sound_info *info = get_sound_info(asset_list, playing_sound->id);
-        prefetch_sound(asset_list, info->next_id_to_play);
+        Sound_id next_sound_in_chain = get_next_sound_in_chain(asset_list, playing_sound->id);
+        prefetch_sound(asset_list, next_sound_in_chain);
         
         v2 volume = playing_sound->current_volume;
         v2 d_volume   = seconds_per_sample * playing_sound->d_current_volume;
@@ -246,8 +245,8 @@ output_playing_sounds(Audio_state *audio_state, Game_sound_buffer *sound_buffer,
         total_chunks_to_mix -= chunks_to_mix;
         
         if (chunks_to_mix == chunks_remaining) {
-          if (is_valid(info->next_id_to_play)) {
-            playing_sound->id = info->next_id_to_play;
+          if (is_valid(next_sound_in_chain)) {
+            playing_sound->id = next_sound_in_chain;
             assert(playing_sound->samples_played >= loaded_sound->sample_count);
             playing_sound->samples_played -= (f32)loaded_sound->sample_count;
             

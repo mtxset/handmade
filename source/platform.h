@@ -50,10 +50,10 @@ global_var const float TAU = 6.28318530717958647692f;;
 #define assert(expr)
 #endif 
 
-#define macro_kilobytes(value) (value) * 1024ull
-#define macro_megabytes(value) (macro_kilobytes(value) * 1024ull)
-#define macro_gigabytes(value) (macro_megabytes(value) * 1024ull)
-#define macro_terabytes(value) (macro_gigabytes(value) * 1024ull)
+#define kilobytes(value) (value) * 1024ull
+#define megabytes(value) (kilobytes(value) * 1024ull)
+#define gigabytes(value) (megabytes(value) * 1024ull)
+#define terabytes(value) (gigabytes(value) * 1024ull)
 #define array_count(array) (sizeof(array) / sizeof((array)[0])) // array is in parenthesis because we can pass x + y and we want to have (x + y)[0]
 
 #define align_04(value) ((value +  3) &  ~3)
@@ -61,7 +61,8 @@ global_var const float TAU = 6.28318530717958647692f;;
 #define align_16(value) ((value + 15) & ~15)
 
 inline
-u32 truncate_u64_u32(u64 value) {
+u32 
+truncate_u64_u32(u64 value) {
   assert(value <= 0xFFFFFFFF);
   return (u32)value;
 }
@@ -152,12 +153,72 @@ struct Game_input {
   bool executable_reloaded;
 };
 
+typedef struct Platform_file_handle {
+  bool no_errors;
+} Platform_file_handle;
+
+typedef struct Platform_file_group {
+  u32  file_count;
+  void *data;
+} Platform_file_group;
+
+typedef struct Debug_file_read_result {
+  u32 bytes_read;
+  void* content;
+} Debug_file_read_result;
+
 struct Platform_work_queue;
 #define PLATFORM_WORK_QUEUE_CALLBACK(name) void name(Platform_work_queue *queue, void *data)
 typedef PLATFORM_WORK_QUEUE_CALLBACK(Platform_work_queue_callback);
 
-typedef void Platform_add_entry(Platform_work_queue *queue, Platform_work_queue_callback *callback, void *data);
-typedef void Platform_complete_all_work(Platform_work_queue *queue);
+typedef void 
+Platform_add_entry(Platform_work_queue *queue, Platform_work_queue_callback *callback, void *data);
+typedef void 
+Platform_complete_all_work(Platform_work_queue *queue);
+
+typedef Platform_file_group
+Platform_get_all_files_of_type_begin(char *type);
+
+typedef void
+Platform_get_all_files_of_type_end(Platform_file_group file_group);
+
+typedef Platform_file_handle*
+Platform_open_file(Platform_file_group file_group, u32 file_index);
+
+typedef void 
+Platform_read_data_from_file(Platform_file_handle *src, u64 offset, u64 size, void *dst);
+
+typedef void
+Platform_file_error(Platform_file_handle *handle, char *message);
+
+typedef void
+Debug_platform_free_file_memory(void *memory);
+
+typedef Debug_file_read_result
+Debug_platform_read_entire_file(char *filename);
+
+typedef bool
+Debug_platform_write_entire_file(char *filename, u32 memory_size, void *memory);
+
+
+
+typedef struct Platform_api {
+  Platform_add_entry *add_entry;
+  Platform_complete_all_work *complete_all_work;
+  
+  Platform_get_all_files_of_type_begin *get_all_files_of_type_begin;
+  Platform_get_all_files_of_type_end   *get_all_files_of_type_end;
+  
+  Platform_open_file                   *open_file;
+  Platform_read_data_from_file         *read_data_from_file;
+  
+  Platform_file_error                  *file_error;
+  
+  Debug_platform_free_file_memory  *debug_free_file_memory;
+  Debug_platform_read_entire_file  *debug_read_entire_file;
+  Debug_platform_write_entire_file *debug_write_entire_file;
+  
+} Platform_api;
 
 typedef struct Game_memory {
   u64 permanent_storage_size;
@@ -169,8 +230,7 @@ typedef struct Game_memory {
   Platform_work_queue *high_priority_queue;
   Platform_work_queue *low_priority_queue;
   
-  Platform_add_entry *platform_add_entry;
-  Platform_complete_all_work *platform_complete_all_work;
+  Platform_api platform_api;
   
 #if INTERNAL
   Debug_cycle_counter counter_list[Debug_cycle_counter_count];
@@ -209,4 +269,5 @@ debug_end_timer(Debug_cycle_counter_type type, u64 start_cycle_count, u32 count)
   debug_global_memory->counter_list[type].hit_count += count;
 }
 #endif
+
 #endif //PLATFORM_H

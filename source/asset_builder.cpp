@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <cstring>
 
 #include "types.h"
 #include "platform.h"
@@ -482,7 +483,7 @@ add_sound_asset(Game_asset_list* asset_list, char *filename, u32 first_sample_in
   asset->first_tag_index = asset_list->tag_count;
   asset->one_past_last_tag_index = asset->first_tag_index;
   asset->sound.sample_count = sample_count;
-  asset->sound.next_id_to_play = 0;
+  asset->sound.chain = Hha_sound_chain_none;
   
   source->type = Asset_type_sound;
   source->filename = filename;
@@ -507,16 +508,104 @@ add_tag(Game_asset_list *asset_list, Asset_tag_id id, f32 value) {
   tag->value = value;
 }
 
-int
-main(int arg_count, char **arg_list) {
-  
-  Game_asset_list _asset_list_;
-  Game_asset_list *asset_list = &_asset_list_;
+static
+void
+init(Game_asset_list *asset_list) {
   
   asset_list->tag_count = 1;
   asset_list->asset_count = 1;
   asset_list->debug_asset_type = 0;
   asset_list->asset_index = 0;
+  
+  asset_list->asset_type_count = Asset_count;
+  memset(asset_list->asset_type_list, 0, sizeof(asset_list->asset_type_list));
+}
+
+static
+void
+write_hha_file(Game_asset_list *asset_list, char *filename) {
+  
+  errno_t open_result = fopen_s(&out, filename, "wb");
+  
+  if (open_result == 0) {
+    
+    Hha_header header = {};
+    
+    header.magic_value = HHA_MAGIC_VALUE;
+    header.version = HHA_VERSION;
+    header.tag_count = asset_list->tag_count;
+    header.asset_type_count = Asset_count;
+    header.asset_count = asset_list->asset_count;
+    
+    u32 tag_array_size = header.tag_count * sizeof(Hha_tag);
+    u32 asset_type_array_size = header.asset_type_count * sizeof(Hha_asset_type);
+    u32 asset_array_size = header.asset_count * sizeof(Hha_asset);
+    
+    header.tag_list = sizeof(Hha_header);
+    header.asset_type_list = header.tag_list + tag_array_size;
+    header.asset_list = header.asset_type_list + asset_type_array_size;
+    
+    fwrite(&header, sizeof(Hha_header), _(count)1, out);
+    fwrite(asset_list->tag_list, tag_array_size, _(count)1, out);
+    fwrite(asset_list->asset_type_list, asset_type_array_size, _(count)1, out);
+    
+    fseek(out, asset_array_size, SEEK_CUR);
+    
+    for (u32 asset_index = 1; asset_index < header.asset_count; asset_index++) {
+      Asset_source *src = asset_list->asset_source_list + asset_index;
+      Hha_asset    *dst = asset_list->asset_list + asset_index;
+      
+      dst->data_offset = ftell(out);
+      
+      if (src->type == Asset_type_sound) {
+        Loaded_sound wav = load_wav(src->filename, src->first_sample_index, dst->sound.sample_count);
+        
+        dst->sound.sample_count = wav.sample_count;
+        dst->sound.channel_count = wav.channel_count;
+        
+        for (u32 channel_index = 0; channel_index < wav.channel_count; channel_index++) {
+          size_t write_bytes = dst->sound.sample_count * sizeof(i16);
+          fwrite(wav.samples[channel_index], write_bytes, _(count)1, out);
+        }
+        
+        free(wav.free);
+      }
+      else {
+        assert(src->type == Asset_type_bitmap);
+        
+        Loaded_bmp bitmap = load_bmp(src->filename);
+        
+        dst->bitmap.dim[0] = bitmap.width;
+        dst->bitmap.dim[1] = bitmap.height;
+        
+        assert(bitmap.width * 4 == bitmap.pitch);
+        
+        size_t write_bytes = bitmap.width * bitmap.height * 4;
+        fwrite(bitmap.memory, write_bytes, _(count)1, out);
+        
+        free(bitmap.free);
+      }
+      
+    }
+    
+    fseek(out, (u32)header.asset_list, SEEK_SET);
+    fwrite(asset_list->asset_list, asset_array_size, _(count)1, out);
+    fclose(out);
+  }
+  else {
+    printf("can't open file\n");
+  }
+  
+}
+
+static
+void
+write_non_hero() {
+  
+  Game_asset_list _asset_list_;
+  Game_asset_list *asset_list = &_asset_list_;
+  
+  init(asset_list);
   
   begin_asset_type(asset_list, Asset_sword);
   add_bitmap_asset(asset_list, "../data/sword.bmp");
@@ -540,31 +629,21 @@ main(int arg_count, char **arg_list) {
   add_bitmap_asset(asset_list, "../data/ground03.bmp");
   end_asset_type(asset_list);
   
-  {
-    u32 music_chunk = 48000 * 10;
-    u32 total_music_sample_count = 7468095;
-    begin_asset_type(asset_list, Asset_music);
-    Sound_id last_piece = {};
-    char *path_to_music = "../data/sounds/music_test.wav";
-    for (u32 first_sample_index = 0; first_sample_index < total_music_sample_count; first_sample_index += music_chunk) {
-      
-      u32 sample_count = total_music_sample_count - first_sample_index;
-      
-      if (sample_count > music_chunk) {
-        sample_count = music_chunk;
-      }
-      
-      Sound_id this_piece = add_sound_asset(asset_list, path_to_music, first_sample_index, sample_count);
-      
-      if (last_piece.value) {
-        asset_list->asset_list[last_piece.value].sound.next_id_to_play = this_piece.value;
-      }
-      
-      last_piece = this_piece;
-    }
-    
-    end_asset_type(asset_list);
-  }
+  begin_asset_type(asset_list, Asset_tree);
+  add_bitmap_asset(asset_list, "../data/tree.bmp");
+  end_asset_type(asset_list);
+  
+  write_hha_file(asset_list, "test2.hha");
+}
+
+static
+void
+write_hero() {
+  
+  Game_asset_list _asset_list_;
+  Game_asset_list *asset_list = &_asset_list_;
+  
+  init(asset_list);
   
   f32 angle_right = 0.0f  * TAU;
   f32 angle_back  = 0.25f * TAU;
@@ -606,7 +685,44 @@ main(int arg_count, char **arg_list) {
   add_tag(asset_list, Tag_facing_dir, angle_front);
   end_asset_type(asset_list);
   
-  ////////// Sounds
+  write_hha_file(asset_list, "test1.hha");
+}
+
+
+static
+void
+write_sounds() {
+  
+  Game_asset_list _asset_list_;
+  Game_asset_list *asset_list = &_asset_list_;
+  
+  init(asset_list);
+  
+  {
+    u32 music_chunk = 48000 * 10;
+    u32 total_music_sample_count = 7468095;
+    begin_asset_type(asset_list, Asset_music);
+    Sound_id last_piece = {};
+    char *path_to_music = "../data/sounds/music_test.wav";
+    for (u32 first_sample_index = 0; first_sample_index < total_music_sample_count; first_sample_index += music_chunk) {
+      
+      u32 sample_count = total_music_sample_count - first_sample_index;
+      
+      if (sample_count > music_chunk) {
+        sample_count = music_chunk;
+      }
+      
+      Sound_id this_piece = add_sound_asset(asset_list, path_to_music, first_sample_index, sample_count);
+      
+      if (first_sample_index + music_chunk < total_music_sample_count) {
+        asset_list->asset_list[last_piece.value].sound.chain = Hha_sound_chain_advance;
+      }
+      
+      last_piece = this_piece;
+    }
+    
+    end_asset_type(asset_list);
+  }
   
   begin_asset_type(asset_list, Asset_bloop);
   add_sound_asset(asset_list, "../data/sounds/bloop_00.wav");
@@ -633,76 +749,16 @@ main(int arg_count, char **arg_list) {
   add_sound_asset(asset_list, "../data/sounds/puhp_01.wav");
   end_asset_type(asset_list);
   
-  errno_t open_result = fopen_s(&out, "test.hha", "wb");
+  write_hha_file(asset_list, "test3.hha");
+}
+
+
+int
+main(int arg_count, char **arg_list) {
   
-  if (open_result == 0) {
-    
-    Hha_header header = {};
-    
-    header.magic_value = HHA_MAGIC_VALUE;
-    header.version = HHA_VERSION;
-    header.tag_count = asset_list->tag_count;
-    header.asset_type_count = Asset_count;
-    header.asset_count = asset_list->asset_count;
-    
-    u32 tag_array_size = header.tag_count * sizeof(Hha_tag);
-    u32 asset_type_array_size = header.asset_type_count * sizeof(Hha_asset_type);
-    u32 asset_array_size = header.asset_count * sizeof(Hha_asset);
-    
-    header.tag_list = sizeof(Hha_header);
-    header.asset_type_list = header.tag_list + tag_array_size;
-    header.asset_list = header.asset_type_list + asset_type_array_size;
-    
-    fwrite(&header, sizeof(Hha_header), _(count)1, out);
-    fwrite(asset_list->tag_list, tag_array_size, _(count)1, out);
-    fwrite(asset_list->asset_type_list, asset_type_array_size, _(count)1, out);
-    
-    fseek(out, asset_array_size, SEEK_CUR);
-    
-    for (u32 asset_index = 1; asset_index < header.asset_count; asset_index++) {
-      Asset_source *src = asset_list->asset_source_list + asset_index;
-      Hha_asset    *dst = asset_list->asset_list + asset_index;
-      
-      dst->data_offset = ftell(out);
-      
-      if (src->type == Asset_type_sound) {
-        Loaded_sound wav = load_wav(src->filename, src->first_sample_index, dst->sound.sample_count);
-        
-        dst->sound.sample_count = wav.sample_count;
-        dst->sound.channel_count = wav.channel_count;
-        
-        for (u32 channel_index = 0; channel_index < wav.channel_count; channel_index++) {
-          size_t write_bytes = dst->sound.sample_count *  sizeof(i16);
-          fwrite(wav.samples[channel_index], write_bytes, _(count)1, out);
-        }
-        
-        free(wav.free);
-      }
-      else {
-        assert(src->type == Asset_type_bitmap);
-        
-        Loaded_bmp bitmap = load_bmp(src->filename);
-        
-        dst->bitmap.dim[0] = bitmap.width;
-        dst->bitmap.dim[1] = bitmap.height;
-        
-        assert(bitmap.width * 4 == bitmap.pitch);
-        
-        size_t write_bytes = bitmap.width * bitmap.height * 4;
-        fwrite(bitmap.memory, write_bytes, _(count)1, out);
-        
-        free(bitmap.free);
-      }
-      
-    }
-    
-    fseek(out, (u32)header.asset_list, SEEK_SET);
-    fwrite(asset_list->asset_list, asset_array_size, _(count)1, out);
-    fclose(out);
-  }
-  else {
-    printf("can't open file\n");
-  }
+  write_non_hero();
+  write_hero();
+  write_sounds();
   
   return 0;
 }

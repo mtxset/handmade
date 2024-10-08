@@ -28,7 +28,7 @@ void
 draw_rect_quak(Loaded_bmp *buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Loaded_bmp *bitmap, f32 pixel_to_meter, Rect2i clip_rect, bool even) {
   u64 start_cycle_timer = __rdtsc();
   
-  debug_simd_example();
+  assert(bitmap->memory);
   
   color.rgb *= color.a;
   

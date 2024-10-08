@@ -118,7 +118,7 @@ enum Asset_state {
 struct Asset_slot {
   Asset_state state;
   union {
-    Loaded_bmp *bitmap;
+    Loaded_bmp  *bitmap;
     Loaded_sound *sound;
   };
 };
@@ -150,13 +150,17 @@ struct Asset_sound_info {
 };
 
 struct Asset {
-  u32 first_tag_index;
-  u32 one_past_last_tag_index;
+  Hha_asset hha;
+  u32 file_index;
+};
+
+struct Asset_file {
+  Platform_file_handle *handle;
   
-  union {
-    Asset_bitmap_info bitmap;
-    Asset_sound_info  sound;
-  };
+  Hha_header header;
+  Hha_asset_type *asset_type_array;
+  
+  u32 tag_base;
 };
 
 struct Game_asset_list {
@@ -168,6 +172,9 @@ struct Game_asset_list {
   
   u32 tag_count;
   Asset_tag *tag_list;
+  
+  u32 file_count;
+  Asset_file *file_list;
   
   u32 asset_count;
   Asset *asset_list;
@@ -199,6 +206,37 @@ inline
 void 
 prefetch_sound(Game_asset_list *asset_list, Sound_id id) { 
   load_sound(asset_list, id);
+}
+
+
+inline 
+Hha_sound*
+get_sound_info(Game_asset_list *asset_list, Sound_id id) {
+  assert(id.value <= asset_list->asset_count);
+  
+  Hha_sound *result = &asset_list->asset_list[id.value].hha.sound;
+  
+  return result;
+}
+
+inline 
+Sound_id
+get_next_sound_in_chain(Game_asset_list *asset_list, Sound_id id) {
+  Sound_id result = {};
+  
+  Hha_sound *info = get_sound_info(asset_list, id);
+  
+  switch (info->chain) {
+    case Hha_sound_chain_none: {} break;
+    
+    case Hha_sound_chain_loop: { result = id; } break;
+    
+    case Hha_sound_chain_advance: { result.value = id.value + 1; } break;
+    
+    default: { assert(!"gg"); } break;
+  }
+  
+  return result;
 }
 
 #endif //ASSET_H

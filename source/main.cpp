@@ -10,7 +10,6 @@
 #include <xinput.h>
 #include <dsound.h>
 
-#include "file_io.h"
 #include "main.h"
 // some race condition happening and introduced in 126 day
 // does not crash on -Od, crashes with -O2
@@ -70,12 +69,13 @@ void swap(T& a, T& b) {
   b = c;
 }
 
-void debug_free_file(void* handle) {
+void debug_free_file_memory(void* handle) {
   if (handle) { 
     VirtualFree(handle, 0, MEM_RELEASE);
   }
 }
 
+static
 Debug_file_read_result 
 debug_read_entire_file(char* file_name) {
   Debug_file_read_result result = {};
@@ -98,7 +98,7 @@ debug_read_entire_file(char* file_name) {
   
   DWORD bytes_read;
   if (!ReadFile(file_handle, result.content, file_size_32, &bytes_read, 0)) {
-    debug_free_file(result.content);
+    debug_free_file_memory(result.content);
     goto exit;
   }
   
@@ -952,6 +952,84 @@ win32_do_next_work_q_entry(Platform_work_queue *queue) {
   return we_should_sleep;
 }
 
+struct Win32_platform_file_handle {
+  Platform_file_handle handle;
+  HANDLE win32_handle;
+};
+
+static
+Platform_file_handle*
+win32_open_file(Platform_file_group file_group, u32 file_index) {
+  
+  char *file_name = "file.hha";
+  
+  if      (file_index == 0) file_name = "test1.hha";
+  else if (file_index == 1) file_name = "test2.hha";
+  else if (file_index == 2) file_name = "test3.hha";
+  
+  Win32_platform_file_handle *result = 
+  (Win32_platform_file_handle*)
+    VirtualAlloc(0, sizeof(Win32_platform_file_handle), MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+  
+  if (result) {
+    result->win32_handle = CreateFileA(file_name, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+    result->handle.no_errors = result->win32_handle != INVALID_HANDLE_VALUE;
+  }
+  
+  return (Platform_file_handle*)result;
+}
+
+static
+void
+win32_file_error(Platform_file_handle *handle, char *message) {
+  OutputDebugString("file error: ");
+  OutputDebugString(message);
+  OutputDebugString("\n");
+  
+  handle->no_errors = false;
+}
+
+static
+void
+win32_platform_read_data_from_file(Platform_file_handle *src, u64 offset, u64 size, void *dst) {
+  
+  if (!src->no_errors) 
+    return;
+  
+  Win32_platform_file_handle *handle = (Win32_platform_file_handle*)src;
+  
+  // "newer" win api added ability to specify where to work from
+  OVERLAPPED overlapped = {};
+  overlapped.Offset     = (u32)((offset >> 0)  & 0xFFFFFFFF);
+  overlapped.OffsetHigh = (u32)((offset >> 32) & 0xFFFFFFFF);
+  
+  u32 file_size_32 = truncate_u64_u32(size);
+  
+  DWORD bytes_read;
+  
+  if (!ReadFile(handle->win32_handle, dst, file_size_32, &bytes_read, &overlapped) ||
+      file_size_32 != bytes_read) {
+    win32_file_error(&handle->handle, "read file failed");
+  }
+  
+}
+
+static
+Platform_file_group
+win32_get_all_files_of_type_begin(char *type) {
+  Platform_file_group file_group = {};
+  
+  file_group.file_count = 3;
+  
+  return file_group;
+}
+
+
+static
+void
+win32_get_all_files_of_type_end(Platform_file_group file_group) {
+}
+
 internal
 void
 win32_complete_all_work(Platform_work_queue* queue) {
@@ -1145,18 +1223,27 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
   Game_memory memory = {};
   {
 #if INTERNAL
-    LPVOID base_address = (LPVOID)macro_terabytes(2);
+    LPVOID base_address = (LPVOID)terabytes(2);
 #else
     LPVOID base_address = 0;
 #endif
     
     memory.high_priority_queue = &high_priority_queue;
     memory.low_priority_queue = &low_priority_queue;
-    memory.platform_add_entry = win32_add_entry;
-    memory.platform_complete_all_work = win32_complete_all_work;
+    memory.permanent_storage_size = megabytes(PERMANENT_MEMORY_SIZE_MB);
+    memory.transient_storage_size = megabytes(TRANSIENT_MEMORY_SIZE_MB);
     
-    memory.permanent_storage_size = macro_megabytes(PERMANENT_MEMORY_SIZE_MB);
-    memory.transient_storage_size = macro_megabytes(TRANSIENT_MEMORY_SIZE_MB);
+    memory.platform_api.add_entry = win32_add_entry;
+    memory.platform_api.complete_all_work = win32_complete_all_work;
+    memory.platform_api.get_all_files_of_type_begin = win32_get_all_files_of_type_begin;
+    memory.platform_api.get_all_files_of_type_end = win32_get_all_files_of_type_end;
+    memory.platform_api.open_file = win32_open_file;
+    memory.platform_api.read_data_from_file = win32_platform_read_data_from_file;
+    memory.platform_api.file_error = win32_file_error;
+    
+    memory.platform_api.debug_free_file_memory = debug_free_file_memory;
+    memory.platform_api.debug_read_entire_file = debug_read_entire_file;
+    memory.platform_api.debug_write_entire_file = debug_write_entire_file;
     
     // consider trying MEM_LARGE_PAGES which would enable larger virtual memory page sizes (2mb? compared to 4k pages).
     // That would allow Translation lookaside buffer (TLB) (cpu table between physical memory and virtual) to work faster, maybe.
@@ -1508,7 +1595,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       }
 #endif
       
-      bool output_to_debug_fps = true;
+      bool output_to_debug_fps = false;
       if (output_to_debug_fps) {
         auto cycles_elapsed = (u32)(end_cycle_count - begin_cycle_count);
         auto counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;

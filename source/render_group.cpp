@@ -901,13 +901,13 @@ tiled_render_group_to_output(Platform_work_queue *render_queue,
       
       bool do_multithreaded_tiles = true;
       if (do_multithreaded_tiles)
-        platform_add_entry(render_queue, do_tile_render_work, work);
+        platform.add_entry(render_queue, do_tile_render_work, work);
       else
         do_tile_render_work(render_queue, work);
     }
   }
   
-  platform_complete_all_work(render_queue);
+  platform.complete_all_work(render_queue);
 }
 
 internal

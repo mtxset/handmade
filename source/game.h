@@ -7,7 +7,6 @@
 #include "types.h"
 #include "platform.h"
 #include "memory.h"
-#include "file_io.h"
 #include "file_formats.h"
 
 #include "intrinsics.h"
@@ -100,16 +99,6 @@ is_valid(Sound_id id) {
 }
 
 inline
-Asset_sound_info*
-get_sound_info(Game_asset_list *asset_list, Sound_id id) {
-  assert(id.value <= asset_list->asset_count);
-  
-  Asset_sound_info *result = &asset_list->asset_list[id.value].sound;
-  
-  return result;
-}
-
-inline
 Loaded_bmp*
 get_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
   assert(id.value <= asset_list->asset_count);
@@ -194,7 +183,7 @@ struct Task_with_memory {
 
 struct Transient_state {
   bool is_initialized;
-  Memory_arena tran_arena;
+  Memory_arena arena;
   
   Task_with_memory task_list[4];
   
@@ -222,10 +211,9 @@ Low_entity* get_low_entity(Game_state* game_state, u32 index) {
   return entity;
 }
 
-global_var Platform_add_entry         *platform_add_entry;
-global_var Platform_complete_all_work *platform_complete_all_work;
-
 internal Task_with_memory* begin_task_with_mem(Transient_state *tran_state);
 internal void end_task_with_mem(Task_with_memory *task);
+
+static Platform_api platform;
 
 #endif //GAME_H
