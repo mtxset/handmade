@@ -541,7 +541,7 @@ u32
 random_next_number_i32(Random_series* series) {
   u32 result = random_number_table[series->index++];
   
-  if (series->index > array_count(random_number_table))
+  if (series->index > array_count(random_number_table) - 1)
     series->index = 0;
   
   return result;

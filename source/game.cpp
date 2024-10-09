@@ -1439,7 +1439,9 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     u32 size = megabytes(64);
     tran_state->asset_list = allocate_game_asset_list(&tran_state->arena, size, tran_state);
     
-    game_state->music = play_sound(&game_state->audio_state, get_first_sound_from(tran_state->asset_list, Asset_music));
+#define CB_MUSIC
+    
+    game_state->music = play_sound(&game_state->audio_state, get_first_sound_from(tran_state->asset_list, Asset_music), _(volume)v2_zero);
     
     tran_state->ground_buffer_count = 256;
     tran_state->ground_buffer_list = mem_push_array(&tran_state->arena, tran_state->ground_buffer_count, Ground_buffer);
@@ -2051,6 +2053,52 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
 #if 0
   push_saturation(render_group, 0.5f + 0.5f * sin(10.0f * game_state->time));
 #endif 
+  
+#define CB_PARTICLES
+  render_group->global_alpha = 1.0f;
+  render_group->transform.offset_pos = v3_zero;
+  
+  u32 particle_count = array_count(game_state->particle_list);
+  
+  Random_series *random = &game_state->general_entropy;
+  
+  for (u32 particle_spawn_index = 0; particle_spawn_index < 1; particle_spawn_index++) {
+    Particle *particle = game_state->particle_list + game_state->next_particle++;
+    
+    if (game_state->next_particle >= particle_count) {
+      game_state->next_particle = 0;
+    }
+    
+    particle->pos = v3{random_between(random, -.5, .5f), 0, 0};
+    particle->velocity = v3{
+      random_between(random, -1.0, 1.0f), 
+      random_between(random, 1.5, 2.0f), 0};
+    
+    particle->color = white_v4;
+    particle->color.a = random_between(random, .3, .8f);
+    particle->size = random_between(random, .1f, .6f);
+  }
+  
+  for (u32 particle_index = 0; particle_index < particle_count; particle_index++) {
+    Particle *particle = game_state->particle_list + particle_index;
+    
+    particle->pos += particle->velocity * input->time_delta;
+    particle->color.a -= 0.1f * input->time_delta;
+    
+    if (particle->color.a < 0.0f)
+      particle->color.a = 0.0f;
+    
+    if (particle->color.a > .9f) {
+      particle->color.a = .9f * clamp_map_to_range(1.0f, particle->color.a, .9f);
+    }
+    
+    particle->velocity.y += -0.5f * input->time_delta;
+    particle->velocity.x += (-.5f * particle->velocity.x) * input->time_delta;
+    particle->size -= .1f * input->time_delta;
+    
+    Bitmap_id id = get_first_bitmap_from(tran_state->asset_list, Asset_tree);
+    push_bitmap(render_group, id, particle->size, particle->pos, particle->color);
+  }
   
   // output buffers to bitmap
   tiled_render_group_to_output(tran_state->high_priority_queue, render_group, draw_buffer);

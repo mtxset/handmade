@@ -93,6 +93,8 @@ union v4 {
   f32 e[4];
 };
 
+const v3 v3_zero = {0, 0, 0}, v3_one = {1, 1, 1}, v3_x = {1, 0, 0}, v3_y = {0, 1, 0}, v3_half = {.5, .5, .5};
+
 inline
 f32
 safe_ratio_n(f32 numerator, f32 divisor, f32 n) {

@@ -113,6 +113,13 @@ struct Hero_bitmap_ids {
   Bitmap_id torso;
 };
 
+struct Particle {
+  v3 pos;
+  v3 velocity;
+  f32 size;
+  v4 color;
+};
+
 struct Game_state {
   bool is_initialized;
   
@@ -173,6 +180,8 @@ struct Game_state {
   
   f32 sin_cos_state;
   
+  u32 next_particle;
+  Particle particle_list[512];
 };
 
 struct Task_with_memory {

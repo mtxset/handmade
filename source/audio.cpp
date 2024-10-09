@@ -41,12 +41,16 @@ output_test_sine_wave(Game_state* state, Game_sound_buffer* sound_buffer, i32 to
 static
 void
 change_pitch(Audio_state *audio_state, Playing_sound *sound, f32 d_sample) {
+  
+  if (!sound)
+    return;
+  
   sound->d_sample = d_sample;
 }
 
 internal
 Playing_sound*
-play_sound(Audio_state *audio_state, Sound_id sound_id) {
+play_sound(Audio_state *audio_state, Sound_id sound_id, v2 volume = v2_one) {
   
   if (!audio_state->first_free_playing_sound) {
     audio_state->first_free_playing_sound = mem_push_struct(audio_state->perm_arena, Playing_sound);
@@ -57,8 +61,8 @@ play_sound(Audio_state *audio_state, Sound_id sound_id) {
   audio_state->first_free_playing_sound = playing_sound->next;
   
   playing_sound->samples_played = 0;
-  playing_sound->current_volume = v2_one;
-  playing_sound->target_volume = v2_one;
+  playing_sound->current_volume = volume;
+  playing_sound->target_volume = volume;
   playing_sound->d_current_volume = v2_zero;
   playing_sound->id = sound_id;
   playing_sound->d_sample = 1.0f;
@@ -71,7 +75,11 @@ play_sound(Audio_state *audio_state, Sound_id sound_id) {
 
 static
 void
-change_volume(Audio_state *audio_state, Playing_sound *sound, f32 fade_duration_sec, v2 volume)  {
+change_volume(Audio_state *audio_state, Playing_sound *sound, f32 fade_duration_sec, 
+              v2 volume)  {
+  
+  if (!sound)
+    return;
   
   if (fade_duration_sec <= 0.0f) {
     sound->current_volume = sound->target_volume = volume;
