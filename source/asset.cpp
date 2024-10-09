@@ -265,8 +265,8 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
   asset_list->tag_count = 1;
   asset_list->asset_count = 1;
   
-  Platform_file_group file_group = platform.get_all_files_of_type_begin("hha");
-  asset_list->file_count = file_group.file_count;
+  Platform_file_group *file_group = platform.get_all_files_of_type_begin("hha");
+  asset_list->file_count = file_group->file_count;
   asset_list->file_list = mem_push_array(arena, asset_list->file_count, Asset_file);
   
   for (u32 file_index = 0; file_index < asset_list->file_count; file_index++) {

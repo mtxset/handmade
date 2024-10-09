@@ -957,23 +957,36 @@ struct Win32_platform_file_handle {
   HANDLE win32_handle;
 };
 
+struct Win32_platform_file_group {
+  Platform_file_group platform_file_group;
+  HANDLE find_handle;
+  WIN32_FIND_DATAA find_data;
+};
+
 static
 Platform_file_handle*
-win32_open_file(Platform_file_group file_group, u32 file_index) {
+win32_open_file(Platform_file_group *file_group, u32 file_index) {
   
-  char *file_name = "file.hha";
+  Win32_platform_file_group *win32_file_group = (Win32_platform_file_group*)file_group;
+  Win32_platform_file_handle *result = 0;
   
-  if      (file_index == 0) file_name = "test1.hha";
-  else if (file_index == 1) file_name = "test2.hha";
-  else if (file_index == 2) file_name = "test3.hha";
+  if (win32_file_group->find_handle == INVALID_HANDLE_VALUE) {
+    assert(!"gg");
+  }
   
-  Win32_platform_file_handle *result = 
-  (Win32_platform_file_handle*)
-    VirtualAlloc(0, sizeof(Win32_platform_file_handle), MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+  result = (Win32_platform_file_handle*)
+    VirtualAlloc(0, sizeof(Win32_platform_file_handle),
+                 MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
   
-  if (result) {
-    result->win32_handle = CreateFileA(file_name, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
-    result->handle.no_errors = result->win32_handle != INVALID_HANDLE_VALUE;
+  assert(result);
+  
+  char *file_name = win32_file_group->find_data.cFileName;
+  result->win32_handle = CreateFileA(file_name, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+  result->handle.no_errors = result->win32_handle != INVALID_HANDLE_VALUE;
+  
+  if (!FindNextFileA(win32_file_group->find_handle, &win32_file_group->find_data)) {
+    FindClose(win32_file_group->find_handle);
+    win32_file_group->find_handle = INVALID_HANDLE_VALUE;
   }
   
   return (Platform_file_handle*)result;
@@ -1015,19 +1028,53 @@ win32_platform_read_data_from_file(Platform_file_handle *src, u64 offset, u64 si
 }
 
 static
-Platform_file_group
+Platform_file_group*
 win32_get_all_files_of_type_begin(char *type) {
-  Platform_file_group file_group = {};
   
-  file_group.file_count = 3;
+  Win32_platform_file_group *file_group = (Win32_platform_file_group*)
+    VirtualAlloc(0, sizeof(Win32_platform_file_group),
+                 MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
   
-  return file_group;
+  char *type_at = type;
+  char wild_card[32] = "*.";
+  
+  for (u32 wild_card_index = 2; wild_card_index < sizeof(wild_card); wild_card_index++) {
+    wild_card[wild_card_index] = *type_at;
+    
+    if (*type_at == 0) 
+      break;
+    
+    type_at++;
+  }
+  wild_card[sizeof(wild_card) - 1] = 0;
+  
+  file_group->platform_file_group.file_count = 0;
+  
+  WIN32_FIND_DATAA find_data;
+  HANDLE find_handle = FindFirstFileA(wild_card, &find_data);
+  
+  while (find_handle != INVALID_HANDLE_VALUE) {
+    file_group->platform_file_group.file_count++;
+    
+    if (!FindNextFileA(find_handle, &find_data))
+      break;
+  }
+  FindClose(find_handle);
+  
+  file_group->find_handle = FindFirstFileA(wild_card, &file_group->find_data);
+  
+  return (Platform_file_group*)file_group;
 }
-
 
 static
 void
-win32_get_all_files_of_type_end(Platform_file_group file_group) {
+win32_get_all_files_of_type_end(Platform_file_group *file_group) {
+  Win32_platform_file_group *win32_file_group = (Win32_platform_file_group*)file_group;
+  if (win32_file_group) {
+    FindClose(win32_file_group->find_handle);
+    
+    VirtualFree(win32_file_group, 0, MEM_RELEASE);
+  }
 }
 
 internal

@@ -176,14 +176,14 @@ Platform_add_entry(Platform_work_queue *queue, Platform_work_queue_callback *cal
 typedef void 
 Platform_complete_all_work(Platform_work_queue *queue);
 
-typedef Platform_file_group
+typedef Platform_file_group*
 Platform_get_all_files_of_type_begin(char *type);
 
 typedef void
-Platform_get_all_files_of_type_end(Platform_file_group file_group);
+Platform_get_all_files_of_type_end(Platform_file_group *file_group);
 
 typedef Platform_file_handle*
-Platform_open_file(Platform_file_group file_group, u32 file_index);
+Platform_open_file(Platform_file_group *file_group, u32 file_index);
 
 typedef void 
 Platform_read_data_from_file(Platform_file_handle *src, u64 offset, u64 size, void *dst);

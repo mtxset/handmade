@@ -633,7 +633,7 @@ write_non_hero() {
   add_bitmap_asset(asset_list, "../data/tree.bmp");
   end_asset_type(asset_list);
   
-  write_hha_file(asset_list, "test2.hha");
+  write_hha_file(asset_list, "non_hero_data.hha");
 }
 
 static
@@ -685,7 +685,7 @@ write_hero() {
   add_tag(asset_list, Tag_facing_dir, angle_front);
   end_asset_type(asset_list);
   
-  write_hha_file(asset_list, "test1.hha");
+  write_hha_file(asset_list, "hero_data.hha");
 }
 
 
@@ -749,7 +749,7 @@ write_sounds() {
   add_sound_asset(asset_list, "../data/sounds/puhp_01.wav");
   end_asset_type(asset_list);
   
-  write_hha_file(asset_list, "test3.hha");
+  write_hha_file(asset_list, "music_data.hha");
 }
 
 
@@ -760,5 +760,5 @@ main(int arg_count, char **arg_list) {
   write_hero();
   write_sounds();
   
-  return 0;
+  return 1;
 }
