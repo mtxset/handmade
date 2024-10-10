@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include "game.h"
 
 #include "render_group.cpp"
@@ -2057,48 +2059,134 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
 #define CB_PARTICLES
   render_group->global_alpha = 1.0f;
   render_group->transform.offset_pos = v3_zero;
-  
   u32 particle_count = array_count(game_state->particle_list);
+  mem_zero_struct(game_state->particle_cell_list);
+  
+  f32 grid_scale = .5f;
+  f32 inv_grid_scale = 1.0f / grid_scale;
+  v3 grid_origin = v3{PARTICLE_CELL_DIM * -0.5f, 0, 0} * grid_scale;
+  for (u32 particle_index = 0; particle_index < particle_count; particle_index++) {
+    Particle *particle = game_state->particle_list + particle_index++;
+    
+    v3 pos = (particle->pos - grid_origin) * inv_grid_scale;
+    
+    i32 x = round_f32_i32(pos.x);
+    i32 y = round_f32_i32(pos.y);
+    
+    if (x < 0) x = 0; if (x > PARTICLE_CELL_DIM - 1) x = PARTICLE_CELL_DIM - 1;
+    if (y < 0) y = 0; if (y > PARTICLE_CELL_DIM - 1) y = PARTICLE_CELL_DIM - 1;
+    
+    Particle_cell *cell = &game_state->particle_cell_list[y][x];
+    
+    f32 density = particle->color.a;
+    cell->density += density;
+    cell->velocity_times_density += density * particle->velocity;
+  }
+  
+  bool render_grid = false;
+  if (render_grid) {
+    
+    for (u32 y = 0; y < PARTICLE_CELL_DIM; y += 1) {
+      for (u32 x = 0; x < PARTICLE_CELL_DIM; x += 1) {
+        Particle_cell *cell = &game_state->particle_cell_list[y][x];
+        
+        v3 pos = v3{ (f32)x, (f32)y, 0 } * grid_scale;
+        pos += grid_origin;
+        f32 color_v = clamp01(cell->density * .1f);
+        v4 color = {color_v, color_v, color_v, 1.0f};
+        push_rect(render_group, pos, v2_one * grid_scale, color);
+      }
+    }
+    
+  }
   
   Random_series *random = &game_state->general_entropy;
-  
-  for (u32 particle_spawn_index = 0; particle_spawn_index < 1; particle_spawn_index++) {
+  u32 new_particles = 3;
+  f32 nozzle_pressure = 5.0f;
+  for (u32 particle_spawn_index = 0; particle_spawn_index < new_particles; particle_spawn_index++) {
     Particle *particle = game_state->particle_list + game_state->next_particle++;
     
     if (game_state->next_particle >= particle_count) {
       game_state->next_particle = 0;
     }
     
-    particle->pos = v3{random_between(random, -.5, .5f), 0, 0};
+    particle->pos = v3{random_between(random, -0.1, 0.1f), 0.5f, 0};
     particle->velocity = v3{
-      random_between(random, -1.0, 1.0f), 
-      random_between(random, 1.5, 2.0f), 0};
+      random_between(random, -0.05, 0.05f), 
+      random_between(random, 1.5f, 2.0f) * nozzle_pressure,
+      0};
+    particle->acceleration = v3{0, -9.8, 0};
     
     particle->color = white_v4;
     particle->color.a = random_between(random, .3, .8f);
-    particle->size = random_between(random, .1f, .6f);
+    
+    particle->size = 1.0f;
+    //particle->size = random_between(random, .1f, .6f);
   }
+  
+  f32 delta_time = input->time_delta;
   
   for (u32 particle_index = 0; particle_index < particle_count; particle_index++) {
     Particle *particle = game_state->particle_list + particle_index;
     
-    particle->pos += particle->velocity * input->time_delta;
-    particle->color.a -= 0.1f * input->time_delta;
+    v3 pos = (particle->pos - grid_origin) * inv_grid_scale;
+    
+    i32 x = round_f32_i32(pos.x);
+    i32 y = round_f32_i32(pos.y);
+    
+    x = clamp_i32(x, 1, PARTICLE_CELL_DIM - 2);
+    y = clamp_i32(y, 1, PARTICLE_CELL_DIM - 2);
+    
+    Particle_cell *cell = &game_state->particle_cell_list[y][x];
     
     if (particle->color.a < 0.0f)
       particle->color.a = 0.0f;
     
     if (particle->color.a > .9f) {
-      particle->color.a = .9f * clamp_map_to_range(1.0f, particle->color.a, .9f);
+      particle->color.a = .5f * clamp_map_to_range(1.0f, particle->color.a, .9f);
     }
     
-    particle->velocity.y += -0.5f * input->time_delta;
-    particle->velocity.x += (-.5f * particle->velocity.x) * input->time_delta;
-    particle->size -= .1f * input->time_delta;
+    if (particle->pos.y < .0f) {
+      f32 energy_loss = .3f; // impact energy loss
+      f32 elasticity = .08f;  // restitution - energy conserved
+      f32 friction = .9f;    // horizontal (slide/roll)
+      particle->pos.y = -particle->pos.y;
+      
+      particle->velocity.y = -particle->velocity.y * elasticity * energy_loss;
+      particle->velocity.x *= (1.0f - friction);
+    }
+    
+    // dispersion
+    Particle_cell *cell_le = &game_state->particle_cell_list[y][x - 1];
+    Particle_cell *cell_ri = &game_state->particle_cell_list[y][x + 1];
+    Particle_cell *cell_dw = &game_state->particle_cell_list[y - 1][x];
+    Particle_cell *cell_up = &game_state->particle_cell_list[y + 1][x];
+    
+    v3 dispersion = {};
+    f32 force = 3.0f;
+    dispersion += force * (cell->density - cell_le->density) * v3{-1, 0, 0};
+    dispersion += force * (cell->density - cell_ri->density) * v3{+1, 0, 0};
+    dispersion += force * (cell->density - cell_dw->density) * v3{0, -1, 0};
+    dispersion += force * (cell->density - cell_up->density) * v3{0, +1, 0};
+    
+    v3 acceleration = particle->acceleration + dispersion;
+    
+    //particle->size -= .1f * input->time_delta;
+    
+    if (particle->size < 0.0)
+      particle->size = 0;
+    
+    particle->pos += 
+      .5f * square_root(delta_time) * acceleration * delta_time +
+      particle->velocity * delta_time;
+    
+    particle->velocity += acceleration * delta_time;
+    particle->color.a -= 0.01f * input->time_delta;
     
     Bitmap_id id = get_first_bitmap_from(tran_state->asset_list, Asset_tree);
     push_bitmap(render_group, id, particle->size, particle->pos, particle->color);
   }
+  
   
   // output buffers to bitmap
   tiled_render_group_to_output(tran_state->high_priority_queue, render_group, draw_buffer);

@@ -113,9 +113,15 @@ struct Hero_bitmap_ids {
   Bitmap_id torso;
 };
 
+struct Particle_cell {
+  f32 density;
+  v3 velocity_times_density;
+};
+
 struct Particle {
   v3 pos;
   v3 velocity;
+  v3 acceleration;
   f32 size;
   v4 color;
 };
@@ -180,8 +186,10 @@ struct Game_state {
   
   f32 sin_cos_state;
   
-  u32 next_particle;
-  Particle particle_list[512];
+#define PARTICLE_CELL_DIM 16
+  u32           next_particle;
+  Particle      particle_list[1024];
+  Particle_cell particle_cell_list[PARTICLE_CELL_DIM][PARTICLE_CELL_DIM];
 };
 
 struct Task_with_memory {
