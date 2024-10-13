@@ -83,26 +83,9 @@ struct Ground_buffer {
 };
 
 inline
-Loaded_sound*
-get_sound(Game_asset_list *asset_list, Sound_id id) {
-  Loaded_sound *result = asset_list->slot_list[id.value].sound;
-  
-  return result;
-}
-
-inline
 bool
 is_valid(Sound_id id) {
   bool result = (id.value != 0);
-  
-  return result;
-}
-
-inline
-Loaded_bmp*
-get_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
-  assert(id.value <= asset_list->asset_count);
-  Loaded_bmp *result = asset_list->slot_list[id.value].bitmap;
   
   return result;
 }
@@ -188,7 +171,7 @@ struct Game_state {
   
 #define PARTICLE_CELL_DIM 16
   u32           next_particle;
-  Particle      particle_list[1024];
+  Particle      particle_list[512];
   Particle_cell particle_cell_list[PARTICLE_CELL_DIM][PARTICLE_CELL_DIM];
 };
 

@@ -857,9 +857,9 @@ make_empty_bitmap(Memory_arena* arena, i32 width, i32 height, bool clear_to_zero
   Loaded_bmp result = {};
   
   u32 bytes_per_pixel = BITMAP_BYTES_PER_PIXEL;
-  result.width  = width;
-  result.height = height;
-  result.pitch  = result.width * bytes_per_pixel;
+  result.width  = truncate_i32_u16(width);
+  result.height = truncate_i32_u16(height);
+  result.pitch  = truncate_i32_u16(result.width * bytes_per_pixel);
   
   u32 total_bitmap_size = width * height * bytes_per_pixel;
   u32 alignment = 16;
@@ -1438,7 +1438,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
       sub_arena(&task->arena, &tran_state->arena, megabytes(1));
     }
     
-    u32 size = megabytes(64);
+    u32 size = megabytes(10);
     tran_state->asset_list = allocate_game_asset_list(&tran_state->arena, size, tran_state);
     
 #define CB_MUSIC
@@ -1598,9 +1598,9 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   
   Loaded_bmp _draw_buffer = {};
   Loaded_bmp* draw_buffer = &_draw_buffer;
-  draw_buffer->width  = bitmap_buffer->width;
-  draw_buffer->height = bitmap_buffer->height;
-  draw_buffer->pitch  = bitmap_buffer->pitch;
+  draw_buffer->width  = truncate_i32_u16(bitmap_buffer->width);
+  draw_buffer->height = truncate_i32_u16(bitmap_buffer->height);
+  draw_buffer->pitch  = truncate_i32_u16(bitmap_buffer->pitch);
   draw_buffer->memory = bitmap_buffer->memory;
   
   Temp_memory render_memory = begin_temp_memory(&tran_state->arena);
@@ -1634,7 +1634,6 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     camera_bounds_meters.min.z = -3.0f * game_state->typical_floor_height;
     camera_bounds_meters.max.z =  1.0f * game_state->typical_floor_height;
   }
-  
   
   // render ground chunks
   for (u32 ground_buffer_index = 0; ground_buffer_index < tran_state->ground_buffer_count; ground_buffer_index++) {
@@ -2186,7 +2185,6 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     Bitmap_id id = get_first_bitmap_from(tran_state->asset_list, Asset_tree);
     push_bitmap(render_group, id, particle->size, particle->pos, particle->color);
   }
-  
   
   // output buffers to bitmap
   tiled_render_group_to_output(tran_state->high_priority_queue, render_group, draw_buffer);

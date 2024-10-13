@@ -61,6 +61,22 @@ global_var const float TAU = 6.28318530717958647692f;;
 #define align_16(value) ((value + 15) & ~15)
 
 inline
+i16
+truncate_i32_i16(i32 value) {
+  assert(value <=  32768 - 1);
+  assert(value >= -32768);
+  return (u16)value;
+}
+
+inline
+u16
+truncate_i32_u16(i32 value) {
+  assert(value <=  65536);
+  assert(value >= 0);
+  return (u16)value;
+}
+
+inline
 u32 
 truncate_u64_u32(u64 value) {
   assert(value <= 0xFFFFFFFF);

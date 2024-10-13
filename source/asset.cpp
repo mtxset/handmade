@@ -41,8 +41,10 @@ get_file_handle_for(Game_asset_list *asset_list, u32 file_index)
 void 
 load_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
   
+  Asset_slot *slot = asset_list->slot_list + id.value;
+  
   if (id.value &&
-      atomic_compare_exchange_u32((u32*)&asset_list->slot_list[id.value].state, Asset_state_queued, Asset_state_unloaded) == Asset_state_unloaded) {
+      atomic_compare_exchange_u32((u32*)&slot->state, Asset_state_queued, Asset_state_unloaded) == Asset_state_unloaded) {
     
     Task_with_memory *task = begin_task_with_mem(asset_list->tran_state);
     
@@ -51,12 +53,12 @@ load_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
       Asset *asset = asset_list->asset_list + id.value;
       
       Hha_bitmap *info = &asset->hha.bitmap;
-      Loaded_bmp *bitmap = mem_push_struct(&asset_list->arena, Loaded_bmp);
+      Loaded_bmp *bitmap = &slot->bitmap;
       
       bitmap->align_pcent = {info->align_pcent[0], info->align_pcent[1]};
       bitmap->width_over_height = (f32)info->dim[0] / (f32)info->dim[1];
-      bitmap->width = info->dim[0];
-      bitmap->height = info->dim[1];
+      bitmap->width = truncate_i32_u16(info->dim[0]);
+      bitmap->height = truncate_i32_u16(info->dim[1]);
       bitmap->pitch = bitmap->width * _(bytes per pixel)4;
       
       u32 memory_size = bitmap->pitch * bitmap->height;
@@ -71,12 +73,11 @@ load_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
       work->size = memory_size;
       work->destination = bitmap->memory;
       work->final_state = Asset_state_loaded;
-      work->slot->bitmap = bitmap;
       
       platform.add_entry(asset_list->tran_state->low_priority_queue, load_asset_work, work);
     }
     else {
-      asset_list->slot_list[id.value].state = Asset_state_unloaded;
+      slot->state = Asset_state_unloaded;
     }
     
   }
@@ -85,6 +86,9 @@ load_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
 
 void
 load_sound(Game_asset_list *asset_list, Sound_id id) {
+  
+  Asset_slot *slot = asset_list->slot_list + id.value;
+  
   if (id.value &&
       (atomic_compare_exchange_u32((u32*)&asset_list->slot_list[id.value].state, Asset_state_queued, Asset_state_unloaded) == Asset_state_unloaded)) {
     
@@ -94,7 +98,8 @@ load_sound(Game_asset_list *asset_list, Sound_id id) {
       Asset *asset = asset_list->asset_list + id.value;
       
       Hha_sound *info = &asset->hha.sound;
-      Loaded_sound *sound = mem_push_struct(&asset_list->arena, Loaded_sound);
+      Loaded_sound *sound = &slot->sound;
+      
       sound->sample_count = info->sample_count;
       sound->channel_count = info->channel_count;
       u32 channel_size = sound->sample_count * sizeof(i16);
@@ -117,12 +122,11 @@ load_sound(Game_asset_list *asset_list, Sound_id id) {
       work->size = memory_size;
       work->destination = memory;
       work->final_state = Asset_state_loaded;
-      work->slot->sound = sound;
       
       platform.add_entry(asset_list->tran_state->low_priority_queue, load_asset_work, work);
     }
     else {
-      asset_list->slot_list[id.value].state = Asset_state_unloaded;
+      slot->state = Asset_state_unloaded;
     }
   }
 }

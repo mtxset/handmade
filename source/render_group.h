@@ -6,16 +6,17 @@
 #include "game.h"
 
 struct Loaded_bmp {
+  
+  void* memory;
+  
   v2 align_pcent;
   
   f32 width_over_height;
-  f32 native_height;
   
-  i32 height;
-  i32 width;
+  i16 height;
+  i16 width;
   
-  i32 pitch;
-  void* memory;
+  i16 pitch;
 };
 
 struct Env_map {

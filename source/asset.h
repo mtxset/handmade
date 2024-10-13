@@ -116,10 +116,10 @@ enum Asset_state {
 };
 
 struct Asset_slot {
-  Asset_state state;
+  u32 state;
   union {
-    Loaded_bmp  *bitmap;
-    Loaded_sound *sound;
+    Loaded_bmp   bitmap;
+    Loaded_sound sound;
   };
 };
 
@@ -181,20 +181,43 @@ struct Game_asset_list {
   Asset_slot *slot_list;
   
   Asset_type asset_type_list[Asset_count];
-  
-  //Hero_bitmaps hero_bitmaps[4];
-  
-#if  0
-  u32 debug_used_asset_count;
-  u32 debug_used_tag_count;
-  
-  Asset_type *debug_asset_type;
-  Asset *debug_asset;
-#endif
 };
 
 void load_bitmap(Game_asset_list *asset_list, Bitmap_id id);
 void load_sound(Game_asset_list *asset_list, Sound_id id);
+
+inline
+Loaded_bmp*
+get_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
+  assert(id.value <= asset_list->asset_count);
+  Asset_slot *slot = asset_list->slot_list + id.value;
+  
+  Loaded_bmp *result = 0;
+  
+  if (slot->state >= Asset_state_loaded) {
+    _ReadBarrier();
+    result = &slot->bitmap;
+  }
+  
+  return result;
+}
+
+inline
+Loaded_sound*
+get_sound(Game_asset_list *asset_list, Sound_id id) {
+  
+  assert(id.value <= asset_list->asset_count);
+  Asset_slot *slot = asset_list->slot_list + id.value;
+  
+  Loaded_sound *result = 0;
+  
+  if (slot->state >= Asset_state_loaded) {
+    _ReadBarrier();
+    result = &slot->sound;
+  }
+  
+  return result;
+}
 
 inline
 void 
