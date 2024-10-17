@@ -1438,7 +1438,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
       sub_arena(&task->arena, &tran_state->arena, megabytes(1));
     }
     
-    u32 size = megabytes(10);
+    u32 size = megabytes(3);
     tran_state->asset_list = allocate_game_asset_list(&tran_state->arena, size, tran_state);
     
 #define CB_MUSIC
@@ -2193,6 +2193,8 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   
   end_temp_memory(sim_memory);
   end_temp_memory(render_memory);
+  
+  evict_assets_as_necessary(tran_state->asset_list);
   
   check_arena(&game_state->world_arena);
   check_arena(&tran_state->arena);

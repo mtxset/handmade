@@ -60,6 +60,15 @@ global_var const float TAU = 6.28318530717958647692f;;
 #define align_08(value) ((value +  7) &  ~7)
 #define align_16(value) ((value + 15) & ~15)
 
+
+inline
+i16
+truncate_u32_i16(u32 value) {
+  assert(value <= 65536);
+  assert(value >= 0);
+  return (u16)value;
+}
+
 inline
 i16
 truncate_i32_i16(i32 value) {
@@ -71,7 +80,7 @@ truncate_i32_i16(i32 value) {
 inline
 u16
 truncate_i32_u16(i32 value) {
-  assert(value <=  65536);
+  assert(value <= 65536);
   assert(value >= 0);
   return (u16)value;
 }
@@ -216,7 +225,11 @@ Debug_platform_read_entire_file(char *filename);
 typedef bool
 Debug_platform_write_entire_file(char *filename, u32 memory_size, void *memory);
 
+typedef void*
+Platform_allocate_memory(sz size);
 
+typedef void
+Platform_deallocate_memory(void *memory);
 
 typedef struct Platform_api {
   Platform_add_entry *add_entry;
@@ -225,10 +238,13 @@ typedef struct Platform_api {
   Platform_get_all_files_of_type_begin *get_all_files_of_type_begin;
   Platform_get_all_files_of_type_end   *get_all_files_of_type_end;
   
-  Platform_open_file                   *open_file;
-  Platform_read_data_from_file         *read_data_from_file;
+  Platform_allocate_memory   *allocate_memory;
+  Platform_deallocate_memory *deallocate_memory;
   
-  Platform_file_error                  *file_error;
+  Platform_open_file           *open_file;
+  Platform_read_data_from_file *read_data_from_file;
+  
+  Platform_file_error          *file_error;
   
   Debug_platform_free_file_memory  *debug_free_file_memory;
   Debug_platform_read_entire_file  *debug_read_entire_file;

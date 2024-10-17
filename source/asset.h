@@ -112,7 +112,13 @@ enum Asset_state {
   Asset_state_unloaded,
   Asset_state_queued,
   Asset_state_loaded,
-  Asset_state_locked
+  Asset_state_locked,
+  
+  Asset_state_mask = 0xfff,
+  
+  Asset_state_sound = 0x1000,
+  Asset_state_bitmap = 0x2000,
+  Asset_state_type_mask = 0xf000
 };
 
 struct Asset_slot {
@@ -163,10 +169,22 @@ struct Asset_file {
   u32 tag_base;
 };
 
+struct Asset_memory_header {
+  Asset_memory_header *next;
+  Asset_memory_header *prev;
+  
+  u32 slot_index;
+  u32 reserved;
+};
+
 struct Game_asset_list {
   
   struct Transient_state *tran_state;
   Memory_arena arena;
+  
+  u64 target_memory_used;
+  u64 total_memory_used;
+  Asset_memory_header loaded_asset_sentinel;
   
   f32 tag_range[Tag_count];
   
@@ -186,6 +204,20 @@ struct Game_asset_list {
 void load_bitmap(Game_asset_list *asset_list, Bitmap_id id);
 void load_sound(Game_asset_list *asset_list, Sound_id id);
 
+inline 
+u32
+get_type(Asset_slot *slot) {
+  u32 result = slot->state & Asset_state_type_mask;
+  return result;
+}
+
+inline 
+u32
+get_state(Asset_slot *slot) {
+  u32 result = slot->state & Asset_state_mask;
+  return result;
+}
+
 inline
 Loaded_bmp*
 get_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
@@ -194,7 +226,7 @@ get_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
   
   Loaded_bmp *result = 0;
   
-  if (slot->state >= Asset_state_loaded) {
+  if (get_state(slot) >= Asset_state_loaded) {
     _ReadBarrier();
     result = &slot->bitmap;
   }
@@ -211,13 +243,14 @@ get_sound(Game_asset_list *asset_list, Sound_id id) {
   
   Loaded_sound *result = 0;
   
-  if (slot->state >= Asset_state_loaded) {
+  if (get_state(slot) >= Asset_state_loaded) {
     _ReadBarrier();
     result = &slot->sound;
   }
   
   return result;
 }
+
 
 inline
 void 
@@ -230,7 +263,6 @@ void
 prefetch_sound(Game_asset_list *asset_list, Sound_id id) { 
   load_sound(asset_list, id);
 }
-
 
 inline 
 Hha_sound*

@@ -37,6 +37,16 @@ mem_push_size_(arena, size, ## __VA_ARGS__)
 #define mem_zero_struct(instance) mem_zero_size_(sizeof(instance), &(instance))
 
 inline
+void
+mem_zero_size(sz size, void *memory) {
+  u8 *ptr = (u8*)memory;
+  
+  while (size--) {
+    *ptr++ = 0;
+  }
+}
+
+inline
 size_t
 get_alignment_offset(Memory_arena *arena, size_t alignment = 4) {
   size_t result_pointer = (size_t)arena->base + arena->used;

@@ -18,6 +18,8 @@ typedef unsigned long long u64;
 typedef float              f32;
 typedef double             f64;
 
+typedef size_t             sz;
+
 typedef intptr_t           intptr;
 typedef uintptr_t          uintptr;
 

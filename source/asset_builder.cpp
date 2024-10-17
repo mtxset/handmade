@@ -17,7 +17,6 @@ FILE *out = 0;
 
 #define assert(expr) if (!(expr)) {*(i32*)0 = 0;}
 
-
 #pragma pack(push, 1)
 // struct is from: https://www.fileformat.info/format/bmp/egff.htm
 // preventing compiler padding this struct

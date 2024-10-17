@@ -1145,6 +1145,23 @@ win32_make_queue(Platform_work_queue *queue, u32 thread_count) {
   }
 }
 
+static
+void*
+win32_allocate_memory(sz size) {
+  void *result = VirtualAlloc(0, size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+  
+  return result;
+}
+
+static
+void
+win32_deallocate_memory(void *memory) {
+  VirtualFree(memory, 0, MEM_RELEASE);
+}
+
+typedef void*
+Platform_allocate_memory(sz size);
+
 i32
 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
   
@@ -1287,6 +1304,9 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     memory.platform_api.open_file = win32_open_file;
     memory.platform_api.read_data_from_file = win32_platform_read_data_from_file;
     memory.platform_api.file_error = win32_file_error;
+    
+    memory.platform_api.allocate_memory = win32_allocate_memory;
+    memory.platform_api.deallocate_memory = win32_deallocate_memory;
     
     memory.platform_api.debug_free_file_memory = debug_free_file_memory;
     memory.platform_api.debug_read_entire_file = debug_read_entire_file;
