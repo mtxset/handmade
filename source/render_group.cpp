@@ -134,12 +134,12 @@ inline
 void
 push_bitmap(Render_group* group, Bitmap_id id, f32 height, v3 offset, v4 color = white_v4) {
   
-  Loaded_bmp *result = get_bitmap(group->asset_list, id);
+  Loaded_bmp *result = get_bitmap(group->asset_list, id, group->asset_should_be_locked);
   if (result) {
     push_bitmap(group, result, height, offset, color);
   }
   else {
-    load_bitmap(group->asset_list, id);
+    load_bitmap(group->asset_list, id, group->asset_should_be_locked);
     group->missing_resource_count++;
   }
   
@@ -160,9 +160,9 @@ push_rect(Render_group* group, v3 offset, v2 dim, v4 color = white_v4) {
   if (!rect)
     return;
   
-  rect->pos    = basis.pos;
-  rect->color  = color;
-  rect->dim    = basis.scale * dim;
+  rect->pos   = basis.pos;
+  rect->color = color;
+  rect->dim   = basis.scale * dim;
 }
 
 inline
@@ -912,7 +912,7 @@ tiled_render_group_to_output(Platform_work_queue *render_queue,
 
 internal
 Render_group*
-allocate_render_group(Game_asset_list *asset_list, Memory_arena* arena, u32 max_push_buffer_size) {
+allocate_render_group(Game_asset_list *asset_list, Memory_arena* arena, u32 max_push_buffer_size, bool asset_should_be_locked) {
   Render_group* result = mem_push_struct(arena, Render_group);
   
   if (max_push_buffer_size == 0)
@@ -930,6 +930,7 @@ allocate_render_group(Game_asset_list *asset_list, Memory_arena* arena, u32 max_
   result->transform.scale = 1.0f;
   
   result->missing_resource_count = 0;
+  result->asset_should_be_locked = asset_should_be_locked;
   
   return result;
 }

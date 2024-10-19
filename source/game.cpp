@@ -765,7 +765,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
   v2 half_dim = 0.5f * v2{width, height};
   //half_dim = 2.0f * half_dim;
   
-  Render_group* render_group = allocate_render_group(tran_state->asset_list, &task->arena, 0);
+  Render_group* render_group = allocate_render_group(tran_state->asset_list, &task->arena, 0, _(lock)true);
   
   ortographic(render_group, bitmap_buffer->width, bitmap_buffer->height,
               (bitmap_buffer->width -2) / width);
@@ -1438,12 +1438,12 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
       sub_arena(&task->arena, &tran_state->arena, megabytes(1));
     }
     
-    u32 size = megabytes(3);
+    u32 size = megabytes(10);
     tran_state->asset_list = allocate_game_asset_list(&tran_state->arena, size, tran_state);
     
 #define CB_MUSIC
     
-    game_state->music = play_sound(&game_state->audio_state, get_first_sound_from(tran_state->asset_list, Asset_music), _(volume)v2_zero);
+    game_state->music = play_sound(&game_state->audio_state, get_first_sound_from(tran_state->asset_list, Asset_music));
     
     tran_state->ground_buffer_count = 256;
     tran_state->ground_buffer_list = mem_push_array(&tran_state->arena, tran_state->ground_buffer_count, Ground_buffer);
@@ -1605,7 +1605,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   
   Temp_memory render_memory = begin_temp_memory(&tran_state->arena);
   
-  Render_group* render_group = allocate_render_group(tran_state->asset_list, &tran_state->arena, megabytes(4));
+  Render_group* render_group = allocate_render_group(tran_state->asset_list, &tran_state->arena, megabytes(4), _(lock)false);
   
   f32 width_of_monitor = 0.635f;
   f32 meters_to_pixels = (f32)draw_buffer->width * width_of_monitor;
@@ -2082,7 +2082,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     cell->velocity_times_density += density * particle->velocity;
   }
   
-  bool render_grid = false;
+  bool render_grid = true;
   if (render_grid) {
     
     for (u32 y = 0; y < PARTICLE_CELL_DIM; y += 1) {
@@ -2130,8 +2130,8 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     
     v3 pos = (particle->pos - grid_origin) * inv_grid_scale;
     
-    i32 x = round_f32_i32(pos.x);
-    i32 y = round_f32_i32(pos.y);
+    i32 x = (i32)pos.x;
+    i32 y = (i32)pos.y;
     
     x = clamp_i32(x, 1, PARTICLE_CELL_DIM - 2);
     y = clamp_i32(y, 1, PARTICLE_CELL_DIM - 2);
@@ -2147,7 +2147,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     
     if (particle->pos.y < .0f) {
       f32 energy_loss = .3f; // impact energy loss
-      f32 elasticity = .08f;  // restitution - energy conserved
+      f32 elasticity = .08f; // restitution - energy conserved
       f32 friction = .9f;    // horizontal (slide/roll)
       particle->pos.y = -particle->pos.y;
       
@@ -2156,17 +2156,17 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     }
     
     // dispersion
-    Particle_cell *cell_le = &game_state->particle_cell_list[y][x - 1];
-    Particle_cell *cell_ri = &game_state->particle_cell_list[y][x + 1];
-    Particle_cell *cell_dw = &game_state->particle_cell_list[y - 1][x];
-    Particle_cell *cell_up = &game_state->particle_cell_list[y + 1][x];
+    Particle_cell *cell_l = &game_state->particle_cell_list[y][x - 1];
+    Particle_cell *cell_r = &game_state->particle_cell_list[y][x + 1];
+    Particle_cell *cell_d = &game_state->particle_cell_list[y - 1][x];
+    Particle_cell *cell_u = &game_state->particle_cell_list[y + 1][x];
     
     v3 dispersion = {};
-    f32 force = 3.0f;
-    dispersion += force * (cell->density - cell_le->density) * v3{-1, 0, 0};
-    dispersion += force * (cell->density - cell_ri->density) * v3{+1, 0, 0};
-    dispersion += force * (cell->density - cell_dw->density) * v3{0, -1, 0};
-    dispersion += force * (cell->density - cell_up->density) * v3{0, +1, 0};
+    f32 force = 2.0f;
+    dispersion += force * (cell->density - cell_l->density) * v3{-1, 0, 0};
+    dispersion += force * (cell->density - cell_r->density) * v3{+1, 0, 0};
+    dispersion += force * (cell->density - cell_d->density) * v3{0, -1, 0};
+    dispersion += force * (cell->density - cell_u->density) * v3{0, +1, 0};
     
     v3 acceleration = particle->acceleration + dispersion;
     

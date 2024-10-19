@@ -1,6 +1,6 @@
 struct Load_asset_work {
   Task_with_memory *task;
-  Asset_slot *slot;
+  Asset *asset;
   
   Platform_file_handle *handle;
   
@@ -24,7 +24,7 @@ PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work) {
     mem_zero_size(work->size, work->destination);
   }
   
-  work->slot->state = work->final_state;
+  work->asset->state = work->final_state;
   
   end_task_with_mem(work->task);
 }
@@ -69,51 +69,30 @@ struct Asset_memory_size {
   u32 section;
 };
 
-static
-Asset_memory_size
-get_asset_size(Game_asset_list *asset_list, u32 type, u32 slot_index) {
-  Asset_memory_size result = {};
-  
-  Asset *asset = asset_list->asset_list + slot_index;
-  
-  assert(type == Asset_state_sound || type == Asset_state_bitmap);
-  
-  if (type == Asset_state_sound) {
-    Hha_sound *info = &asset->hha.sound;
-    
-    result.section = info->sample_count  * sizeof(i16);
-    result.data    = info->channel_count * result.section;
-  }
-  else {
-    Hha_bitmap *info = &asset->hha.bitmap;
-    
-    u32 width = truncate_i32_u16(info->dim[0]);
-    u32 height = truncate_i32_u16(info->dim[1]);
-    
-    result.section = _(bytes per pixel)4 * width;
-    result.data = height * result.section;
-  }
-  
-  result.total = result.data + sizeof(Asset_memory_header);
-  
-  return result;
-}
-
-static 
-void
-add_asset_header_to_list(Game_asset_list *asset_list, u32 slot_index, void *memory, Asset_memory_size size) {
-  
-  Asset_memory_header *header = (Asset_memory_header*)((u8*)memory + size.data);
-  
+inline
+void 
+insert_asset_header_at_front(Game_asset_list* asset_list, Asset_memory_header *header) {
   Asset_memory_header *sentinel = &asset_list->loaded_asset_sentinel;
-  
-  header->slot_index = slot_index;
   
   header->prev = sentinel;
   header->next = sentinel->next;
   
   header->next->prev = header;
   header->prev->next = header;
+}
+
+static 
+void
+add_asset_header_to_list(Game_asset_list *asset_list, u32 asset_index, Asset_memory_size size) {
+  
+  Asset *asset = asset_list->asset_list + asset_index;
+  
+  Asset_memory_header *header = asset->header;
+  
+  header->asset_index = asset_index;
+  header->total_size = size.total;
+  
+  insert_asset_header_at_front(asset_list, header);
 }
 
 static
@@ -125,51 +104,69 @@ remove_asset_header_from_list(Asset_memory_header *header) {
   header->next = header->prev = 0;
 }
 
-void 
-load_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
+void
+move_header_to_front(Game_asset_list *asset_list, Asset *asset) {
   
-  Asset_slot *slot = asset_list->slot_list + id.value;
+  if (!is_locked(asset)) {
+    Asset_memory_header *header = asset->header;
+    
+    remove_asset_header_from_list(header);
+    insert_asset_header_at_front(asset_list, header);
+  }
+  
+}
+
+void 
+load_bitmap(Game_asset_list *asset_list, Bitmap_id id, bool locked) {
+  
+  Asset *asset = asset_list->asset_list + id.value;
   
   if (id.value &&
-      atomic_compare_exchange_u32((u32*)&slot->state, Asset_state_queued, Asset_state_unloaded) == Asset_state_unloaded) {
+      atomic_compare_exchange_u32((u32*)&asset->state, Asset_state_queued, Asset_state_unloaded) == Asset_state_unloaded) {
     
     Task_with_memory *task = begin_task_with_mem(asset_list->tran_state);
     
     if (task) {
       
-      Asset *asset = asset_list->asset_list + id.value;
-      
       Hha_bitmap *info = &asset->hha.bitmap;
-      Loaded_bmp *bitmap = &slot->bitmap;
       
-      Asset_memory_size size = get_asset_size(asset_list, Asset_state_bitmap, id.value);
-      bitmap->memory = acquire_asset_memory(asset_list, size.total);
+      u32 width  = info->dim[0];
+      u32 height = info->dim[1];
       
+      Asset_memory_size size = {};
+      size.section = 4 * width;
+      size.data = height * size.section;
+      size.total = size.data + sizeof(Asset_memory_header);
+      
+      asset->header = (Asset_memory_header*)acquire_asset_memory(asset_list, size.total);
+      
+      Loaded_bmp *bitmap = &asset->header->bitmap;
       bitmap->align_pcent = {info->align_pcent[0], info->align_pcent[1]};
       bitmap->width_over_height = (f32)info->dim[0] / (f32)info->dim[1];
-      bitmap->width = truncate_i32_u16(info->dim[0]);
-      bitmap->height = truncate_i32_u16(info->dim[1]);
-      bitmap->pitch = truncate_u32_i16(size.section);
-      
-      //u32 memory_size = bitmap->pitch * bitmap->height;
-      //bitmap->memory = mem_push_size(&asset_list->arena, memory_size);
+      bitmap->width = info->dim[0];
+      bitmap->height = info->dim[1];
+      bitmap->pitch = size.section;
+      bitmap->memory = (asset->header + 1);
       
       Load_asset_work *work = mem_push_struct(&task->arena, Load_asset_work);
-      
       work->task = task;
-      work->slot = asset_list->slot_list + id.value;
+      work->asset = asset;
       work->handle = get_file_handle_for(asset_list, asset->file_index);
       work->offset = asset->hha.data_offset;
       work->size = size.data;
       work->destination = bitmap->memory;
-      work->final_state = (Asset_state_bitmap | Asset_state_loaded);
+      work->final_state = Asset_state_loaded | (locked ? Asset_state_lock : 0);
       
-      add_asset_header_to_list(asset_list, id.value, bitmap->memory, size);
+      asset->state |= Asset_state_lock;
+      
+      if (!locked) {
+        add_asset_header_to_list(asset_list, id.value, size);
+      }
       
       platform.add_entry(asset_list->tran_state->low_priority_queue, load_asset_work, work);
     }
     else {
-      slot->state = Asset_state_unloaded;
+      asset->state = Asset_state_unloaded;
     }
     
   }
@@ -179,30 +176,29 @@ load_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
 void
 load_sound(Game_asset_list *asset_list, Sound_id id) {
   
-  Asset_slot *slot = asset_list->slot_list + id.value;
+  Asset *asset = asset_list->asset_list + id.value;
   
   if (id.value &&
-      (atomic_compare_exchange_u32((u32*)&asset_list->slot_list[id.value].state, Asset_state_queued, Asset_state_unloaded) == Asset_state_unloaded)) {
+      (atomic_compare_exchange_u32((u32*)&asset->state, Asset_state_queued, Asset_state_unloaded) == Asset_state_unloaded)) {
     
     Task_with_memory *task = begin_task_with_mem(asset_list->tran_state);
     
     if (task) {
-      Asset *asset = asset_list->asset_list + id.value;
-      
       Hha_sound *info = &asset->hha.sound;
-      Loaded_sound *sound = &slot->sound;
+      
+      Asset_memory_size size = {};
+      size.section = info->sample_count * sizeof(i16);
+      size.data = info->channel_count * size.section;
+      size.total = size.data + sizeof(Asset_memory_header);
+      
+      asset->header = (Asset_memory_header*)acquire_asset_memory(asset_list, size.total);
+      Loaded_sound *sound = &asset->header->sound;
       
       sound->sample_count = info->sample_count;
       sound->channel_count = info->channel_count;
-      
-      //u32 channel_size = sound->sample_count * sizeof(i16);
-      //u32 memory_size  = sound->channel_count * channel_size;
-      //void *memory = mem_push_size(&asset_list->arena, memory_size);
-      
-      Asset_memory_size size = get_asset_size(asset_list, Asset_state_sound, id.value);
-      void *memory = acquire_asset_memory(asset_list, size.total);
       u32 channel_size = size.section;
       
+      void *memory = (asset->header + 1);
       i16 *sound_at = (i16*)memory;
       for (u32 channel_index = 0; channel_index < sound->channel_count; channel_index++) {
         sound->samples[channel_index] = sound_at;
@@ -212,19 +208,19 @@ load_sound(Game_asset_list *asset_list, Sound_id id) {
       Load_asset_work *work = mem_push_struct(&task->arena, Load_asset_work);
       
       work->task = task;
-      work->slot = asset_list->slot_list + id.value;
+      work->asset = asset;
       work->handle = get_file_handle_for(asset_list, asset->file_index);
       work->offset = asset->hha.data_offset;
       work->size = size.data;
       work->destination = memory;
-      work->final_state = (Asset_state_sound | Asset_state_loaded);
+      work->final_state = Asset_state_loaded;
       
-      add_asset_header_to_list(asset_list, id.value, memory, size);
+      add_asset_header_to_list(asset_list, id.value, size);
       
       platform.add_entry(asset_list->tran_state->low_priority_queue, load_asset_work, work);
     }
     else {
-      slot->state = Asset_state_unloaded;
+      asset->state = Asset_state_unloaded;
     }
   }
 }
@@ -406,7 +402,6 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
   platform.get_all_files_of_type_end(file_group);
   
   asset_list->asset_list = mem_push_array(arena, asset_list->asset_count, Asset);
-  asset_list->slot_list  = mem_push_array(arena, asset_list->asset_count, Asset_slot);
   asset_list->tag_list   = mem_push_array(arena, asset_list->tag_count, Asset_tag);
   
   mem_zero_struct(asset_list->tag_list[0]);
@@ -482,30 +477,19 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
 
 static
 void
-evict_asset(Game_asset_list *asset_list, Asset_memory_header *asset_header) {
-  u32 slot_index = asset_header->slot_index;
+evict_asset(Game_asset_list *asset_list, Asset_memory_header *header) {
   
-  Asset_slot *slot = asset_list->slot_list + slot_index;
-  assert(get_state(slot) == Asset_state_loaded);
+  u32 asset_index = header->asset_index;
   
-  Asset_memory_size size = get_asset_size(asset_list, get_type(slot), slot_index);
+  Asset *asset = asset_list->asset_list + asset_index;
+  assert(get_state(asset) == Asset_state_loaded);
+  assert(!is_locked(asset));
   
-  void *memory = 0;
+  remove_asset_header_from_list(header);
+  release_asset_memory(asset_list, asset->header->total_size, asset->header);
   
-  if (get_type(slot) == Asset_state_sound) {
-    memory = slot->sound.samples[0];
-  }
-  else if (get_type(slot) == Asset_state_bitmap) {
-    memory = slot->bitmap.memory;
-  }
-  else {
-    assert(!"gg");
-  }
-  
-  remove_asset_header_from_list(asset_header);
-  release_asset_memory(asset_list, size.total, memory);
-  
-  slot->state = Asset_state_unloaded;
+  asset->state = Asset_state_unloaded;
+  asset->header = 0;
 }
 
 static
@@ -514,10 +498,15 @@ evict_assets_as_necessary(Game_asset_list *asset_list) {
   
   while (asset_list->total_memory_used > asset_list->target_memory_used) {
     
-    Asset_memory_header *asset_header = asset_list->loaded_asset_sentinel.prev;
+    Asset_memory_header *header = asset_list->loaded_asset_sentinel.prev;
     
-    if (asset_header != &asset_list->loaded_asset_sentinel) {
-      evict_asset(asset_list, asset_header);
+    if (header != &asset_list->loaded_asset_sentinel) {
+      
+      Asset *asset = asset_list->asset_list + header->asset_index;
+      if (get_state(asset) >= Asset_state_loaded) {
+        evict_asset(asset_list, header);
+      }
+      
     }
     else {
       assert(!"gg");

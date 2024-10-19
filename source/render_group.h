@@ -13,10 +13,10 @@ struct Loaded_bmp {
   
   f32 width_over_height;
   
-  i16 height;
-  i16 width;
+  i32 height;
+  i32 width;
   
-  i16 pitch;
+  i32 pitch;
 };
 
 struct Env_map {
@@ -100,6 +100,8 @@ struct Render_group {
   u8* push_buffer_base;
   
   u32 missing_resource_count;
+  
+  bool asset_should_be_locked;
 };
 
 #endif //RENDER_GROUP_H
