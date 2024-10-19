@@ -12,45 +12,6 @@ struct Load_asset_work {
   u32 final_state;
 };
 
-internal 
-PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work) {
-  Load_asset_work *work = (Load_asset_work*)data;
-  
-  platform.read_data_from_file(work->handle, work->offset, work->size, work->destination);
-  
-  _WriteBarrier();
-  
-  if (!work->handle->no_errors) {
-    mem_zero_size(work->size, work->destination);
-  }
-  
-  work->asset->state = work->final_state;
-  
-  end_task_with_mem(work->task);
-}
-
-inline 
-Platform_file_handle*
-get_file_handle_for(Game_asset_list *asset_list, u32 file_index)
-{
-  assert(file_index < asset_list->file_count);
-  
-  Platform_file_handle *result = asset_list->file_list[file_index].handle;
-  
-  return result;
-}
-
-inline 
-void*
-acquire_asset_memory(Game_asset_list *asset_list, sz size) {
-  void *result = platform.allocate_memory(size);
-  
-  if (result) {
-    asset_list->total_memory_used += size;
-  }
-  
-  return result;
-}
 
 inline 
 void
@@ -60,7 +21,14 @@ release_asset_memory(Game_asset_list *asset_list, sz size, void *memory) {
     asset_list->total_memory_used -= size;
   }
   
+#if 0
   platform.deallocate_memory(memory);
+#else
+  
+  Asset_memory_block *block = (Asset_memory_block*)memory - 1;
+  block->flags &= ~Asset_memory_block_used;
+  
+#endif
 }
 
 struct Asset_memory_size {
@@ -114,6 +82,156 @@ move_header_to_front(Game_asset_list *asset_list, Asset *asset) {
     insert_asset_header_at_front(asset_list, header);
   }
   
+}
+
+internal 
+PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work) {
+  Load_asset_work *work = (Load_asset_work*)data;
+  
+  platform.read_data_from_file(work->handle, work->offset, work->size, work->destination);
+  
+  _WriteBarrier();
+  
+  if (!work->handle->no_errors) {
+    mem_zero_size(work->size, work->destination);
+  }
+  
+  work->asset->state = work->final_state;
+  
+  end_task_with_mem(work->task);
+}
+
+inline 
+Platform_file_handle*
+get_file_handle_for(Game_asset_list *asset_list, u32 file_index)
+{
+  assert(file_index < asset_list->file_count);
+  
+  Platform_file_handle *result = asset_list->file_list[file_index].handle;
+  
+  return result;
+}
+
+
+static
+void
+evict_asset(Game_asset_list *asset_list, Asset_memory_header *header) {
+  
+  u32 asset_index = header->asset_index;
+  
+  Asset *asset = asset_list->asset_list + asset_index;
+  assert(get_state(asset) == Asset_state_loaded);
+  assert(!is_locked(asset));
+  
+  remove_asset_header_from_list(header);
+  release_asset_memory(asset_list, asset->header->total_size, asset->header);
+  
+  asset->state = Asset_state_unloaded;
+  asset->header = 0;
+}
+
+static
+Asset_memory_block*
+find_block_for_size(Game_asset_list *asset_list, sz size) {
+  
+  Asset_memory_block* result = 0;
+  
+  for (Asset_memory_block *block = asset_list->memory_sentnel.next;
+       block != &asset_list->memory_sentnel;
+       block = block->next) {
+    
+    if (! (block->flags & Asset_memory_block_used)) {
+      
+      if (block->size >= size) {
+        result = block;
+        break;
+      }
+      
+    }
+    
+  }
+  
+  return result;
+}
+
+static
+Asset_memory_block*
+insert_block(Asset_memory_block *prev, u64 size, void *memory) {
+  assert(size > sizeof(Asset_memory_block));
+  
+  Asset_memory_block *result = (Asset_memory_block*)memory;
+  
+  result->flags = 0;
+  result->size  = size - sizeof(Asset_memory_block);
+  result->prev  = prev;
+  result->next  = prev->next;
+  result->prev->next = result;
+  result->next->prev = result;
+  
+  return result;
+}
+
+inline 
+void*
+acquire_asset_memory(Game_asset_list *asset_list, sz size) {
+  
+  void *result = 0;
+  
+#if 0
+  evict_assets_as_necessary(asset_list);
+  result = platform.allocate_memory(size);
+#else
+  
+  while (true) {
+    Asset_memory_block *block = find_block_for_size(asset_list, size);
+    
+    if (block) {
+      
+      block->flags |= Asset_memory_block_used;
+      
+      assert(size <= block->size);
+      result = (u8*)(block + 1);
+      
+      sz remaining_size = block->size - size;
+      sz block_split_threshold = 4096;
+      
+      if (remaining_size > block_split_threshold) {
+        block->size -= remaining_size;
+        insert_block(block, remaining_size, (u8*)result + size);
+      }
+      else {
+        // unused blocks
+      }
+      
+      break;
+      
+    }
+    else {
+      
+      for (Asset_memory_header *header = asset_list->loaded_asset_sentinel.prev;
+           header != &asset_list->loaded_asset_sentinel;
+           header = header->prev) {
+        
+        Asset *asset = asset_list->asset_list + header->asset_index;
+        
+        if (get_state(asset) >= Asset_state_loaded) {
+          evict_asset(asset_list, header);
+          break;
+        }
+        
+      }
+      
+    }
+  }
+  
+#endif
+  
+  
+  if (result) {
+    asset_list->total_memory_used += size;
+  }
+  
+  return result;
 }
 
 void 
@@ -352,8 +470,15 @@ Game_asset_list*
 allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran_state) {
   
   Game_asset_list *asset_list = mem_push_struct(arena, Game_asset_list);
-  sub_arena(&asset_list->arena, arena, size);
+  
   asset_list->tran_state = tran_state;
+  
+  asset_list->memory_sentnel.flags = 0;
+  asset_list->memory_sentnel.size = 0;
+  asset_list->memory_sentnel.next = &asset_list->memory_sentnel;
+  asset_list->memory_sentnel.prev = &asset_list->memory_sentnel;
+  
+  insert_block(&asset_list->memory_sentnel, size, mem_push_size(arena, size));
   
   for (u32 tag_type = 0; tag_type < Tag_count; tag_type++) {
     asset_list->tag_range[tag_type] = 1000000.0f;
@@ -473,23 +598,6 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
   }
   
   return asset_list;
-}
-
-static
-void
-evict_asset(Game_asset_list *asset_list, Asset_memory_header *header) {
-  
-  u32 asset_index = header->asset_index;
-  
-  Asset *asset = asset_list->asset_list + asset_index;
-  assert(get_state(asset) == Asset_state_loaded);
-  assert(!is_locked(asset));
-  
-  remove_asset_header_from_list(header);
-  release_asset_memory(asset_list, asset->header->total_size, asset->header);
-  
-  asset->state = Asset_state_unloaded;
-  asset->header = 0;
 }
 
 static

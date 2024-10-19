@@ -153,6 +153,18 @@ struct Asset_file {
   u32 tag_base;
 };
 
+enum Asset_memory_block_flags {
+  Asset_memory_block_used = 0x1,
+};
+
+struct Asset_memory_block {
+  Asset_memory_block *prev;
+  Asset_memory_block *next;
+  
+  u64 flags;
+  sz size;
+};
+
 struct Asset_memory_header {
   Asset_memory_header *next;
   Asset_memory_header *prev;
@@ -178,7 +190,8 @@ struct Asset {
 struct Game_asset_list {
   
   struct Transient_state *tran_state;
-  Memory_arena arena;
+  
+  Asset_memory_block memory_sentnel;
   
   u64 target_memory_used;
   u64 total_memory_used;
