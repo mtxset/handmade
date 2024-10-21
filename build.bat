@@ -17,6 +17,7 @@ pushd build
 :: call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
 
 del *.pdb > NUL 2> NUL
+del *.rdi > NUL 2> NUL
 
 :: Get start time:
 for /F "tokens=1-4 delims=:.," %%a in ("%time%") do (

@@ -7,6 +7,7 @@ enum Asset_tag_id {
   Tag_smoothness,
   Tag_flatness,
   Tag_facing_dir,
+  Tag_unicode_codepoint,
   
   Tag_count,
 };
@@ -27,6 +28,8 @@ enum Asset_type_id {
   Asset_head,
   Asset_cape,
   Asset_torso,
+  
+  Asset_font,
   
   //Asset_monster,
   //Asset_familiar,

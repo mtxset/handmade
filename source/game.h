@@ -102,6 +102,7 @@ struct Particle_cell {
 };
 
 struct Particle {
+  Bitmap_id bitmap_id;
   v3 pos;
   v3 velocity;
   v3 acceleration;
@@ -146,6 +147,7 @@ struct Game_state {
   
   Loaded_bmp test_diffuse;
   Loaded_bmp test_normal;
+  Loaded_bmp test_font; 
   
   Random_series general_entropy;
   

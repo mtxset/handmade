@@ -857,6 +857,10 @@ make_empty_bitmap(Memory_arena* arena, i32 width, i32 height, bool clear_to_zero
   Loaded_bmp result = {};
   
   u32 bytes_per_pixel = BITMAP_BYTES_PER_PIXEL;
+  
+  result.align_pcent = { 0.5f, 0.5f };
+  result.width_over_height = safe_ratio_1((f32)width, (f32)height);
+  
   result.width  = truncate_i32_u16(width);
   result.height = truncate_i32_u16(height);
   result.pitch  = truncate_i32_u16(result.width * bytes_per_pixel);
@@ -2082,7 +2086,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     cell->velocity_times_density += density * particle->velocity;
   }
   
-  bool render_grid = true;
+  bool render_grid = false;
   if (render_grid) {
     
     for (u32 y = 0; y < PARTICLE_CELL_DIM; y += 1) {
@@ -2100,7 +2104,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   }
   
   Random_series *random = &game_state->general_entropy;
-  u32 new_particles = 3;
+  u32 new_particles = 1;
   f32 nozzle_pressure = 5.0f;
   for (u32 particle_spawn_index = 0; particle_spawn_index < new_particles; particle_spawn_index++) {
     Particle *particle = game_state->particle_list + game_state->next_particle++;
@@ -2120,7 +2124,16 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     particle->color.a = random_between(random, .3, .8f);
     
     particle->size = 1.0f;
-    //particle->size = random_between(random, .1f, .6f);
+    
+    Asset_vector match_vector = {};
+    Asset_vector weight_vector = {};
+    
+    char text[] = "mtx";
+    u32 random_index = random_choise(random, array_count(text) - 1);
+    match_vector.e[Tag_unicode_codepoint] = (f32)text[random_index];
+    weight_vector.e[Tag_unicode_codepoint] = 1.0f;
+    
+    particle->bitmap_id = get_best_match_bitmap_from(tran_state->asset_list, Asset_font, &match_vector, &weight_vector);
   }
   
   f32 delta_time = input->time_delta;
@@ -2170,7 +2183,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     
     v3 acceleration = particle->acceleration + dispersion;
     
-    //particle->size -= .1f * input->time_delta;
+    particle->size -= .3f * input->time_delta;
     
     if (particle->size < 0.0)
       particle->size = 0;
@@ -2182,8 +2195,10 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     particle->velocity += acceleration * delta_time;
     particle->color.a -= 0.01f * input->time_delta;
     
-    Bitmap_id id = get_first_bitmap_from(tran_state->asset_list, Asset_tree);
-    push_bitmap(render_group, id, particle->size, particle->pos, particle->color);
+    push_bitmap(render_group, particle->bitmap_id, particle->size, particle->pos, particle->color);
+    
+    //Bitmap_id id = get_first_bitmap_from(tran_state->asset_list, Asset_tree);
+    //push_bitmap(render_group, id, particle->size, particle->pos, particle->color);
   }
   
   // output buffers to bitmap

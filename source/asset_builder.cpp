@@ -11,6 +11,11 @@
 #include "asset_type_id.h"
 #include "file_formats.h"
 
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.h"
+
+#undef assert
+
 #define _(x)
 
 FILE *out = 0;
@@ -107,12 +112,16 @@ struct Loaded_bmp {
 enum Asset_type {
   Asset_type_sound,
   Asset_type_bitmap,
+  Asset_type_font,
 };
 
 struct Asset_source {
   Asset_type type;
   char *filename;
-  u32 first_sample_index;
+  union {
+    u32 first_sample_index;
+    u32 codepoint;
+  };
 };
 
 struct Bitmap_id {
@@ -323,6 +332,51 @@ load_bmp(char* filename) {
 #endif
   
   return result;
+}
+
+static
+Loaded_bmp
+load_glyph(char *filename, u32 codepoint) {
+  
+  File_read_result font_file = read_entire_file(filename);
+  assert(font_file.bytes_read);
+  
+  stbtt_fontinfo font;
+  stbtt_InitFont(&font, (u8*)font_file.content, stbtt_GetFontOffsetForIndex((u8*)font_file.content, 0));
+  
+  f32 font_height = 128.0f;
+  f32 scale_x = 0; // automatic
+  f32 scale_y_px = stbtt_ScaleForPixelHeight(&font, font_height);
+  i32 width, height, x_offset, y_offset;
+  u8 *bitmap = stbtt_GetCodepointBitmap(&font, scale_x, scale_y_px, codepoint, &width, &height, &x_offset, &y_offset);
+  
+  Loaded_bmp bmp;
+  bmp.width = width;
+  bmp.height = height;
+  bmp.pitch = bmp.width * BITMAP_BYTES_PER_PIXEL;
+  bmp.memory = malloc(height * bmp.pitch);
+  bmp.free  = bmp.memory;
+  
+  // Sean (top-down) we (bot-up)
+  u8 *src = bitmap;
+  u8 *dst_row = (u8*)bmp.memory + (height - 1) * bmp.pitch;
+  for (i32 y = 0; y < height; y += 1) {
+    u32 *dst = (u32*)dst_row;
+    for (i32 x = 0; x < width; x += 1) {
+      
+      u8 alpha = *src++;
+      *dst++ = ((alpha) << 24 | 
+                (alpha) << 16 | 
+                (alpha) << 8  |
+                (alpha) << 0);
+    }
+    dst_row -= bmp.pitch;
+  }
+  
+  stbtt_FreeBitmap(bitmap, 0);
+  free(font_file.content);
+  
+  return bmp;
 }
 
 static
@@ -570,9 +624,15 @@ write_hha_file(Game_asset_list *asset_list, char *filename) {
         free(wav.free);
       }
       else {
-        assert(src->type == Asset_type_bitmap);
+        Loaded_bmp bitmap;
+        assert(src->type == Asset_type_bitmap || src->type == Asset_type_font);
         
-        Loaded_bmp bitmap = load_bmp(src->filename);
+        if (src->type == Asset_type_font) {
+          bitmap = load_glyph(src->filename, src->codepoint);
+        }
+        else {
+          bitmap = load_bmp(src->filename);
+        }
         
         dst->bitmap.dim[0] = bitmap.width;
         dst->bitmap.dim[1] = bitmap.height;
@@ -595,6 +655,31 @@ write_hha_file(Game_asset_list *asset_list, char *filename) {
     printf("can't open file\n");
   }
   
+}
+
+static
+Bitmap_id
+add_char_asset(Game_asset_list *asset_list, char *font_file, u32 codepoint, f32 align_pcent_x =.5f, f32 align_pcent_y = .5f) {
+  assert(asset_list->debug_asset_type);
+  assert(asset_list->debug_asset_type->one_past_last_asset_index < array_count(asset_list->asset_list));
+  
+  Bitmap_id id = {asset_list->debug_asset_type->one_past_last_asset_index++};
+  Asset_source *source = asset_list->asset_source_list + id.value;
+  
+  Hha_asset *asset = asset_list->asset_list + id.value;
+  
+  asset->first_tag_index = asset_list->tag_count;
+  asset->one_past_last_tag_index = asset->first_tag_index;
+  asset->bitmap.align_pcent[0] = align_pcent_x;
+  asset->bitmap.align_pcent[1] = align_pcent_y;
+  
+  source->type = Asset_type_font;
+  source->filename = font_file;
+  source->codepoint = codepoint;
+  
+  asset_list->asset_index = id.value;
+  
+  return id;
 }
 
 static
@@ -630,6 +715,13 @@ write_non_hero() {
   
   begin_asset_type(asset_list, Asset_tree);
   add_bitmap_asset(asset_list, "../data/tree.bmp");
+  end_asset_type(asset_list);
+  
+  begin_asset_type(asset_list, Asset_font);
+  for (u32 ch = 0; ch < 256; ch++) {
+    add_char_asset(asset_list, "../data/m3x6.ttf", ch);
+    add_tag(asset_list, Tag_unicode_codepoint, (f32)ch);
+  }
   end_asset_type(asset_list);
   
   write_hha_file(asset_list, "non_hero_data.hha");
@@ -750,7 +842,6 @@ write_sounds() {
   
   write_hha_file(asset_list, "music_data.hha");
 }
-
 
 int
 main(int arg_count, char **arg_list) {
