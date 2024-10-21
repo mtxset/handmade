@@ -145,7 +145,7 @@ struct Asset_sound_info {
 };
 
 struct Asset_file {
-  Platform_file_handle *handle;
+  Platform_file_handle handle;
   
   Hha_header header;
   Hha_asset_type *asset_type_array;
@@ -192,9 +192,6 @@ struct Game_asset_list {
   struct Transient_state *tran_state;
   
   Asset_memory_block memory_sentnel;
-  
-  u64 target_memory_used;
-  u64 total_memory_used;
   Asset_memory_header loaded_asset_sentinel;
   
   f32 tag_range[Tag_count];
