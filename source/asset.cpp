@@ -13,24 +13,6 @@ struct Load_asset_work {
 };
 
 
-inline 
-void
-release_asset_memory(Game_asset_list *asset_list, sz size, void *memory) {
-  
-  if (memory) {
-    asset_list->total_memory_used -= size;
-  }
-  
-#if 0
-  platform.deallocate_memory(memory);
-#else
-  
-  Asset_memory_block *block = (Asset_memory_block*)memory - 1;
-  block->flags &= ~Asset_memory_block_used;
-  
-#endif
-}
-
 struct Asset_memory_size {
   u32 total;
   u32 data;
@@ -107,27 +89,9 @@ get_file_handle_for(Game_asset_list *asset_list, u32 file_index)
 {
   assert(file_index < asset_list->file_count);
   
-  Platform_file_handle *result = asset_list->file_list[file_index].handle;
+  Platform_file_handle *result = &asset_list->file_list[file_index].handle;
   
   return result;
-}
-
-
-static
-void
-evict_asset(Game_asset_list *asset_list, Asset_memory_header *header) {
-  
-  u32 asset_index = header->asset_index;
-  
-  Asset *asset = asset_list->asset_list + asset_index;
-  assert(get_state(asset) == Asset_state_loaded);
-  assert(!is_locked(asset));
-  
-  remove_asset_header_from_list(header);
-  release_asset_memory(asset_list, asset->header->total_size, asset->header);
-  
-  asset->state = Asset_state_unloaded;
-  asset->header = 0;
 }
 
 static
@@ -171,25 +135,47 @@ insert_block(Asset_memory_block *prev, u64 size, void *memory) {
   return result;
 }
 
+static
+bool
+merge_if_possible(Game_asset_list *asset_list, Asset_memory_block *first, Asset_memory_block *second) {
+  
+  if (first == &asset_list->memory_sentnel ||
+      second == &asset_list->memory_sentnel) {
+    return false;
+  }
+  
+  if (first->flags & Asset_memory_block_used ||
+      second->flags & Asset_memory_block_used) {
+    return false;
+  }
+  
+  u8 *expected_second = (u8*)first + sizeof(Asset_memory_block) + first->size;
+  
+  if ((u8*)second == expected_second) {
+    second->next->prev = second->prev;
+    second->prev->next = second->next;
+    
+    first->size += sizeof(Asset_memory_block) + second->size;
+    
+    return true;
+  }
+  
+  return false;
+}
+
 inline 
 void*
 acquire_asset_memory(Game_asset_list *asset_list, sz size) {
   
   void *result = 0;
   
-#if 0
-  evict_assets_as_necessary(asset_list);
-  result = platform.allocate_memory(size);
-#else
-  
+  Asset_memory_block *block = find_block_for_size(asset_list, size);
   while (true) {
-    Asset_memory_block *block = find_block_for_size(asset_list, size);
     
-    if (block) {
+    if (block && size <= block->size) {
       
       block->flags |= Asset_memory_block_used;
       
-      assert(size <= block->size);
       result = (u8*)(block + 1);
       
       sz remaining_size = block->size - size;
@@ -215,20 +201,29 @@ acquire_asset_memory(Game_asset_list *asset_list, sz size) {
         Asset *asset = asset_list->asset_list + header->asset_index;
         
         if (get_state(asset) >= Asset_state_loaded) {
-          evict_asset(asset_list, header);
+          
+          assert(get_state(asset) == Asset_state_loaded);
+          assert(!is_locked(asset));
+          
+          remove_asset_header_from_list(header);
+          
+          block = (Asset_memory_block*)asset->header - 1;
+          block->flags &= ~Asset_memory_block_used;
+          
+          if (merge_if_possible(asset_list, block->prev, block)) {
+            block = block->prev;
+          }
+          
+          merge_if_possible(asset_list, block, block->next);
+          
+          asset->state = Asset_state_unloaded;
+          asset->header = 0;
           break;
         }
         
       }
       
     }
-  }
-  
-#endif
-  
-  
-  if (result) {
-    asset_list->total_memory_used += size;
   }
   
   return result;
@@ -487,14 +482,12 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
   
   asset_list->tag_count = 1;
   asset_list->asset_count = 1;
-  asset_list->total_memory_used = 0;
-  asset_list->target_memory_used = size;
   
   asset_list->loaded_asset_sentinel.next = &asset_list->loaded_asset_sentinel;
   asset_list->loaded_asset_sentinel.prev = &asset_list->loaded_asset_sentinel;
   
-  Platform_file_group *file_group = platform.get_all_files_of_type_begin("hha");
-  asset_list->file_count = file_group->file_count;
+  Platform_file_group file_group = platform.get_all_files_of_type_begin(Platform_file_type_asset);
+  asset_list->file_count = file_group.file_count;
   asset_list->file_list = mem_push_array(arena, asset_list->file_count, Asset_file);
   
   for (u32 file_index = 0; file_index < asset_list->file_count; file_index++) {
@@ -503,28 +496,28 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
     file->tag_base = asset_list->tag_count;
     
     mem_zero_struct(file->header);
-    file->handle = platform.open_file(file_group, file_index);
-    platform.read_data_from_file(file->handle, 0, sizeof(file->header), &file->header);
+    file->handle = platform.open_next_file(&file_group);
+    platform.read_data_from_file(&file->handle, 0, sizeof(file->header), &file->header);
     
     u32 asset_type_array_size = file->header.asset_type_count * sizeof(Hha_asset_type);
     file->asset_type_array = (Hha_asset_type*)mem_push_size(arena, asset_type_array_size);
-    platform.read_data_from_file(file->handle, file->header.asset_type_list, asset_type_array_size, file->asset_type_array);
+    platform.read_data_from_file(&file->handle, file->header.asset_type_list, asset_type_array_size, file->asset_type_array);
     
-    assert(file->handle->no_errors);
+    assert(file->handle.no_errors);
     
     if (file->header.magic_value != HHA_MAGIC_VALUE) {
-      platform.file_error(file->handle, "wrong magic value");
+      platform.file_error(&file->handle, "wrong magic value");
     }
     
     if (file->header.version > HHA_VERSION) {
-      platform.file_error(file->handle, "unsupperted version");
+      platform.file_error(&file->handle, "unsupperted version");
     }
     
     // skip first cuz it's null
     asset_list->tag_count   += (file->header.tag_count - 1);
     asset_list->asset_count += (file->header.asset_count - 1);
   }
-  platform.get_all_files_of_type_end(file_group);
+  platform.get_all_files_of_type_end(&file_group);
   
   asset_list->asset_list = mem_push_array(arena, asset_list->asset_count, Asset);
   asset_list->tag_list   = mem_push_array(arena, asset_list->tag_count, Asset_tag);
@@ -534,11 +527,11 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
   for (u32 file_index = 0; file_index < asset_list->file_count; file_index++) {
     Asset_file *file = asset_list->file_list + file_index;
     
-    if (file->handle->no_errors) {
+    if (file->handle.no_errors) {
       u32 tag_array_size = sizeof(Hha_tag) * (file->header.tag_count - 1);
       u64 offset = file->header.tag_list + sizeof(Hha_tag);
       
-      platform.read_data_from_file(file->handle, offset, tag_array_size, asset_list->tag_list + file->tag_base);
+      platform.read_data_from_file(&file->handle, offset, tag_array_size, asset_list->tag_list + file->tag_base);
     }
   }
   
@@ -553,7 +546,7 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
     for (u32 file_index = 0; file_index < asset_list->file_count; file_index++) {
       Asset_file *file = asset_list->file_list + file_index;
       
-      assert(file->handle->no_errors);
+      assert(file->handle.no_errors);
       
       for (u32 source_index = 0; source_index < file->header.asset_type_count; source_index++) {
         Hha_asset_type *source_type = file->asset_type_array + source_index;
@@ -567,7 +560,7 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
         
         Hha_asset *hha_asset_array = mem_push_array(&tran_state->arena, asset_count_for_type, Hha_asset);
         
-        platform.read_data_from_file(file->handle, file->header.asset_list + source_type->first_asset_index * sizeof(Hha_asset),
+        platform.read_data_from_file(&file->handle, file->header.asset_list + source_type->first_asset_index * sizeof(Hha_asset),
                                      asset_count_for_type * sizeof (Hha_asset),
                                      hha_asset_array);
         
@@ -598,29 +591,4 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
   }
   
   return asset_list;
-}
-
-static
-void
-evict_assets_as_necessary(Game_asset_list *asset_list) {
-  
-  while (asset_list->total_memory_used > asset_list->target_memory_used) {
-    
-    Asset_memory_header *header = asset_list->loaded_asset_sentinel.prev;
-    
-    if (header != &asset_list->loaded_asset_sentinel) {
-      
-      Asset *asset = asset_list->asset_list + header->asset_index;
-      if (get_state(asset) >= Asset_state_loaded) {
-        evict_asset(asset_list, header);
-      }
-      
-    }
-    else {
-      assert(!"gg");
-      break;
-    }
-    
-  }
-  
 }

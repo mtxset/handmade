@@ -1,4 +1,4 @@
-// https://youtu.be/ZrAoRHSTzMY?t=1499
+// https://youtu.be/1LyHQVYlClw?t=3195
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include "types.h"
@@ -953,43 +953,43 @@ win32_do_next_work_q_entry(Platform_work_queue *queue) {
 }
 
 struct Win32_platform_file_handle {
-  Platform_file_handle handle;
   HANDLE win32_handle;
 };
 
 struct Win32_platform_file_group {
-  Platform_file_group platform_file_group;
   HANDLE find_handle;
-  WIN32_FIND_DATAA find_data;
+  WIN32_FIND_DATAW find_data;
 };
 
 static
-Platform_file_handle*
-win32_open_file(Platform_file_group *file_group, u32 file_index) {
+Platform_file_handle
+win32_open_next_file(Platform_file_group *file_group) {
   
-  Win32_platform_file_group *win32_file_group = (Win32_platform_file_group*)file_group;
-  Win32_platform_file_handle *result = 0;
+  Win32_platform_file_group *win32_file_group = (Win32_platform_file_group*)file_group->platform;
+  Platform_file_handle result = {};
   
   if (win32_file_group->find_handle == INVALID_HANDLE_VALUE) {
     assert(!"gg");
   }
   
-  result = (Win32_platform_file_handle*)
+  Win32_platform_file_handle *win_file_handle = (Win32_platform_file_handle*)
     VirtualAlloc(0, sizeof(Win32_platform_file_handle),
                  MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
   
-  assert(result);
+  assert(win_file_handle);
   
-  char *file_name = win32_file_group->find_data.cFileName;
-  result->win32_handle = CreateFileA(file_name, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
-  result->handle.no_errors = result->win32_handle != INVALID_HANDLE_VALUE;
+  result.platform = win_file_handle;
   
-  if (!FindNextFileA(win32_file_group->find_handle, &win32_file_group->find_data)) {
+  wchar_t *file_name = win32_file_group->find_data.cFileName;
+  win_file_handle->win32_handle = CreateFileW(file_name, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+  result.no_errors = win_file_handle->win32_handle != INVALID_HANDLE_VALUE;
+  
+  if (!FindNextFileW(win32_file_group->find_handle, &win32_file_group->find_data)) {
     FindClose(win32_file_group->find_handle);
     win32_file_group->find_handle = INVALID_HANDLE_VALUE;
   }
   
-  return (Platform_file_handle*)result;
+  return result;
 }
 
 static
@@ -1004,12 +1004,12 @@ win32_file_error(Platform_file_handle *handle, char *message) {
 
 static
 void
-win32_platform_read_data_from_file(Platform_file_handle *src, u64 offset, u64 size, void *dst) {
+win32_read_data_from_file(Platform_file_handle *src, u64 offset, u64 size, void *dst) {
   
   if (!src->no_errors) 
     return;
   
-  Win32_platform_file_handle *handle = (Win32_platform_file_handle*)src;
+  Win32_platform_file_handle *handle = (Win32_platform_file_handle*)src->platform;
   
   // "newer" win api added ability to specify where to work from
   OVERLAPPED overlapped = {};
@@ -1022,54 +1022,53 @@ win32_platform_read_data_from_file(Platform_file_handle *src, u64 offset, u64 si
   
   if (!ReadFile(handle->win32_handle, dst, file_size_32, &bytes_read, &overlapped) ||
       file_size_32 != bytes_read) {
-    win32_file_error(&handle->handle, "read file failed");
+    win32_file_error(src, "read file failed");
   }
   
 }
 
 static
-Platform_file_group*
-win32_get_all_files_of_type_begin(char *type) {
+Platform_file_group
+win32_get_all_files_of_type_begin(Platform_file_type file_type) {
   
-  Win32_platform_file_group *file_group = (Win32_platform_file_group*)
+  Platform_file_group result = {};
+  
+  Win32_platform_file_group *win_file_group = (Win32_platform_file_group*)
     VirtualAlloc(0, sizeof(Win32_platform_file_group),
                  MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
   
-  char *type_at = type;
-  char wild_card[32] = "*.";
+  result.platform = win_file_group;
   
-  for (u32 wild_card_index = 2; wild_card_index < sizeof(wild_card); wild_card_index++) {
-    wild_card[wild_card_index] = *type_at;
-    
-    if (*type_at == 0) 
-      break;
-    
-    type_at++;
+  wchar_t *wild_card = L"*.*";
+  
+  switch (file_type) {
+    case Platform_file_type_asset: wild_card = L"*.hha"; break;
+    case Platform_file_type_save: wild_card = L"*.hhs"; break;
+    default: assert(!"gg");
   }
-  wild_card[sizeof(wild_card) - 1] = 0;
   
-  file_group->platform_file_group.file_count = 0;
+  result.file_count = 0;
   
-  WIN32_FIND_DATAA find_data;
-  HANDLE find_handle = FindFirstFileA(wild_card, &find_data);
+  WIN32_FIND_DATAW find_data;
+  HANDLE find_handle = FindFirstFileW(wild_card, &find_data);
   
   while (find_handle != INVALID_HANDLE_VALUE) {
-    file_group->platform_file_group.file_count++;
+    result.file_count++;
     
-    if (!FindNextFileA(find_handle, &find_data))
+    if (!FindNextFileW(find_handle, &find_data))
       break;
   }
   FindClose(find_handle);
   
-  file_group->find_handle = FindFirstFileA(wild_card, &file_group->find_data);
+  win_file_group->find_handle = FindFirstFileW(wild_card, &win_file_group->find_data);
   
-  return (Platform_file_group*)file_group;
+  return result;
 }
 
 static
 void
 win32_get_all_files_of_type_end(Platform_file_group *file_group) {
-  Win32_platform_file_group *win32_file_group = (Win32_platform_file_group*)file_group;
+  Win32_platform_file_group *win32_file_group = (Win32_platform_file_group*)file_group->platform;
   if (win32_file_group) {
     FindClose(win32_file_group->find_handle);
     
@@ -1301,8 +1300,8 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     memory.platform_api.complete_all_work = win32_complete_all_work;
     memory.platform_api.get_all_files_of_type_begin = win32_get_all_files_of_type_begin;
     memory.platform_api.get_all_files_of_type_end = win32_get_all_files_of_type_end;
-    memory.platform_api.open_file = win32_open_file;
-    memory.platform_api.read_data_from_file = win32_platform_read_data_from_file;
+    memory.platform_api.open_next_file = win32_open_next_file;
+    memory.platform_api.read_data_from_file = win32_read_data_from_file;
     memory.platform_api.file_error = win32_file_error;
     
     memory.platform_api.allocate_memory = win32_allocate_memory;

@@ -178,13 +178,21 @@ struct Game_input {
   bool executable_reloaded;
 };
 
+typedef enum Platform_file_type {
+  Platform_file_type_asset,
+  Platform_file_type_save,
+  
+  Platform_file_type_count
+} Platform_file_type;
+
 typedef struct Platform_file_handle {
   bool no_errors;
+  void *platform;
 } Platform_file_handle;
 
 typedef struct Platform_file_group {
   u32  file_count;
-  void *data;
+  void *platform;
 } Platform_file_group;
 
 typedef struct Debug_file_read_result {
@@ -201,14 +209,14 @@ Platform_add_entry(Platform_work_queue *queue, Platform_work_queue_callback *cal
 typedef void 
 Platform_complete_all_work(Platform_work_queue *queue);
 
-typedef Platform_file_group*
-Platform_get_all_files_of_type_begin(char *type);
+typedef Platform_file_group
+Platform_get_all_files_of_type_begin(Platform_file_type file_type);
 
 typedef void
 Platform_get_all_files_of_type_end(Platform_file_group *file_group);
 
-typedef Platform_file_handle*
-Platform_open_file(Platform_file_group *file_group, u32 file_index);
+typedef Platform_file_handle
+Platform_open_next_file(Platform_file_group *file_group);
 
 typedef void 
 Platform_read_data_from_file(Platform_file_handle *src, u64 offset, u64 size, void *dst);
@@ -241,7 +249,7 @@ typedef struct Platform_api {
   Platform_allocate_memory   *allocate_memory;
   Platform_deallocate_memory *deallocate_memory;
   
-  Platform_open_file           *open_file;
+  Platform_open_next_file      *open_next_file;
   Platform_read_data_from_file *read_data_from_file;
   
   Platform_file_error          *file_error;

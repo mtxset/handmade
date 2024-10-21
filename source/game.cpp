@@ -2194,8 +2194,6 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   end_temp_memory(sim_memory);
   end_temp_memory(render_memory);
   
-  evict_assets_as_necessary(tran_state->asset_list);
-  
   check_arena(&game_state->world_arena);
   check_arena(&tran_state->arena);
   
