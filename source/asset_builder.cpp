@@ -11,8 +11,15 @@
 #include "asset_type_id.h"
 #include "file_formats.h"
 
+
+#define USE_FONTS_FROM_WINDOWS 1
+
+#if USE_FONTS_FROM_WINDOWS
+#include <windows.h>
+#else
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
+#endif
 
 #undef assert
 
@@ -122,6 +129,8 @@ struct Asset_source {
     u32 first_sample_index;
     u32 codepoint;
   };
+  
+  char *fontname;
 };
 
 struct Bitmap_id {
@@ -336,7 +345,103 @@ load_bmp(char* filename) {
 
 static
 Loaded_bmp
-load_glyph(char *filename, u32 codepoint) {
+load_glyph(char *filename, char* fontname, u32 codepoint) {
+  
+  Loaded_bmp bmp = {};
+  
+#if USE_FONTS_FROM_WINDOWS
+  
+  static HDC device_context = 0;
+  
+  if (!device_context) {
+    AddFontResourceExA(filename, FR_PRIVATE, 0);
+    
+    i32 height = 128; // logical units
+    HFONT font = CreateFontA(height, 0, 0, 0,
+                             FW_NORMAL, // weight - normal, bold (0 to 1000) FW_NORMAL - 400
+                             _(italic)false,
+                             _(underline)false,
+                             _(strike out)false,
+                             DEFAULT_CHARSET, // ? ansi?
+                             OUT_DEFAULT_PRECIS, // precision
+                             CLIP_DEFAULT_PRECIS, // cliping
+                             ANTIALIASED_QUALITY, // anti-aliased type
+                             DEFAULT_PITCH|FF_DONTCARE, // pitch?
+                             fontname);
+    
+    device_context = CreateCompatibleDC(0);
+    HBITMAP bitmap = CreateCompatibleBitmap(device_context, 1024, 1024);
+    SelectObject(device_context, bitmap);
+    SelectObject(device_context, font);
+    SetBkColor(device_context, RGB(0, 0, 0));
+    
+    TEXTMETRIC text_metric;
+    GetTextMetrics(device_context, &text_metric);
+  }
+  
+  wchar_t point = (wchar_t)codepoint;
+  
+  SIZE size;
+  GetTextExtentPoint32W(device_context, &point, 1, &size);
+  
+  i32 width = size.cx;
+  i32 height = size.cy;
+  
+  SetTextColor(device_context, RGB(255, 255, 255));
+  TextOutW(device_context, 0, 0, &point, 1);
+  
+  i32 min_x = 10000;
+  i32 min_y = 10000;
+  i32 max_x = -10000;
+  i32 max_y = -10000;
+  
+  for (i32 y = 0; y < height; y++) {
+    for (i32 x = 0; x < width; x++) {
+      
+      COLORREF pixel = GetPixel(device_context, x, y);
+      
+      if (pixel != 0) {
+        if (min_x > x) min_x = x;
+        if (max_x < x) max_x = x;
+        
+        if (min_y > y) min_y = y;
+        if (max_y < y) max_y = y;
+      }
+    }
+  }
+  
+  if (min_x <= max_x) {
+    min_x--;
+    min_y--;
+    max_x++;
+    max_y++;
+    
+    width = (max_x - min_x) + 1;
+    height = (max_y - min_y) + 1;
+    
+    bmp.width = width;
+    bmp.height = height;
+    bmp.pitch = bmp.width * BITMAP_BYTES_PER_PIXEL;
+    bmp.memory = malloc(height * bmp.pitch);
+    bmp.free  = bmp.memory;
+    
+    u8 *dst_row = (u8*)bmp.memory + (height - 1) * bmp.pitch;
+    for (i32 y = min_y; y <= max_y; y += 1) {
+      u32 *dst = (u32*)dst_row;
+      for (i32 x = min_x; x < max_x; x += 1) {
+        COLORREF pixel = GetPixel(device_context, x, y);
+        u8 gray = (u8)(pixel & 0xff);
+        u8 alpha = 0xff;
+        *dst++ = ((alpha) << 24 | 
+                  (gray)  << 16 | 
+                  (gray)  << 8  |
+                  (gray)  << 0);
+      }
+      dst_row -= bmp.pitch;
+    }
+  }
+  
+#else
   
   File_read_result font_file = read_entire_file(filename);
   assert(font_file.bytes_read);
@@ -350,14 +455,13 @@ load_glyph(char *filename, u32 codepoint) {
   i32 width, height, x_offset, y_offset;
   u8 *bitmap = stbtt_GetCodepointBitmap(&font, scale_x, scale_y_px, codepoint, &width, &height, &x_offset, &y_offset);
   
-  Loaded_bmp bmp;
   bmp.width = width;
   bmp.height = height;
   bmp.pitch = bmp.width * BITMAP_BYTES_PER_PIXEL;
   bmp.memory = malloc(height * bmp.pitch);
   bmp.free  = bmp.memory;
   
-  // Sean (top-down) we (bot-up)
+  // Sean (stb_lib) top-down we bot-up
   u8 *src = bitmap;
   u8 *dst_row = (u8*)bmp.memory + (height - 1) * bmp.pitch;
   for (i32 y = 0; y < height; y += 1) {
@@ -375,6 +479,8 @@ load_glyph(char *filename, u32 codepoint) {
   
   stbtt_FreeBitmap(bitmap, 0);
   free(font_file.content);
+  
+#endif
   
   return bmp;
 }
@@ -628,7 +734,7 @@ write_hha_file(Game_asset_list *asset_list, char *filename) {
         assert(src->type == Asset_type_bitmap || src->type == Asset_type_font);
         
         if (src->type == Asset_type_font) {
-          bitmap = load_glyph(src->filename, src->codepoint);
+          bitmap = load_glyph(src->filename, src->fontname, src->codepoint);
         }
         else {
           bitmap = load_bmp(src->filename);
@@ -659,7 +765,7 @@ write_hha_file(Game_asset_list *asset_list, char *filename) {
 
 static
 Bitmap_id
-add_char_asset(Game_asset_list *asset_list, char *font_file, u32 codepoint, f32 align_pcent_x =.5f, f32 align_pcent_y = .5f) {
+add_char_asset(Game_asset_list *asset_list, char *font_file, char *font_name, u32 codepoint, f32 align_pcent_x =.5f, f32 align_pcent_y = .5f) {
   assert(asset_list->debug_asset_type);
   assert(asset_list->debug_asset_type->one_past_last_asset_index < array_count(asset_list->asset_list));
   
@@ -676,6 +782,7 @@ add_char_asset(Game_asset_list *asset_list, char *font_file, u32 codepoint, f32 
   source->type = Asset_type_font;
   source->filename = font_file;
   source->codepoint = codepoint;
+  source->fontname = font_name;
   
   asset_list->asset_index = id.value;
   
@@ -719,7 +826,8 @@ write_non_hero() {
   
   begin_asset_type(asset_list, Asset_font);
   for (u32 ch = 0; ch < 256; ch++) {
-    add_char_asset(asset_list, "../data/m3x6.ttf", ch);
+    add_char_asset(asset_list, "c:/windows/Fonts/cour.ttf", "Courier New", ch);
+    //add_char_asset(asset_list, "../data/m3x6.ttf", ch);
     add_tag(asset_list, Tag_unicode_codepoint, (f32)ch);
   }
   end_asset_type(asset_list);
