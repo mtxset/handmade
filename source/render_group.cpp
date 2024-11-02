@@ -134,12 +134,12 @@ inline
 void
 push_bitmap(Render_group* group, Bitmap_id id, f32 height, v3 offset, v4 color = white_v4) {
   
-  Loaded_bmp *result = get_bitmap(group->asset_list, id, group->asset_should_be_locked);
+  Loaded_bmp *result = get_bitmap(group->asset_list, id);
   if (result) {
     push_bitmap(group, result, height, offset, color);
   }
   else {
-    load_bitmap(group->asset_list, id, group->asset_should_be_locked);
+    load_bitmap(group->asset_list, id);
     group->missing_resource_count++;
   }
   
@@ -930,7 +930,6 @@ allocate_render_group(Game_asset_list *asset_list, Memory_arena* arena, u32 max_
   result->transform.scale = 1.0f;
   
   result->missing_resource_count = 0;
-  result->asset_should_be_locked = asset_should_be_locked;
   
   return result;
 }

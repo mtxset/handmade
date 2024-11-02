@@ -621,8 +621,7 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
                   
                   v3 test_wall_normal = {};
                   
-                  for (u32 wall_index = 0; wall_index < array_count(wall_list); wall_index++) 
-                  {
+                  for (u32 wall_index = 0; wall_index < array_count(wall_list); wall_index++) {
                     Test_wall* wall = wall_list + wall_index;
                     
                     f32 t_epsilon = 0.001f;

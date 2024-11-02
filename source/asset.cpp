@@ -57,13 +57,10 @@ remove_asset_header_from_list(Asset_memory_header *header) {
 void
 move_header_to_front(Game_asset_list *asset_list, Asset *asset) {
   
-  if (!is_locked(asset)) {
-    Asset_memory_header *header = asset->header;
-    
-    remove_asset_header_from_list(header);
-    insert_asset_header_at_front(asset_list, header);
-  }
+  Asset_memory_header *header = asset->header;
   
+  remove_asset_header_from_list(header);
+  insert_asset_header_at_front(asset_list, header);
 }
 
 internal 
@@ -200,10 +197,9 @@ acquire_asset_memory(Game_asset_list *asset_list, sz size) {
         
         Asset *asset = asset_list->asset_list + header->asset_index;
         
-        if (get_state(asset) >= Asset_state_loaded) {
+        if (asset->state >= Asset_state_loaded) {
           
-          assert(get_state(asset) == Asset_state_loaded);
-          assert(!is_locked(asset));
+          assert(asset->state == Asset_state_loaded);
           
           remove_asset_header_from_list(header);
           
@@ -230,7 +226,7 @@ acquire_asset_memory(Game_asset_list *asset_list, sz size) {
 }
 
 void 
-load_bitmap(Game_asset_list *asset_list, Bitmap_id id, bool locked) {
+load_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
   
   Asset *asset = asset_list->asset_list + id.value;
   
@@ -268,13 +264,9 @@ load_bitmap(Game_asset_list *asset_list, Bitmap_id id, bool locked) {
       work->offset = asset->hha.data_offset;
       work->size = size.data;
       work->destination = bitmap->memory;
-      work->final_state = Asset_state_loaded | (locked ? Asset_state_lock : 0);
+      work->final_state = Asset_state_loaded;
       
-      asset->state |= Asset_state_lock;
-      
-      if (!locked) {
-        add_asset_header_to_list(asset_list, id.value, size);
-      }
+      add_asset_header_to_list(asset_list, id.value, size);
       
       platform.add_entry(asset_list->tran_state->low_priority_queue, load_asset_work, work);
     }

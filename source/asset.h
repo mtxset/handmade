@@ -112,10 +112,7 @@ enum Asset_state {
   Asset_state_unloaded,
   Asset_state_queued,
   Asset_state_loaded,
-  
-  Asset_state_mask = 0xfff,
-  
-  Asset_state_lock = 0x10000,
+  Asset_state_operating
 };
 
 struct Asset_tag {
@@ -208,43 +205,51 @@ struct Game_asset_list {
   Asset_type asset_type_list[Asset_count];
 };
 
-void load_bitmap(Game_asset_list *asset_list, Bitmap_id id, bool locked);
+void load_bitmap(Game_asset_list *asset_list, Bitmap_id id);
 void load_sound(Game_asset_list *asset_list, Sound_id id);
-
-
-inline 
-bool
-is_locked(Asset *asset) {
-  bool result = (asset->state & Asset_state_lock);
-  return result;
-}
-
-inline 
-u32
-get_state(Asset *asset) {
-  u32 result = asset->state & Asset_state_mask;
-  return result;
-}
 
 void
 move_header_to_front(Game_asset_list *asset_list, Asset *asset);
 
+static
+Asset_memory_header*
+get_asset(Game_asset_list *asset_list, u32 id) {
+  assert(id <= asset_list->asset_count);
+  Asset *asset = asset_list->asset_list + id;
+  
+  Asset_memory_header *result = 0;
+  
+  while (true) {
+    
+    u32 state = asset->state;
+    
+    if (state == Asset_state_loaded) {
+      if (atomic_compare_exchange_u32(&asset->state, Asset_state_loaded, state) == state) {
+        
+        result = asset->header;
+        move_header_to_front(asset_list, asset);
+        
+        _WriteBarrier();
+        asset->state = state;
+        break;
+      }
+      
+    }
+    else if (state != Asset_state_operating) {
+      break;
+    }
+  }
+  
+  return result;
+}
+
 inline
 Loaded_bmp*
-get_bitmap(Game_asset_list *asset_list, Bitmap_id id, bool must_be_locked) {
-  assert(id.value <= asset_list->asset_count);
-  Asset *asset = asset_list->asset_list + id.value;
+get_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
   
-  Loaded_bmp *result = 0;
+  Asset_memory_header *header = get_asset(asset_list, id.value);
   
-  if (get_state(asset) >= Asset_state_loaded) {
-    assert(!must_be_locked || is_locked(asset));
-    
-    _ReadBarrier();
-    result = &asset->header->bitmap;
-    
-    move_header_to_front(asset_list, asset);
-  }
+  Loaded_bmp *result = header ? &header->bitmap : 0;
   
   return result;
 }
@@ -252,26 +257,18 @@ get_bitmap(Game_asset_list *asset_list, Bitmap_id id, bool must_be_locked) {
 inline
 Loaded_sound*
 get_sound(Game_asset_list *asset_list, Sound_id id) {
-  assert(id.value <= asset_list->asset_count);
-  Asset *asset = asset_list->asset_list + id.value;
   
-  Loaded_sound *result = 0;
+  Asset_memory_header *header = get_asset(asset_list, id.value);
   
-  if (get_state(asset) >= Asset_state_loaded) {
-    _ReadBarrier();
-    result = &asset->header->sound;
-    
-    move_header_to_front(asset_list, asset);
-  }
+  Loaded_sound *result = header ? &header->sound : 0;
   
   return result;
 }
 
-
 inline
 void 
-prefetch_bitmap(Game_asset_list *asset_list, Bitmap_id id, bool locked) { 
-  load_bitmap(asset_list, id, locked);
+prefetch_bitmap(Game_asset_list *asset_list, Bitmap_id id) { 
+  load_bitmap(asset_list, id);
 }
 
 inline

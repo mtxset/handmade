@@ -100,8 +100,6 @@ struct Render_group {
   u8* push_buffer_base;
   
   u32 missing_resource_count;
-  
-  bool asset_should_be_locked;
 };
 
 #endif //RENDER_GROUP_H
