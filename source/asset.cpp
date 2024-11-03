@@ -285,11 +285,11 @@ load_bitmap(Game_asset_list *asset_list, Bitmap_id id, bool immediate) {
       asset->state = Asset_state_unloaded;
     }
   }
-  else {
+  else if (immediate) {
     
     Asset_state volatile *state = (Asset_state volatile*)&asset->state;
     
-    while (asset->state == Asset_state_queued) {}
+    while (*state == Asset_state_queued) {}
     
   }
 }

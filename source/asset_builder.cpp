@@ -351,7 +351,11 @@ load_glyph(char *filename, char* fontname, u32 codepoint) {
   
 #if USE_FONTS_FROM_WINDOWS
   
+  static void *bits = 0;
   static HDC device_context = 0;
+  
+  i32 max_width = 1024;
+  i32 max_height = 1024;
   
   if (!device_context) {
     AddFontResourceExA(filename, FR_PRIVATE, 0);
@@ -369,8 +373,23 @@ load_glyph(char *filename, char* fontname, u32 codepoint) {
                              DEFAULT_PITCH|FF_DONTCARE, // pitch?
                              fontname);
     
-    device_context = CreateCompatibleDC(0);
-    HBITMAP bitmap = CreateCompatibleBitmap(device_context, 1024, 1024);
+    device_context = CreateCompatibleDC(GetDC(0));
+    
+    BITMAPINFO info = {};
+    
+    info.bmiHeader.biSize = sizeof(info.bmiHeader);
+    info.bmiHeader.biWidth = max_width;
+    info.bmiHeader.biHeight = max_height;
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+    info.bmiHeader.biSizeImage = 0;
+    info.bmiHeader.biXPelsPerMeter = 0;
+    info.bmiHeader.biYPelsPerMeter = 0;
+    info.bmiHeader.biClrUsed = 0;
+    info.bmiHeader.biClrImportant = 0;
+    
+    HBITMAP bitmap = CreateDIBSection(device_context, &info, DIB_RGB_COLORS, &bits, 0, 0);
     SelectObject(device_context, bitmap);
     SelectObject(device_context, font);
     SetBkColor(device_context, RGB(0, 0, 0));
@@ -378,6 +397,8 @@ load_glyph(char *filename, char* fontname, u32 codepoint) {
     TEXTMETRIC text_metric;
     GetTextMetrics(device_context, &text_metric);
   }
+  
+  memset(bits, 0xff, max_width * max_height * sizeof(u32));
   
   wchar_t point = (wchar_t)codepoint;
   
@@ -387,6 +408,9 @@ load_glyph(char *filename, char* fontname, u32 codepoint) {
   i32 width = size.cx;
   i32 height = size.cy;
   
+  if (width  > max_width)  width  = max_width;
+  if (height > max_height) height = max_height;
+  
   SetTextColor(device_context, RGB(255, 255, 255));
   TextOutW(device_context, 0, 0, &point, 1);
   
@@ -395,10 +419,13 @@ load_glyph(char *filename, char* fontname, u32 codepoint) {
   i32 max_x = -10000;
   i32 max_y = -10000;
   
+  u32 *row = (u32*)bits + (max_height - 1) * max_width;
+  
   for (i32 y = 0; y < height; y++) {
+    u32 *pixel = row;
     for (i32 x = 0; x < width; x++) {
       
-      COLORREF pixel = GetPixel(device_context, x, y);
+      //COLORREF pixel = GetPixel(device_context, x, y);
       
       if (pixel != 0) {
         if (min_x > x) min_x = x;
@@ -407,37 +434,55 @@ load_glyph(char *filename, char* fontname, u32 codepoint) {
         if (min_y > y) min_y = y;
         if (max_y < y) max_y = y;
       }
+      
+      pixel++;
     }
+    
+    row -= max_width;
   }
   
   if (min_x <= max_x) {
+#if 0
     min_x--;
     min_y--;
     max_x++;
     max_y++;
+#endif
     
-    width = (max_x - min_x) + 1;
+    width  = (max_x - min_x) + 1;
     height = (max_y - min_y) + 1;
     
-    bmp.width = width;
-    bmp.height = height;
+    bmp.width = width + 2;
+    bmp.height = height + 2;
     bmp.pitch = bmp.width * BITMAP_BYTES_PER_PIXEL;
-    bmp.memory = malloc(height * bmp.pitch);
+    bmp.memory = malloc(bmp.height * bmp.pitch);
     bmp.free  = bmp.memory;
     
-    u8 *dst_row = (u8*)bmp.memory + (height - 1) * bmp.pitch;
+    memset(bmp.memory, 0, bmp.height * bmp.pitch);
+    
+    u8  *dst_row = (u8*)bmp.memory + (bmp.height - 1 - 1) * bmp.pitch;
+    u32 *src_row = (u32*)bits      + (max_height - 1 - min_y) * max_width;
+    
     for (i32 y = min_y; y <= max_y; y += 1) {
-      u32 *dst = (u32*)dst_row;
-      for (i32 x = min_x; x < max_x; x += 1) {
-        COLORREF pixel = GetPixel(device_context, x, y);
+      u32 *dst = (u32*)dst_row + 1;
+      u32 *src = (u32*)src_row + min_x;
+      
+      for (i32 x = min_x; x <= max_x; x += 1) {
+        //COLORREF pixel = GetPixel(device_context, x, y);
+        u32 pixel = *src;
+        
         u8 gray = (u8)(pixel & 0xff);
-        u8 alpha = 0xff;
+        u8 alpha = gray;
         *dst++ = ((alpha) << 24 | 
                   (gray)  << 16 | 
                   (gray)  << 8  |
                   (gray)  << 0);
+        
+        src++;
       }
+      
       dst_row -= bmp.pitch;
+      src_row -= max_width;
     }
   }
   
