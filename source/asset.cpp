@@ -19,41 +19,6 @@ struct Asset_memory_size {
   u32 section;
 };
 
-inline
-void 
-insert_asset_header_at_front(Game_asset_list* asset_list, Asset_memory_header *header) {
-  Asset_memory_header *sentinel = &asset_list->loaded_asset_sentinel;
-  
-  header->prev = sentinel;
-  header->next = sentinel->next;
-  
-  header->next->prev = header;
-  header->prev->next = header;
-}
-
-static 
-void
-add_asset_header_to_list(Game_asset_list *asset_list, u32 asset_index, Asset_memory_size size) {
-  
-  Asset *asset = asset_list->asset_list + asset_index;
-  
-  Asset_memory_header *header = asset->header;
-  
-  header->asset_index = asset_index;
-  header->total_size = size.total;
-  
-  insert_asset_header_at_front(asset_list, header);
-}
-
-static
-void
-remove_asset_header_from_list(Asset_memory_header *header) {
-  header->prev->next = header->next;
-  header->next->prev = header->prev;
-  
-  header->next = header->prev = 0;
-}
-
 void
 move_header_to_front(Game_asset_list *asset_list, Asset *asset) {
   
@@ -63,9 +28,9 @@ move_header_to_front(Game_asset_list *asset_list, Asset *asset) {
   insert_asset_header_at_front(asset_list, header);
 }
 
-internal 
-PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work) {
-  Load_asset_work *work = (Load_asset_work*)data;
+static
+void
+load_asset_work_directly(Load_asset_work *work) {
   
   platform.read_data_from_file(work->handle, work->offset, work->size, work->destination);
   
@@ -76,6 +41,14 @@ PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work) {
   }
   
   work->asset->state = work->final_state;
+}
+
+internal 
+PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work) {
+  
+  Load_asset_work *work = (Load_asset_work*)data;
+  
+  load_asset_work_directly(work);
   
   end_task_with_mem(work->task);
 }
@@ -160,20 +133,39 @@ merge_if_possible(Game_asset_list *asset_list, Asset_memory_block *first, Asset_
   return false;
 }
 
-inline 
-void*
-acquire_asset_memory(Game_asset_list *asset_list, sz size) {
+static
+bool
+generation_has_completed(Game_asset_list *asset_list, u32 check_id) {
   
-  void *result = 0;
+  bool result = true;
+  
+  for (u32 index = 0; index < asset_list->in_flight_gen_count; index++) {
+    if (asset_list->in_flight_gen_list[index] == check_id) {
+      result = false;
+      break;
+    }
+  }
+  
+  return result;
+}
+
+inline 
+Asset_memory_header*
+acquire_asset_memory(Game_asset_list *asset_list, u32 size, u32 asset_index) {
+  
+  Asset_memory_header *result = 0;
+  
+  begin_asset_lock(asset_list);
   
   Asset_memory_block *block = find_block_for_size(asset_list, size);
+  
   while (true) {
     
     if (block && size <= block->size) {
       
       block->flags |= Asset_memory_block_used;
       
-      result = (u8*)(block + 1);
+      result = (Asset_memory_header*)(block + 1);
       
       sz remaining_size = block->size - size;
       sz block_split_threshold = 4096;
@@ -197,7 +189,8 @@ acquire_asset_memory(Game_asset_list *asset_list, sz size) {
         
         Asset *asset = asset_list->asset_list + header->asset_index;
         
-        if (asset->state >= Asset_state_loaded) {
+        if (asset->state >= Asset_state_loaded &&
+            generation_has_completed(asset_list, asset->header->generation_id)) {
           
           assert(asset->state == Asset_state_loaded);
           
@@ -222,20 +215,32 @@ acquire_asset_memory(Game_asset_list *asset_list, sz size) {
     }
   }
   
+  if (result) {
+    result->asset_index = asset_index;
+    result->total_size = size;
+    insert_asset_header_at_front(asset_list, result);
+  }
+  
+  end_asset_lock(asset_list);
+  
   return result;
 }
 
 void 
-load_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
+load_bitmap(Game_asset_list *asset_list, Bitmap_id id, bool immediate) {
   
   Asset *asset = asset_list->asset_list + id.value;
   
   if (id.value &&
       atomic_compare_exchange_u32((u32*)&asset->state, Asset_state_queued, Asset_state_unloaded) == Asset_state_unloaded) {
     
-    Task_with_memory *task = begin_task_with_mem(asset_list->tran_state);
+    Task_with_memory *task = 0;
     
-    if (task) {
+    if (!immediate) {
+      task = begin_task_with_mem(asset_list->tran_state);
+    }
+    
+    if (immediate || task) {
       
       Hha_bitmap *info = &asset->hha.bitmap;
       
@@ -247,7 +252,7 @@ load_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
       size.data = height * size.section;
       size.total = size.data + sizeof(Asset_memory_header);
       
-      asset->header = (Asset_memory_header*)acquire_asset_memory(asset_list, size.total);
+      asset->header = (Asset_memory_header*)acquire_asset_memory(asset_list, size.total, id.value);
       
       Loaded_bmp *bitmap = &asset->header->bitmap;
       bitmap->align_pcent = {info->align_pcent[0], info->align_pcent[1]};
@@ -257,22 +262,34 @@ load_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
       bitmap->pitch = size.section;
       bitmap->memory = (asset->header + 1);
       
-      Load_asset_work *work = mem_push_struct(&task->arena, Load_asset_work);
-      work->task = task;
-      work->asset = asset;
-      work->handle = get_file_handle_for(asset_list, asset->file_index);
-      work->offset = asset->hha.data_offset;
-      work->size = size.data;
-      work->destination = bitmap->memory;
-      work->final_state = Asset_state_loaded;
+      Load_asset_work work;
+      work.task = task;
+      work.asset = asset;
+      work.handle = get_file_handle_for(asset_list, asset->file_index);
+      work.offset = asset->hha.data_offset;
+      work.size = size.data;
+      work.destination = bitmap->memory;
+      work.final_state = Asset_state_loaded;
       
-      add_asset_header_to_list(asset_list, id.value, size);
+      if (task) {
+        Load_asset_work *task_work = mem_push_struct(&task->arena, Load_asset_work);
+        *task_work = work;
+        platform.add_entry(asset_list->tran_state->low_priority_queue, load_asset_work, task_work);
+      }
+      else {
+        load_asset_work_directly(&work);
+      }
       
-      platform.add_entry(asset_list->tran_state->low_priority_queue, load_asset_work, work);
     }
     else {
       asset->state = Asset_state_unloaded;
     }
+  }
+  else {
+    
+    Asset_state volatile *state = (Asset_state volatile*)&asset->state;
+    
+    while (asset->state == Asset_state_queued) {}
     
   }
 }
@@ -296,7 +313,7 @@ load_sound(Game_asset_list *asset_list, Sound_id id) {
       size.data = info->channel_count * size.section;
       size.total = size.data + sizeof(Asset_memory_header);
       
-      asset->header = (Asset_memory_header*)acquire_asset_memory(asset_list, size.total);
+      asset->header = (Asset_memory_header*)acquire_asset_memory(asset_list, size.total, id.value);
       Loaded_sound *sound = &asset->header->sound;
       
       sound->sample_count = info->sample_count;
@@ -319,8 +336,6 @@ load_sound(Game_asset_list *asset_list, Sound_id id) {
       work->size = size.data;
       work->destination = memory;
       work->final_state = Asset_state_loaded;
-      
-      add_asset_header_to_list(asset_list, id.value, size);
       
       platform.add_entry(asset_list->tran_state->low_priority_queue, load_asset_work, work);
     }
@@ -457,6 +472,9 @@ Game_asset_list*
 allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran_state) {
   
   Game_asset_list *asset_list = mem_push_struct(arena, Game_asset_list);
+  
+  asset_list->next_generation_id = 0;
+  asset_list->in_flight_gen_count = 0;
   
   asset_list->tran_state = tran_state;
   

@@ -168,7 +168,7 @@ struct Asset_memory_header {
   
   u32 asset_index;
   u32 total_size;
-  
+  u32 generation_id;
   union {
     Loaded_bmp   bitmap;
     Loaded_sound sound;
@@ -185,6 +185,8 @@ struct Asset {
 };
 
 struct Game_asset_list {
+  
+  u32 next_generation_id;
   
   struct Transient_state *tran_state;
   
@@ -203,51 +205,90 @@ struct Game_asset_list {
   Asset *asset_list;
   
   Asset_type asset_type_list[Asset_count];
+  
+  u32 operation_lock;
+  
+  u32 in_flight_gen_count;
+  u32 in_flight_gen_list[16];
 };
 
-void load_bitmap(Game_asset_list *asset_list, Bitmap_id id);
+void load_bitmap(Game_asset_list *asset_list, Bitmap_id id, bool immediate);
 void load_sound(Game_asset_list *asset_list, Sound_id id);
 
 void
 move_header_to_front(Game_asset_list *asset_list, Asset *asset);
 
 static
+void
+begin_asset_lock(Game_asset_list *asset_list) {
+  while (true) {
+    if (atomic_compare_exchange_u32(&asset_list->operation_lock, 1, 0) == 0) {
+      break;
+    }
+  }
+}
+
+static
+void
+end_asset_lock(Game_asset_list *asset_list) {
+  _WriteBarrier();
+  asset_list->operation_lock = 0;
+}
+
+static
+void
+remove_asset_header_from_list(Asset_memory_header *header) {
+  header->prev->next = header->next;
+  header->next->prev = header->prev;
+  
+  header->next = header->prev = 0;
+}
+
+inline
+void 
+insert_asset_header_at_front(Game_asset_list* asset_list, Asset_memory_header *header) {
+  Asset_memory_header *sentinel = &asset_list->loaded_asset_sentinel;
+  
+  header->prev = sentinel;
+  header->next = sentinel->next;
+  
+  header->next->prev = header;
+  header->prev->next = header;
+}
+
+static
 Asset_memory_header*
-get_asset(Game_asset_list *asset_list, u32 id) {
+get_asset(Game_asset_list *asset_list, u32 id, u32 generation_id) {
   assert(id <= asset_list->asset_count);
   Asset *asset = asset_list->asset_list + id;
   
   Asset_memory_header *result = 0;
   
-  while (true) {
+  begin_asset_lock(asset_list);
+  
+  if (asset->state == Asset_state_loaded) {
     
-    u32 state = asset->state;
+    result = asset->header;
+    remove_asset_header_from_list(result);
+    insert_asset_header_at_front(asset_list, result);
     
-    if (state == Asset_state_loaded) {
-      if (atomic_compare_exchange_u32(&asset->state, Asset_state_loaded, state) == state) {
-        
-        result = asset->header;
-        move_header_to_front(asset_list, asset);
-        
-        _WriteBarrier();
-        asset->state = state;
-        break;
-      }
-      
+    if (asset->header->generation_id < generation_id) {
+      asset->header->generation_id = generation_id;
     }
-    else if (state != Asset_state_operating) {
-      break;
-    }
+    
+    _WriteBarrier();
   }
+  
+  end_asset_lock(asset_list);
   
   return result;
 }
 
 inline
 Loaded_bmp*
-get_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
+get_bitmap(Game_asset_list *asset_list, Bitmap_id id, u32 gen_id) {
   
-  Asset_memory_header *header = get_asset(asset_list, id.value);
+  Asset_memory_header *header = get_asset(asset_list, id.value, gen_id);
   
   Loaded_bmp *result = header ? &header->bitmap : 0;
   
@@ -256,9 +297,9 @@ get_bitmap(Game_asset_list *asset_list, Bitmap_id id) {
 
 inline
 Loaded_sound*
-get_sound(Game_asset_list *asset_list, Sound_id id) {
+get_sound(Game_asset_list *asset_list, Sound_id id, u32 gen_id) {
   
-  Asset_memory_header *header = get_asset(asset_list, id.value);
+  Asset_memory_header *header = get_asset(asset_list, id.value, gen_id);
   
   Loaded_sound *result = header ? &header->sound : 0;
   
@@ -268,7 +309,7 @@ get_sound(Game_asset_list *asset_list, Sound_id id) {
 inline
 void 
 prefetch_bitmap(Game_asset_list *asset_list, Bitmap_id id) { 
-  load_bitmap(asset_list, id);
+  load_bitmap(asset_list, id, _(immediate)false);
 }
 
 inline
@@ -303,6 +344,38 @@ get_next_sound_in_chain(Game_asset_list *asset_list, Sound_id id) {
   }
   
   return result;
+}
+
+inline
+u32
+begin_generation(Game_asset_list *asset_list) {
+  begin_asset_lock(asset_list);
+  
+  assert(asset_list->in_flight_gen_count < array_count(asset_list->in_flight_gen_list));
+  
+  u32 result = asset_list->next_generation_id++;
+  asset_list->in_flight_gen_list[asset_list->in_flight_gen_count++] = result;
+  
+  end_asset_lock(asset_list);
+  
+  return result;
+}
+
+inline
+void
+end_generation(Game_asset_list *asset_list, u32 gen_id) {
+  
+  begin_asset_lock(asset_list);
+  
+  for (u32 j = 0; j < asset_list->in_flight_gen_count; j += 1) {
+    if (asset_list->in_flight_gen_list[j] == gen_id) {
+      asset_list->in_flight_gen_list[j] = asset_list->in_flight_gen_list[--asset_list->in_flight_gen_count];
+      break;
+    }
+  }
+  
+  end_asset_lock(asset_list);
+  
 }
 
 #endif //ASSET_H

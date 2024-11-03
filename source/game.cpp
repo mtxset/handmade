@@ -717,7 +717,6 @@ begin_task_with_mem(Transient_state *tran_state) {
   }
   
   return found_task;
-  
 }
 
 internal
@@ -729,60 +728,46 @@ end_task_with_mem(Task_with_memory *task) {
 }
 
 struct Fill_ground_chunk_work {
-  Render_group *render_group;
-  Loaded_bmp *buffer;
+  Transient_state *tran_state;
+  Game_state      *game_state;
+  
+  Ground_buffer *ground_buffer;
+  World_position chunk_pos;
+  
   Task_with_memory *task;
 };
 
 internal
-PLATFORM_WORK_QUEUE_CALLBACK(fill_ground_chunk_work)
-{
+PLATFORM_WORK_QUEUE_CALLBACK(fill_ground_chunk_work) {
+  
   Fill_ground_chunk_work *work = (Fill_ground_chunk_work*)data;
   
-  render_group_to_output(work->render_group, work->buffer);
-  
-  end_task_with_mem(work->task);
-}
-
-internal
-void
-fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_buffer* ground_buffer, World_position* chunk_pos) {
-  
-  Task_with_memory *task = begin_task_with_mem(tran_state);
-  if (!task)
-    return;
-  
-  Fill_ground_chunk_work *work = mem_push_struct(&task->arena, Fill_ground_chunk_work);
-  
-  Loaded_bmp* bitmap_buffer = &ground_buffer->bitmap;
+  Loaded_bmp* bitmap_buffer = &work->ground_buffer->bitmap;
   bitmap_buffer->align_pcent = { 0.5f, 0.5f };
   bitmap_buffer->width_over_height = 1.0f;
   
-  f32 width  = game_state->world->chunk_dim_meters.x;
-  f32 height = game_state->world->chunk_dim_meters.y;
+  f32 width  = work->game_state->world->chunk_dim_meters.x;
+  f32 height = work->game_state->world->chunk_dim_meters.y;
   assert(width == height);
   
   v2 half_dim = 0.5f * v2{width, height};
   //half_dim = 2.0f * half_dim;
   
-  Render_group* render_group = allocate_render_group(tran_state->asset_list, &task->arena, 0, _(lock)true);
+  bool render_in_background = true;
+  Render_group* render_group = allocate_render_group(work->tran_state->asset_list, &work->task->arena, 0, render_in_background);
   
   ortographic(render_group, bitmap_buffer->width, bitmap_buffer->height,
               (bitmap_buffer->width -2) / width);
   
   push_clear(render_group, yellow_v4);
   
-  work->render_group = render_group;
-  work->buffer = bitmap_buffer;
-  work->task = task;
-  
   u32 random_number_index = 0;
   for (i32 chunk_offset_y = -1; chunk_offset_y <= 1; chunk_offset_y++) {
     for (i32 chunk_offset_x = -1; chunk_offset_x <= 1; chunk_offset_x++) {
       
-      i32 chunk_x = chunk_pos->chunk_x + chunk_offset_x;
-      i32 chunk_y = chunk_pos->chunk_y + chunk_offset_y;
-      i32 chunk_z = chunk_pos->chunk_z;
+      i32 chunk_x = work->chunk_pos.chunk_x + chunk_offset_x;
+      i32 chunk_y = work->chunk_pos.chunk_y + chunk_offset_y;
+      i32 chunk_z = work->chunk_pos.chunk_z;
       
       Random_series series = random_seed(139 * chunk_x + 593 * chunk_y + 329 * chunk_z);
       
@@ -792,7 +777,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
         assert(random_number_index < array_count(random_number_table));
         
         auto random_blob = random_choise(&series, 2) ? Asset_grass: Asset_stone;
-        Bitmap_id stamp = get_random_bitmap_from(tran_state->asset_list,
+        Bitmap_id stamp = get_random_bitmap_from(work->tran_state->asset_list,
                                                  random_blob, &series);
         
         v2 pos = 
@@ -809,9 +794,9 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
   for (i32 chunk_offset_y = -1; chunk_offset_y <= 1; chunk_offset_y++) {
     for (i32 chunk_offset_x = -1; chunk_offset_x <= 1; chunk_offset_x++) {
       
-      i32 chunk_x = chunk_pos->chunk_x + chunk_offset_x;
-      i32 chunk_y = chunk_pos->chunk_y + chunk_offset_y;
-      i32 chunk_z = chunk_pos->chunk_z;
+      i32 chunk_x = work->chunk_pos.chunk_x + chunk_offset_x;
+      i32 chunk_y = work->chunk_pos.chunk_y + chunk_offset_y;
+      i32 chunk_z = work->chunk_pos.chunk_z;
       
       Random_series series = random_seed(139 * chunk_x + 593 * chunk_y + 329 * chunk_z);
       
@@ -820,7 +805,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
       for (u32 grass_index = 0; grass_index < 50; grass_index++) {
         assert(random_number_index < array_count(random_number_table));
         
-        Bitmap_id stamp = get_random_bitmap_from(tran_state->asset_list, Asset_tuft, &series);
+        Bitmap_id stamp = get_random_bitmap_from(work->tran_state->asset_list, Asset_tuft, &series);
         
         v2 pos = 
           center + 
@@ -832,13 +817,33 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
     }
   }
   
-  if (all_resources_present(render_group)) {
+  assert(all_resources_present(render_group));
+  
+  render_group_to_output(render_group, bitmap_buffer);
+  finish_render_group(render_group);
+  
+  end_task_with_mem(work->task);
+}
+
+internal
+void
+fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_buffer* ground_buffer, World_position* chunk_pos) {
+  
+  Task_with_memory *task = begin_task_with_mem(tran_state);
+  
+  if (task) {
+    Fill_ground_chunk_work *work = mem_push_struct(&task->arena, Fill_ground_chunk_work);
+    
+    work->task = task;
+    work->tran_state = tran_state;
+    work->game_state = game_state;
+    work->ground_buffer = ground_buffer;
+    work->chunk_pos = *chunk_pos;
     ground_buffer->position = *chunk_pos;
+    
     platform.add_entry(tran_state->low_priority_queue, fill_ground_chunk_work, work);
   }
-  else {
-    end_task_with_mem(work->task);
-  }
+  
 }
 
 internal
@@ -2203,6 +2208,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   
   // output buffers to bitmap
   tiled_render_group_to_output(tran_state->high_priority_queue, render_group, draw_buffer);
+  finish_render_group(render_group);
   
   end_sim(sim_region, game_state);
   

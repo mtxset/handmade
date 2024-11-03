@@ -101,6 +101,8 @@ output_playing_sounds(Audio_state *audio_state, Game_sound_buffer *sound_buffer,
   
   Temp_memory mixer_memory = begin_temp_memory(temp_arena);
   
+  u32 gen_id = begin_generation(asset_list);
+  
   assert((sound_buffer->sample_count & 3) == 0); // aligned by 4
   u32 chunk_count = sound_buffer->sample_count / 4;
   
@@ -133,7 +135,7 @@ output_playing_sounds(Audio_state *audio_state, Game_sound_buffer *sound_buffer,
     
     while (total_chunks_to_mix && !sound_finished) {
       
-      Loaded_sound *loaded_sound = get_sound(asset_list, playing_sound->id);
+      Loaded_sound *loaded_sound = get_sound(asset_list, playing_sound->id, gen_id);
       
       if (loaded_sound) {
         Sound_id next_sound_in_chain = get_next_sound_in_chain(asset_list, playing_sound->id);
@@ -308,6 +310,7 @@ output_playing_sounds(Audio_state *audio_state, Game_sound_buffer *sound_buffer,
     }
   }
   
+  end_generation(asset_list, gen_id);
   end_temp_memory(mixer_memory);
 }
 

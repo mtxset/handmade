@@ -92,6 +92,8 @@ struct Render_group {
   struct Game_asset_list *asset_list; 
   f32 global_alpha;
   
+  u32 generation_id;
+  
   v2 monitor_half_dim_meters;
   Render_transform transform;
   
@@ -100,6 +102,7 @@ struct Render_group {
   u8* push_buffer_base;
   
   u32 missing_resource_count;
+  bool renders_in_background;
 };
 
 #endif //RENDER_GROUP_H
