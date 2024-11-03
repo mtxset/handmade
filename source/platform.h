@@ -272,6 +272,8 @@ typedef struct Game_memory {
   
   Platform_api platform_api;
   
+  u64 cpu_frequency;
+  
 #if INTERNAL
   Debug_cycle_counter counter_list[Debug_cycle_counter_count];
 #endif
@@ -293,6 +295,11 @@ get_gamepad(Game_input* input, i32 input_index) {
 }
 
 extern struct Game_memory* debug_global_memory;
+
+
+#define begin_timed_block(id) u64 debug_cycle_count_##id = __rdtsc();
+#define end_timed_block(id) debug_global_memory->counter_list[Debug_cycle_counter_type_##id].cycle_count += __rdtsc() - debug_cycle_count_##id; debug_global_memory->counter_list[Debug_cycle_counter_type_##id].hit_count++;
+#define get_timed_block(id) debug_cycle_count_##id
 
 #if INTERNAL
 internal

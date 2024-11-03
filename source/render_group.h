@@ -103,6 +103,8 @@ struct Render_group {
   
   u32 missing_resource_count;
   bool renders_in_background;
+  
+  bool inside_render;
 };
 
 #endif //RENDER_GROUP_H

@@ -933,7 +933,7 @@ allocate_render_group(Game_asset_list *asset_list, Memory_arena* arena, u32 max_
   result->asset_list = asset_list;
   result->global_alpha = 1.0f;
   
-  result->generation_id = begin_generation(asset_list);
+  result->generation_id = 0;
   
   result->transform.offset_pos = {0,0,0};
   result->transform.scale = 1.0f;
@@ -941,15 +941,9 @@ allocate_render_group(Game_asset_list *asset_list, Memory_arena* arena, u32 max_
   result->missing_resource_count = 0;
   result->renders_in_background = renders_in_background;
   
+  result->inside_render = false;
+  
   return result;
-}
-
-static
-void
-finish_render_group(Render_group *group) {
-  if (group) {
-    end_generation(group->asset_list, group->generation_id);
-  }
 }
 
 inline
@@ -1081,4 +1075,29 @@ all_resources_present(Render_group *group) {
   bool result = (group->missing_resource_count == 0);
   
   return result;
+}
+
+
+static
+void
+begin_render(Render_group *group) {
+  if (group) {
+    assert(!group->inside_render);
+    group->inside_render = true;
+    
+    group->generation_id = begin_generation(group->asset_list);
+  }
+}
+
+static
+void
+end_render(Render_group *group) {
+  if (group) {
+    assert(group->inside_render);
+    group->inside_render = false;
+    
+    end_generation(group->asset_list, group->generation_id);
+    group->generation_id = 0;
+    group->push_buffer_size = 0;
+  }
 }

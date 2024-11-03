@@ -2,12 +2,19 @@
 
 /// watches ///////////////////////////////////////////////////////////////////
 
-watch: "font"
-watch: "text_metric"
-watch: "src"
-watch: "false"
-watch: "asset_list"
-watch: "array_count(asset_list->in_flight_gen_list)"
+watch: "color"
+watch: "string"
+watch: "at"
+watch: "debug_cycle_count_game_update_render"
+watch: "a"
+watch: "&a"
+
+/// breakpoints ///////////////////////////////////////////////////////////////
+
+breakpoint:
+{
+  location: ("source/game.cpp":1281)
+}
 
 /// targets ///////////////////////////////////////////////////////////////////
 
@@ -62,15 +69,15 @@ recent_file: "source/pacman.cpp"
 recent_file: "source/platform.h"
 recent_file: "source/math.h"
 recent_file: "source/asset.cpp"
-recent_file: "source/render_group.cpp"
-recent_file: "source/asset.h"
-recent_file: "source/game.cpp"
 recent_file: "../../../tools/raddbg/minkernel/crts/ucrt/src/appcrt/heap/debug_heap.cpp"
 recent_file: "../../../tools/raddbg/minkernel/crts/ucrt/src/appcrt/misc/crtmbox.cpp"
 recent_file: "../../../a/_work/1/s/src/vctools/crt/vcstartup/src/startup/exe_main.cpp"
 recent_file: "../../../tools/raddbg/minkernel/crts/ucrt/inc/corecrt_internal_traits.h"
 recent_file: "../../../tools/raddbg/minkernel/crts/ucrt/src/appcrt/heap/free.cpp"
 recent_file: "source/asset_builder.cpp"
+recent_file: "source/render_group.cpp"
+recent_file: "source/asset.h"
+recent_file: "source/game.cpp"
 
 /// exception code filters ////////////////////////////////////////////////////
 

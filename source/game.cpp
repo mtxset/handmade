@@ -755,6 +755,7 @@ PLATFORM_WORK_QUEUE_CALLBACK(fill_ground_chunk_work) {
   
   bool render_in_background = true;
   Render_group* render_group = allocate_render_group(work->tran_state->asset_list, &work->task->arena, 0, render_in_background);
+  begin_render(render_group);
   
   ortographic(render_group, bitmap_buffer->width, bitmap_buffer->height,
               (bitmap_buffer->width -2) / width);
@@ -820,7 +821,7 @@ PLATFORM_WORK_QUEUE_CALLBACK(fill_ground_chunk_work) {
   assert(all_resources_present(render_group));
   
   render_group_to_output(render_group, bitmap_buffer);
-  finish_render_group(render_group);
+  end_render(render_group);
   
   end_task_with_mem(work->task);
 }
@@ -1172,11 +1173,112 @@ bezier_curves(Loaded_bmp* draw_buffer, Game_input* input, Game_state* game_state
   }
 }
 
+static Render_group *debug_render_group;
+static f32 left_edge;
+static f32 at_y;
+static f32 font_scale;
+
+static
+void
+debug_reset(u32 width, u32 height) {
+  font_scale = 20.0f;
+  ortographic(debug_render_group, width, height, 1.0f);
+  at_y = 0.5f * height - 0.5f * font_scale;
+  left_edge = -0.5f * width + 0.5f * font_scale;
+}
+
+static
+void
+debug_text_line(char *string) {
+  
+  if (!debug_render_group)
+    return;
+  
+  Render_group *render_group = debug_render_group;
+  
+  Asset_vector match_vector = {};
+  Asset_vector weight_vector = {};
+  weight_vector.e[Tag_unicode_codepoint] = 1.0f;
+  
+  f32 char_scale = font_scale;
+  v4 color = white_v4;
+  f32 at_x = left_edge;
+  
+  for (char *at = string; *at; ) {
+    if (at[0] == '\\' &&
+        at[1] == '#' &&
+        at[2] != 0 &&
+        at[3] != 0 &&
+        at[4] != 0) {
+      
+      f32 scale = 1.0f / 9.0f;
+      
+      color = v4 {
+        clamp01(scale * (f32)(at[2] - '0')),
+        clamp01(scale * (f32)(at[3] - '0')),
+        clamp01(scale * (f32)(at[4] - '0')),
+        1.0f
+      };
+      
+      at += 5;
+    }
+    else if (at[0] == '\\' &&
+             at[1] == '^' &&
+             at[2] != 0) {
+      f32 scale = 1.0f / 9.0f;
+      char_scale = font_scale * clamp01(scale * (f32)(at[2] - '0'));
+      at += 3;
+    }
+    else {
+      
+      if (*at != ' ') {
+        match_vector.e[Tag_unicode_codepoint] = *at;
+        
+        Bitmap_id id = get_best_match_bitmap_from(render_group->asset_list, Asset_font, &match_vector, &weight_vector);
+        
+        push_bitmap(render_group, id, char_scale, v3{at_x, at_y, 0}, color);
+      }
+      
+      at_x += char_scale;
+      at++;
+    }
+  }
+  
+  at_y -= 1.2f * font_scale;
+}
+
+static
+void
+overlay_cycle_counters(Game_memory *memory) {
+  char *cycle_counter_names[] = {
+    "game_update_render",
+    "render_group_to_output",
+    "render_draw_rect_slow",
+    "process_pixel",
+    "render_draw_rect_quak",
+  };
+  
+  debug_text_line("\\#900DEBUG \\#090CYCLE \\#990\\^5COUNTS:");
+  
+  for (u32 counter_index = 0; counter_index < array_count(memory->counter_list); counter_index++) {
+    
+    Debug_cycle_counter* counter = memory->counter_list + counter_index;
+    
+    if (counter->hit_count == 0) 
+      continue;
+    
+    debug_text_line(cycle_counter_names[counter_index]);
+  }
+  
+}
+
 extern "C" // to prevent name mangle by compiler, so function can looked up by name exactly
 void 
 game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer) {
   
   platform = memory->platform_api;
+  
+  begin_timed_block(game_update_render);
   
 #if INTERNAL
   debug_global_memory = memory;
@@ -1450,6 +1552,9 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     u32 size = megabytes(10);
     tran_state->asset_list = allocate_game_asset_list(&tran_state->arena, size, tran_state);
     
+    bool render_in_background = false;
+    debug_render_group = allocate_render_group(tran_state->asset_list, &tran_state->arena, megabytes(16), render_in_background);
+    
 #define CB_MUSIC
     
     game_state->music = play_sound(&game_state->audio_state, get_first_sound_from(tran_state->asset_list, Asset_music));
@@ -1492,6 +1597,11 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     }
     
     tran_state->is_initialized = true;
+  }
+  
+  if (debug_render_group) {
+    begin_render(debug_render_group);
+    debug_reset(bitmap_buffer->width, bitmap_buffer->height);
   }
   
 #if 0
@@ -1614,7 +1724,9 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   
   Temp_memory render_memory = begin_temp_memory(&tran_state->arena);
   
-  Render_group* render_group = allocate_render_group(tran_state->asset_list, &tran_state->arena, megabytes(4), _(lock)false);
+  bool render_in_background = false;
+  Render_group* render_group = allocate_render_group(tran_state->asset_list, &tran_state->arena, megabytes(4), render_in_background);
+  begin_render(render_group);
   
   f32 width_of_monitor = 0.635f;
   f32 meters_to_pixels = (f32)draw_buffer->width * width_of_monitor;
@@ -2208,7 +2320,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   
   // output buffers to bitmap
   tiled_render_group_to_output(tran_state->high_priority_queue, render_group, draw_buffer);
-  finish_render_group(render_group);
+  end_render(render_group);
   
   end_sim(sim_region, game_state);
   
@@ -2217,6 +2329,17 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   
   check_arena(&game_state->world_arena);
   check_arena(&tran_state->arena);
+  
+  end_timed_block(game_update_render);
+  
+  u64 game_update_render_cycles = get_timed_block(game_update_render);
+  
+  overlay_cycle_counters(memory);
+  
+  if (debug_render_group) {
+    tiled_render_group_to_output(tran_state->high_priority_queue, debug_render_group, draw_buffer);
+    end_render(debug_render_group);
+  }
   
 #if 0
   bezier_curves(draw_buffer, input, game_state);

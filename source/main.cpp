@@ -17,21 +17,6 @@
 // running as exe as admin helps???
 #pragma optimize("", off)
 
-/* Add to win32 layer
-- save games locations
-- getting handle of our own executable
-- asset loading path
-- raw input
-- threading
-- sleep/timeBeginPeriod
-- ClipCursor()
-- fullscreen support
-- WM_SETCURSOR (cursor visibility)
-- QueryCancelAutoplay 
-- Hardware acceleration opengl or dx
-...
-*/
-
 // if for recording of input and gamestate we use disk this will allocate file of PERMANENT_MEMORY_SIZE_MB + TRANSIENT_MEMORY_SIZE_MB size, and that will hang game till it's written
 global_var const i32           PERMANENT_MEMORY_SIZE_MB = 256;
 global_var const i32           TRANSIENT_MEMORY_SIZE_MB = 1024;
@@ -1310,6 +1295,8 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     memory.platform_api.debug_free_file_memory = debug_free_file_memory;
     memory.platform_api.debug_read_entire_file = debug_read_entire_file;
     memory.platform_api.debug_write_entire_file = debug_write_entire_file;
+    
+    memory.cpu_frequency = Global_perf_freq;
     
     // consider trying MEM_LARGE_PAGES which would enable larger virtual memory page sizes (2mb? compared to 4k pages).
     // That would allow Translation lookaside buffer (TLB) (cpu table between physical memory and virtual) to work faster, maybe.
