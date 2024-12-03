@@ -1181,7 +1181,7 @@ static f32 font_scale;
 static
 void
 debug_reset(u32 width, u32 height) {
-  font_scale = 20.0f;
+  font_scale = 1.0f;
   ortographic(debug_render_group, width, height, 1.0f);
   at_y = 0.5f * height - 0.5f * font_scale;
   left_edge = -0.5f * width + 0.5f * font_scale;
@@ -1230,21 +1230,23 @@ debug_text_line(char *string) {
       at += 3;
     }
     else {
-      
+      f32 char_dim = char_scale * 10.0f;
       if (*at != ' ') {
         match_vector.e[Tag_unicode_codepoint] = *at;
         
         Bitmap_id id = get_best_match_bitmap_from(render_group->asset_list, Asset_font, &match_vector, &weight_vector);
+        Hha_bitmap *info = get_bitmap_info(render_group->asset_list, id);
+        char_dim = char_scale * (f32)(info->dim[0] + 2);
         
-        push_bitmap(render_group, id, char_scale, v3{at_x, at_y, 0}, color);
+        push_bitmap(render_group, id, char_scale * (f32)info->dim[1], v3{at_x, at_y, 0}, color);
       }
       
-      at_x += char_scale;
+      at_x += char_dim;
       at++;
     }
   }
   
-  at_y -= 1.2f * font_scale;
+  at_y -= 1.2f * 80.0f * font_scale;
 }
 
 static
@@ -1557,7 +1559,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     
 #define CB_MUSIC
     
-    game_state->music = play_sound(&game_state->audio_state, get_first_sound_from(tran_state->asset_list, Asset_music));
+    // game_state->music = play_sound(&game_state->audio_state, get_first_sound_from(tran_state->asset_list, Asset_music));
     
     tran_state->ground_buffer_count = 256;
     tran_state->ground_buffer_list = mem_push_array(&tran_state->arena, tran_state->ground_buffer_count, Ground_buffer);
@@ -2176,148 +2178,150 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   push_saturation(render_group, 0.5f + 0.5f * sin(10.0f * game_state->time));
 #endif 
   
+  bool particle_test = false;
 #define CB_PARTICLES
-  render_group->global_alpha = 1.0f;
-  render_group->transform.offset_pos = v3_zero;
-  u32 particle_count = array_count(game_state->particle_list);
-  mem_zero_struct(game_state->particle_cell_list);
-  
-  f32 grid_scale = .5f;
-  f32 inv_grid_scale = 1.0f / grid_scale;
-  v3 grid_origin = v3{PARTICLE_CELL_DIM * -0.5f, 0, 0} * grid_scale;
-  for (u32 particle_index = 0; particle_index < particle_count; particle_index++) {
-    Particle *particle = game_state->particle_list + particle_index++;
+  if (particle_test) {
+    render_group->global_alpha = 1.0f;
+    render_group->transform.offset_pos = v3_zero;
+    u32 particle_count = array_count(game_state->particle_list);
+    mem_zero_struct(game_state->particle_cell_list);
     
-    v3 pos = (particle->pos - grid_origin) * inv_grid_scale;
-    
-    i32 x = round_f32_i32(pos.x);
-    i32 y = round_f32_i32(pos.y);
-    
-    if (x < 0) x = 0; if (x > PARTICLE_CELL_DIM - 1) x = PARTICLE_CELL_DIM - 1;
-    if (y < 0) y = 0; if (y > PARTICLE_CELL_DIM - 1) y = PARTICLE_CELL_DIM - 1;
-    
-    Particle_cell *cell = &game_state->particle_cell_list[y][x];
-    
-    f32 density = particle->color.a;
-    cell->density += density;
-    cell->velocity_times_density += density * particle->velocity;
-  }
-  
-  bool render_grid = false;
-  if (render_grid) {
-    
-    for (u32 y = 0; y < PARTICLE_CELL_DIM; y += 1) {
-      for (u32 x = 0; x < PARTICLE_CELL_DIM; x += 1) {
-        Particle_cell *cell = &game_state->particle_cell_list[y][x];
-        
-        v3 pos = v3{ (f32)x, (f32)y, 0 } * grid_scale;
-        pos += grid_origin;
-        f32 color_v = clamp01(cell->density * .1f);
-        v4 color = {color_v, color_v, color_v, 1.0f};
-        push_rect(render_group, pos, v2_one * grid_scale, color);
-      }
-    }
-    
-  }
-  
-  Random_series *random = &game_state->general_entropy;
-  u32 new_particles = 1;
-  f32 nozzle_pressure = 5.0f;
-  for (u32 particle_spawn_index = 0; particle_spawn_index < new_particles; particle_spawn_index++) {
-    Particle *particle = game_state->particle_list + game_state->next_particle++;
-    
-    if (game_state->next_particle >= particle_count) {
-      game_state->next_particle = 0;
-    }
-    
-    particle->pos = v3{random_between(random, -0.1, 0.1f), 0.5f, 0};
-    particle->velocity = v3{
-      random_between(random, -0.05, 0.05f), 
-      random_between(random, 1.5f, 2.0f) * nozzle_pressure,
-      0};
-    particle->acceleration = v3{0, -9.8, 0};
-    
-    particle->color = white_v4;
-    particle->color.a = random_between(random, .3, .8f);
-    
-    particle->size = 1.0f;
-    
-    Asset_vector match_vector = {};
-    Asset_vector weight_vector = {};
-    
-    char text[] = "mtx";
-    u32 random_index = random_choise(random, array_count(text) - 1);
-    match_vector.e[Tag_unicode_codepoint] = (f32)text[random_index];
-    weight_vector.e[Tag_unicode_codepoint] = 1.0f;
-    
-    particle->bitmap_id = get_best_match_bitmap_from(tran_state->asset_list, Asset_font, &match_vector, &weight_vector);
-  }
-  
-  f32 delta_time = input->time_delta;
-  
-  for (u32 particle_index = 0; particle_index < particle_count; particle_index++) {
-    Particle *particle = game_state->particle_list + particle_index;
-    
-    v3 pos = (particle->pos - grid_origin) * inv_grid_scale;
-    
-    i32 x = (i32)pos.x;
-    i32 y = (i32)pos.y;
-    
-    x = clamp_i32(x, 1, PARTICLE_CELL_DIM - 2);
-    y = clamp_i32(y, 1, PARTICLE_CELL_DIM - 2);
-    
-    Particle_cell *cell = &game_state->particle_cell_list[y][x];
-    
-    if (particle->color.a < 0.0f)
-      particle->color.a = 0.0f;
-    
-    if (particle->color.a > .9f) {
-      particle->color.a = .5f * clamp_map_to_range(1.0f, particle->color.a, .9f);
-    }
-    
-    if (particle->pos.y < .0f) {
-      f32 energy_loss = .3f; // impact energy loss
-      f32 elasticity = .08f; // restitution - energy conserved
-      f32 friction = .9f;    // horizontal (slide/roll)
-      particle->pos.y = -particle->pos.y;
+    f32 grid_scale = .5f;
+    f32 inv_grid_scale = 1.0f / grid_scale;
+    v3 grid_origin = v3{PARTICLE_CELL_DIM * -0.5f, 0, 0} * grid_scale;
+    for (u32 particle_index = 0; particle_index < particle_count; particle_index++) {
+      Particle *particle = game_state->particle_list + particle_index++;
       
-      particle->velocity.y = -particle->velocity.y * elasticity * energy_loss;
-      particle->velocity.x *= (1.0f - friction);
+      v3 pos = (particle->pos - grid_origin) * inv_grid_scale;
+      
+      i32 x = round_f32_i32(pos.x);
+      i32 y = round_f32_i32(pos.y);
+      
+      if (x < 0) x = 0; if (x > PARTICLE_CELL_DIM - 1) x = PARTICLE_CELL_DIM - 1;
+      if (y < 0) y = 0; if (y > PARTICLE_CELL_DIM - 1) y = PARTICLE_CELL_DIM - 1;
+      
+      Particle_cell *cell = &game_state->particle_cell_list[y][x];
+      
+      f32 density = particle->color.a;
+      cell->density += density;
+      cell->velocity_times_density += density * particle->velocity;
     }
     
-    // dispersion
-    Particle_cell *cell_l = &game_state->particle_cell_list[y][x - 1];
-    Particle_cell *cell_r = &game_state->particle_cell_list[y][x + 1];
-    Particle_cell *cell_d = &game_state->particle_cell_list[y - 1][x];
-    Particle_cell *cell_u = &game_state->particle_cell_list[y + 1][x];
+    bool render_grid = false;
+    if (render_grid) {
+      
+      for (u32 y = 0; y < PARTICLE_CELL_DIM; y += 1) {
+        for (u32 x = 0; x < PARTICLE_CELL_DIM; x += 1) {
+          Particle_cell *cell = &game_state->particle_cell_list[y][x];
+          
+          v3 pos = v3{ (f32)x, (f32)y, 0 } * grid_scale;
+          pos += grid_origin;
+          f32 color_v = clamp01(cell->density * .1f);
+          v4 color = {color_v, color_v, color_v, 1.0f};
+          push_rect(render_group, pos, v2_one * grid_scale, color);
+        }
+      }
+      
+    }
     
-    v3 dispersion = {};
-    f32 force = 2.0f;
-    dispersion += force * (cell->density - cell_l->density) * v3{-1, 0, 0};
-    dispersion += force * (cell->density - cell_r->density) * v3{+1, 0, 0};
-    dispersion += force * (cell->density - cell_d->density) * v3{0, -1, 0};
-    dispersion += force * (cell->density - cell_u->density) * v3{0, +1, 0};
+    Random_series *random = &game_state->general_entropy;
+    u32 new_particles = 1;
+    f32 nozzle_pressure = 5.0f;
+    for (u32 particle_spawn_index = 0; particle_spawn_index < new_particles; particle_spawn_index++) {
+      Particle *particle = game_state->particle_list + game_state->next_particle++;
+      
+      if (game_state->next_particle >= particle_count) {
+        game_state->next_particle = 0;
+      }
+      
+      particle->pos = v3{random_between(random, -0.1, 0.1f), 0.5f, 0};
+      particle->velocity = v3{
+        random_between(random, -0.05, 0.05f), 
+        random_between(random, 1.5f, 2.0f) * nozzle_pressure,
+        0};
+      particle->acceleration = v3{0, -9.8, 0};
+      
+      particle->color = white_v4;
+      particle->color.a = random_between(random, .3, .8f);
+      
+      particle->size = 1.0f;
+      
+      Asset_vector match_vector = {};
+      Asset_vector weight_vector = {};
+      
+      char text[] = "mtx";
+      u32 random_index = random_choise(random, array_count(text) - 1);
+      match_vector.e[Tag_unicode_codepoint] = (f32)text[random_index];
+      weight_vector.e[Tag_unicode_codepoint] = 1.0f;
+      
+      particle->bitmap_id = get_best_match_bitmap_from(tran_state->asset_list, Asset_font, &match_vector, &weight_vector);
+    }
     
-    v3 acceleration = particle->acceleration + dispersion;
+    f32 delta_time = input->time_delta;
     
-    particle->size -= .3f * input->time_delta;
-    
-    if (particle->size < 0.0)
-      particle->size = 0;
-    
-    particle->pos += 
-      .5f * square_root(delta_time) * acceleration * delta_time +
-      particle->velocity * delta_time;
-    
-    particle->velocity += acceleration * delta_time;
-    particle->color.a -= 0.01f * input->time_delta;
-    
-    push_bitmap(render_group, particle->bitmap_id, particle->size, particle->pos, particle->color);
-    
-    //Bitmap_id id = get_first_bitmap_from(tran_state->asset_list, Asset_tree);
-    //push_bitmap(render_group, id, particle->size, particle->pos, particle->color);
+    for (u32 particle_index = 0; particle_index < particle_count; particle_index++) {
+      Particle *particle = game_state->particle_list + particle_index;
+      
+      v3 pos = (particle->pos - grid_origin) * inv_grid_scale;
+      
+      i32 x = (i32)pos.x;
+      i32 y = (i32)pos.y;
+      
+      x = clamp_i32(x, 1, PARTICLE_CELL_DIM - 2);
+      y = clamp_i32(y, 1, PARTICLE_CELL_DIM - 2);
+      
+      Particle_cell *cell = &game_state->particle_cell_list[y][x];
+      
+      if (particle->color.a < 0.0f)
+        particle->color.a = 0.0f;
+      
+      if (particle->color.a > .9f) {
+        particle->color.a = .5f * clamp_map_to_range(1.0f, particle->color.a, .9f);
+      }
+      
+      if (particle->pos.y < .0f) {
+        f32 energy_loss = .3f; // impact energy loss
+        f32 elasticity = .08f; // restitution - energy conserved
+        f32 friction = .9f;    // horizontal (slide/roll)
+        particle->pos.y = -particle->pos.y;
+        
+        particle->velocity.y = -particle->velocity.y * elasticity * energy_loss;
+        particle->velocity.x *= (1.0f - friction);
+      }
+      
+      // dispersion
+      Particle_cell *cell_l = &game_state->particle_cell_list[y][x - 1];
+      Particle_cell *cell_r = &game_state->particle_cell_list[y][x + 1];
+      Particle_cell *cell_d = &game_state->particle_cell_list[y - 1][x];
+      Particle_cell *cell_u = &game_state->particle_cell_list[y + 1][x];
+      
+      v3 dispersion = {};
+      f32 force = 2.0f;
+      dispersion += force * (cell->density - cell_l->density) * v3{-1, 0, 0};
+      dispersion += force * (cell->density - cell_r->density) * v3{+1, 0, 0};
+      dispersion += force * (cell->density - cell_d->density) * v3{0, -1, 0};
+      dispersion += force * (cell->density - cell_u->density) * v3{0, +1, 0};
+      
+      v3 acceleration = particle->acceleration + dispersion;
+      
+      particle->size -= .3f * input->time_delta;
+      
+      if (particle->size < 0.0)
+        particle->size = 0;
+      
+      particle->pos += 
+        .5f * square_root(delta_time) * acceleration * delta_time +
+        particle->velocity * delta_time;
+      
+      particle->velocity += acceleration * delta_time;
+      particle->color.a -= 0.01f * input->time_delta;
+      
+      push_bitmap(render_group, particle->bitmap_id, particle->size, particle->pos, particle->color);
+      
+      //Bitmap_id id = get_first_bitmap_from(tran_state->asset_list, Asset_tree);
+      //push_bitmap(render_group, id, particle->size, particle->pos, particle->color);
+    }
   }
-  
   // output buffers to bitmap
   tiled_render_group_to_output(tran_state->high_priority_queue, render_group, draw_buffer);
   end_render(render_group);

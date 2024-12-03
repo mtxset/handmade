@@ -329,6 +329,15 @@ get_sound_info(Game_asset_list *asset_list, Sound_id id) {
 }
 
 inline 
+Hha_bitmap*
+get_bitmap_info(Game_asset_list *asset_list, Bitmap_id id) {
+  assert(id.value <= asset_list->asset_count);
+  Hha_bitmap *result = &asset_list->asset_list[id.value].hha.bitmap;
+  
+  return result;
+}
+
+inline 
 Sound_id
 get_next_sound_in_chain(Game_asset_list *asset_list, Sound_id id) {
   Sound_id result = {};

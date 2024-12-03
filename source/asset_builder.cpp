@@ -345,7 +345,7 @@ load_bmp(char* filename) {
 
 static
 Loaded_bmp
-load_glyph(char *filename, char* fontname, u32 codepoint) {
+load_glyph(char *filename, char* fontname, u32 codepoint, Hha_asset *asset) {
   
   Loaded_bmp bmp = {};
   
@@ -353,6 +353,7 @@ load_glyph(char *filename, char* fontname, u32 codepoint) {
   
   static void *bits = 0;
   static HDC device_context = 0;
+  static TEXTMETRIC text_metric;
   
   i32 max_width = 1024;
   i32 max_height = 1024;
@@ -394,7 +395,6 @@ load_glyph(char *filename, char* fontname, u32 codepoint) {
     SelectObject(device_context, font);
     SetBkColor(device_context, RGB(0, 0, 0));
     
-    TEXTMETRIC text_metric;
     GetTextMetrics(device_context, &text_metric);
   }
   
@@ -405,11 +405,11 @@ load_glyph(char *filename, char* fontname, u32 codepoint) {
   SIZE size;
   GetTextExtentPoint32W(device_context, &point, 1, &size);
   
-  i32 width = size.cx;
-  i32 height = size.cy;
+  i32 bound_width = size.cx;
+  i32 bound_height = size.cy;
   
-  if (width  > max_width)  width  = max_width;
-  if (height > max_height) height = max_height;
+  if (bound_width  > max_width)  bound_width  = max_width;
+  if (bound_height > max_height) bound_height = max_height;
   
   SetTextColor(device_context, RGB(255, 255, 255));
   TextOutW(device_context, 0, 0, &point, 1);
@@ -421,9 +421,9 @@ load_glyph(char *filename, char* fontname, u32 codepoint) {
   
   u32 *row = (u32*)bits + (max_height - 1) * max_width;
   
-  for (i32 y = 0; y < height; y++) {
+  for (i32 y = 0; y < bound_height; y++) {
     u32 *pixel = row;
-    for (i32 x = 0; x < width; x++) {
+    for (i32 x = 0; x < bound_width; x++) {
       
       //COLORREF pixel = GetPixel(device_context, x, y);
       
@@ -449,8 +449,8 @@ load_glyph(char *filename, char* fontname, u32 codepoint) {
     max_y++;
 #endif
     
-    width  = (max_x - min_x) + 1;
-    height = (max_y - min_y) + 1;
+    i32 width  = (max_x - min_x) + 1;
+    i32 height = (max_y - min_y) + 1;
     
     bmp.width = width + 2;
     bmp.height = height + 2;
@@ -464,8 +464,8 @@ load_glyph(char *filename, char* fontname, u32 codepoint) {
     u32 *src_row = (u32*)bits      + (max_height - 1 - min_y) * max_width;
     
     for (i32 y = min_y; y <= max_y; y += 1) {
-      u32 *dst = (u32*)dst_row + 1;
       u32 *src = (u32*)src_row + min_x;
+      u32 *dst = (u32*)dst_row + 1;
       
       for (i32 x = min_x; x <= max_x; x += 1) {
         //COLORREF pixel = GetPixel(device_context, x, y);
@@ -486,6 +486,8 @@ load_glyph(char *filename, char* fontname, u32 codepoint) {
     }
   }
   
+  asset->bitmap.align_pcent[0] = 1.0f / (f32)bmp.width;
+  asset->bitmap.align_pcent[1] = (1.0f + (max_y - (bound_height - text_metric.tmDescent))) / (f32)bmp.height;
 #else
   
   File_read_result font_file = read_entire_file(filename);
@@ -779,7 +781,7 @@ write_hha_file(Game_asset_list *asset_list, char *filename) {
         assert(src->type == Asset_type_bitmap || src->type == Asset_type_font);
         
         if (src->type == Asset_type_font) {
-          bitmap = load_glyph(src->filename, src->fontname, src->codepoint);
+          bitmap = load_glyph(src->filename, src->fontname, src->codepoint, dst);
         }
         else {
           bitmap = load_bmp(src->filename);
