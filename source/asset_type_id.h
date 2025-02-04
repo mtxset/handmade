@@ -30,7 +30,7 @@ enum Asset_type_id {
   Asset_torso,
   
   Asset_font,
-  
+  Asset_font_glyph,
   //Asset_monster,
   //Asset_familiar,
   

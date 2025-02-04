@@ -873,7 +873,8 @@ write_non_hero() {
   
   begin_asset_type(asset_list, Asset_font);
   for (u32 ch = 0; ch < 256; ch++) {
-    add_char_asset(asset_list, "c:/windows/Fonts/cour.ttf", "Courier New", ch);
+    add_char_asset(asset_list, "c:/windows/Fonts/arial.ttf", "Arial", ch);
+    //add_char_asset(asset_list, "c:/windows/Fonts/cour.ttf", "Courier New", ch);
     //add_char_asset(asset_list, "../data/m3x6.ttf", ch);
     add_tag(asset_list, Tag_unicode_codepoint, (f32)ch);
   }

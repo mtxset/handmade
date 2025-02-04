@@ -226,6 +226,68 @@ acquire_asset_memory(Game_asset_list *asset_list, u32 size, u32 asset_index) {
   return result;
 }
 
+
+void 
+load_font(Game_asset_list *asset_list, Bitmap_id id, bool immediate) {
+  
+  Asset *asset = asset_list->asset_list + id.value;
+  
+  if (id.value &&
+      atomic_compare_exchange_u32((u32*)&asset->state, Asset_state_queued, Asset_state_unloaded) == Asset_state_unloaded) {
+    
+    Task_with_memory *task = 0;
+    
+    if (!immediate) {
+      task = begin_task_with_mem(asset_list->tran_state);
+    }
+    
+    if (immediate || task) {
+      
+      Hha_font *info = &asset->hha.font;
+      
+      u32 horizontal_advance_size = sizeof(f32) * info->code_point_count * info->code_point_count;
+      u32 code_point_size = info->code_point_count * sizeof(Bitmap_id);
+      u32 size_data = code_point_size + horizontal_advance_size;
+      u32 size_total = size_data + sizeof(Asset_memory_header);
+      
+      asset->header = (Asset_memory_header*)acquire_asset_memory(asset_list, size_total, id.value);
+      
+      Loaded_font *font = &asset->header->font;
+      font->code_point_list = (Bitmap_id*)(asset->header + 1);
+      font->horizontal_advance = (f32*)((u8*)font->code_point_list + code_point_size);
+      
+      Load_asset_work work;
+      work.task = task;
+      work.asset = asset;
+      work.handle = get_file_handle_for(asset_list, asset->file_index);
+      work.offset = asset->hha.data_offset;
+      work.size = size_data;
+      work.destination = font->code_point_list;
+      work.final_state = Asset_state_loaded;
+      
+      if (task) {
+        Load_asset_work *task_work = mem_push_struct(&task->arena, Load_asset_work);
+        *task_work = work;
+        platform.add_entry(asset_list->tran_state->low_priority_queue, load_asset_work, task_work);
+      }
+      else {
+        load_asset_work_directly(&work);
+      }
+      
+    }
+    else {
+      asset->state = Asset_state_unloaded;
+    }
+  }
+  else if (immediate) {
+    
+    Asset_state volatile *state = (Asset_state volatile*)&asset->state;
+    
+    while (*state == Asset_state_queued) {}
+    
+  }
+}
+
 void 
 load_bitmap(Game_asset_list *asset_list, Bitmap_id id, bool immediate) {
   
@@ -293,7 +355,6 @@ load_bitmap(Game_asset_list *asset_list, Bitmap_id id, bool immediate) {
     
   }
 }
-
 
 void
 load_sound(Game_asset_list *asset_list, Sound_id id) {
@@ -449,6 +510,17 @@ get_best_match_sound_from(Game_asset_list* asset_list, Asset_type_id type_id, As
   return result;
 }
 
+
+static
+Font_id
+get_best_match_font_from(Game_asset_list *asset_list, Asset_type_id type_id, Asset_vector *match_vector, Asset_vector *weight_vector) {
+  
+  Font_id result = {};
+  result.value = get_best_match_asset_from(asset_list, type_id, match_vector, weight_vector);
+  
+  return result;
+}
+
 inline
 Sound_id
 get_first_sound_from(Game_asset_list *asset_list, Asset_type_id type_id) {
@@ -463,6 +535,47 @@ Sound_id
 get_random_sound_from(Game_asset_list *asset_list, Asset_type_id type_id, Random_series *series) {
   Sound_id result = {};
   result.value = get_random_slot_from(asset_list, type_id, series);
+  
+  return result;
+}
+
+inline
+u32
+get_clamped_code_point(Hha_font *info, u32 code_point) {
+  
+  u32 result = 0;
+  
+  if (code_point < info->code_point_count) {
+    result = code_point;
+  }
+  
+  return result;
+}
+
+static
+f32
+get_horizontal_advance_for_pair(Hha_font *info, Loaded_font *font, u32 desired_prev_code_point, u32 desired_code_point) {
+  u32 prev_code_point = get_clamped_code_point(info, desired_prev_code_point);
+  u32 code_point      = get_clamped_code_point(info, desired_code_point);
+  
+  f32 result = font->horizontal_advance[prev_code_point * info->code_point_count + code_point];
+  
+  return result;
+}
+
+static
+Bitmap_id
+get_bitmap_for_glyph(Game_asset_list *asset_list, Hha_font *info, Loaded_font *font, u32 desired_code_point) {
+  u32 code_point = get_clamped_code_point(info, desired_code_point);
+  Bitmap_id result = font->code_point_list[code_point];
+  
+  return result;
+}
+
+static
+f32
+get_line_advance_for(Hha_font *info, Loaded_font *font) {
+  f32 result = info->line_advance;
   
   return result;
 }

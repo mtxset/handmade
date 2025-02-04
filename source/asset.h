@@ -96,6 +96,11 @@ struct Sound_id {
   u32 value;
 };
 
+struct Loaded_font {
+  Bitmap_id *code_point_list;
+  f32 *horizontal_advance;
+};
+
 struct Loaded_sound {
   u32 sample_count;
   u32 channel_count;
@@ -172,6 +177,7 @@ struct Asset_memory_header {
   union {
     Loaded_bmp   bitmap;
     Loaded_sound sound;
+    Loaded_font  font;
   };
 };
 
@@ -302,6 +308,26 @@ get_sound(Game_asset_list *asset_list, Sound_id id, u32 gen_id) {
   Asset_memory_header *header = get_asset(asset_list, id.value, gen_id);
   
   Loaded_sound *result = header ? &header->sound : 0;
+  
+  return result;
+}
+
+
+inline
+Loaded_font*
+get_font(Game_asset_list *asset_list, Font_id id, u32 generation_id) {
+  Asset_memory_header *header = get_asset(asset_list, id.value, generation_id);
+  
+  Loaded_font *result = header ? &header->font : 0;
+  
+  return result;
+}
+
+inline 
+Hha_font*
+get_font_info(Game_asset_list *asset_list, Font_id id) {
+  assert(id.value <= asset_list->asset_count);
+  Hha_font *result = &asset_list->asset_list[id.value].hha.font;
   
   return result;
 }

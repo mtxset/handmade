@@ -1200,6 +1200,16 @@ debug_text_line(char *string) {
   Asset_vector weight_vector = {};
   weight_vector.e[Tag_unicode_codepoint] = 1.0f;
   
+  Font_id font_id = get_best_match_font_from(render_group->asset_list, Asset_font, &match_vector, &weight_vector);
+  
+  Loaded_font *font = get_font(render_group->asset_list, font_id, render_group->generation_id);
+  
+  if (!font)
+    return;
+  
+  Hha_font *info = get_font_info(render_group->asset_list, font_id);
+  
+  u32 prev_code_point = 0;
   f32 char_scale = font_scale;
   v4 color = white_v4;
   f32 at_x = left_edge;
@@ -1230,23 +1240,29 @@ debug_text_line(char *string) {
       at += 3;
     }
     else {
-      f32 char_dim = char_scale * 10.0f;
-      if (*at != ' ') {
-        match_vector.e[Tag_unicode_codepoint] = *at;
+      
+      u32 code_point = *at;
+      f32 code_point_advance = get_horizontal_advance_for_pair(info, font, prev_code_point, code_point);
+      f32 advance_x = char_scale * code_point_advance;
+      
+      at_x += advance_x;
+      
+      if (code_point != ' ') {
         
-        Bitmap_id id = get_best_match_bitmap_from(render_group->asset_list, Asset_font, &match_vector, &weight_vector);
-        Hha_bitmap *info = get_bitmap_info(render_group->asset_list, id);
-        char_dim = char_scale * (f32)(info->dim[0] + 2);
+        Bitmap_id id = get_bitmap_for_glyph(render_group->asset_list, info, font, code_point);
+        Hha_bitmap *bitmap_info = get_bitmap_info(render_group->asset_list, id);
         
-        push_bitmap(render_group, id, char_scale * (f32)info->dim[1], v3{at_x, at_y, 0}, color);
+        f32 size = (f32)bitmap_info->dim[1];
+        
+        push_bitmap(render_group, id, char_scale * size, v3{at_x, at_y, 0}, color);
       }
       
-      at_x += char_dim;
+      prev_code_point = code_point;
       at++;
     }
   }
   
-  at_y -= 1.2f * 80.0f * font_scale;
+  at_y -= get_line_advance_for(info, font) * font_scale;
 }
 
 static
@@ -1264,7 +1280,7 @@ overlay_cycle_counters(Game_memory *memory) {
   
   for (u32 counter_index = 0; counter_index < array_count(memory->counter_list); counter_index++) {
     
-    Debug_cycle_counter* counter = memory->counter_list + counter_index;
+    Debug_cycle_counter *counter = memory->counter_list + counter_index;
     
     if (counter->hit_count == 0) 
       continue;

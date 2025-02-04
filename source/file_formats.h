@@ -7,6 +7,10 @@
 
 #pragma pack(push, 1)
 
+struct Font_id {
+  u32 value;
+};
+
 struct Hha_header {
 #define HHA_MAGIC_VALUE CODE('h','h','a','f')
   u32 magic_value;
@@ -51,6 +55,11 @@ struct Hha_sound {
   u32 chain;
 };
 
+struct Hha_font {
+  u32 code_point_count;
+  f32 line_advance;
+};
+
 struct Hha_asset {
   u64 data_offset;
   u32 first_tag_index;
@@ -59,6 +68,7 @@ struct Hha_asset {
   union {
     Hha_bitmap bitmap;
     Hha_sound  sound;
+    Hha_font   font;
   };
 };
 #pragma pack(pop)
