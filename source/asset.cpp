@@ -226,6 +226,15 @@ acquire_asset_memory(Game_asset_list *asset_list, u32 size, u32 asset_index) {
   return result;
 }
 
+inline 
+Asset_file*
+get_file(Game_asset_list *asset_list, u32 file_index) {
+  assert(file_index < asset_list->file_count);
+  
+  Asset_file *result = asset_list->file_list + file_index;
+  
+  return result;
+}
 
 void 
 load_font(Game_asset_list *asset_list, Bitmap_id id, bool immediate) {
@@ -253,6 +262,7 @@ load_font(Game_asset_list *asset_list, Bitmap_id id, bool immediate) {
       asset->header = (Asset_memory_header*)acquire_asset_memory(asset_list, size_total, id.value);
       
       Loaded_font *font = &asset->header->font;
+      font->bitmap_id_offset = get_file(asset_list, asset->file_index)->font_bitmap_id_offset;
       font->code_point_list = (Bitmap_id*)(asset->header + 1);
       font->horizontal_advance = (f32*)((u8*)font->code_point_list + code_point_size);
       
@@ -617,6 +627,7 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
     Asset_file *file = asset_list->file_list + file_index;
     
     file->tag_base = asset_list->tag_count;
+    file->font_bitmap_id_offset = 0;
     
     mem_zero_struct(file->header);
     file->handle = platform.open_next_file(&file_group);
@@ -676,6 +687,10 @@ allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran
         
         if (source_type->type_id != dst_type_id)
           continue;
+        
+        if (source_type->type_id == Asset_font_glyph) {
+          file->font_bitmap_id_offset = asset_count - source_type->first_asset_index;
+        }
         
         u32 asset_count_for_type = source_type->one_past_last_asset_index - source_type->first_asset_index;
         

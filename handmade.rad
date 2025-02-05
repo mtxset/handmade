@@ -14,7 +14,17 @@ watch: "asset_list"
 
 breakpoint:
 {
-  location: ("source/game.cpp":1203)
+  location: ("source/asset.cpp":255)
+}
+
+breakpoint:
+{
+  location: ("source/asset.cpp":242)
+}
+
+breakpoint:
+{
+  location: ("source/game.cpp":1205)
 }
 
 /// targets ///////////////////////////////////////////////////////////////////

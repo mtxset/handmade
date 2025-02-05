@@ -7,9 +7,9 @@
 
 #pragma pack(push, 1)
 
-struct Font_id {
-  u32 value;
-};
+struct Bitmap_id { u32 value; };
+struct Sound_id  { u32 value; };
+struct Font_id   { u32 value; };
 
 struct Hha_header {
 #define HHA_MAGIC_VALUE CODE('h','h','a','f')

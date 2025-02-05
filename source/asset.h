@@ -88,17 +88,10 @@ struct Wave_fmt_ {
 
 #pragma pack(pop)
 
-struct Bitmap_id {
-  u32 value;
-};
-
-struct Sound_id {
-  u32 value;
-};
-
 struct Loaded_font {
   Bitmap_id *code_point_list;
   f32 *horizontal_advance;
+  u32 bitmap_id_offset;
 };
 
 struct Loaded_sound {
@@ -153,6 +146,7 @@ struct Asset_file {
   Hha_asset_type *asset_type_array;
   
   u32 tag_base;
+  i32 font_bitmap_id_offset;
 };
 
 enum Asset_memory_block_flags {

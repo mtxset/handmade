@@ -15,7 +15,15 @@
 #define USE_FONTS_FROM_WINDOWS 1
 
 #if USE_FONTS_FROM_WINDOWS
+
 #include <windows.h>
+
+#define MAX_FONT_WIDTH 1024
+#define MAX_FONT_HEIGHT 1024
+
+static VOID *global_font_bits;
+static HDC global_font_device_context;
+
 #else
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
@@ -116,29 +124,50 @@ struct Loaded_bmp {
   void *free;
 };
 
+struct Loaded_font {
+  HFONT win32_handle;
+  TEXTMETRIC text_metric;
+  u32 code_point_count;
+  f32 line_advance;
+  
+  Bitmap_id *bitmap_ids;
+  f32 *horizontal_advance;
+};
+
 enum Asset_type {
   Asset_type_sound,
   Asset_type_bitmap,
   Asset_type_font,
+  Asset_type_font_glyph,
+};
+
+struct Asset_source_bitmap {
+  char *filename;
+};
+
+struct Asset_source_sound {
+  char *filename;
+  u32 first_sample_index;
+};
+
+struct Asset_source_font {
+  Loaded_font *font;
+};
+
+struct Asset_source_font_glyph {
+  Loaded_font *font;
+  u32 code_point;
 };
 
 struct Asset_source {
   Asset_type type;
-  char *filename;
-  union {
-    u32 first_sample_index;
-    u32 codepoint;
-  };
   
-  char *fontname;
-};
-
-struct Bitmap_id {
-  u32 value;
-};
-
-struct Sound_id {
-  u32 value;
+  union {
+    Asset_source_bitmap bitmap;
+    Asset_source_sound sound;
+    Asset_source_font font;
+    Asset_source_font_glyph glyph;
+  };
 };
 
 struct Asset_bitmap_info {
@@ -345,81 +374,34 @@ load_bmp(char* filename) {
 
 static
 Loaded_bmp
-load_glyph(char *filename, char* fontname, u32 codepoint, Hha_asset *asset) {
+load_glyph(Loaded_font *font, u32 code_point, Hha_asset *asset) {
   
   Loaded_bmp bmp = {};
   
 #if USE_FONTS_FROM_WINDOWS
   
-  static void *bits = 0;
-  static HDC device_context = 0;
-  static TEXTMETRIC text_metric;
-  
-  i32 max_width = 1024;
-  i32 max_height = 1024;
-  
-  if (!device_context) {
-    AddFontResourceExA(filename, FR_PRIVATE, 0);
-    
-    i32 height = 128; // logical units
-    HFONT font = CreateFontA(height, 0, 0, 0,
-                             FW_NORMAL, // weight - normal, bold (0 to 1000) FW_NORMAL - 400
-                             _(italic)false,
-                             _(underline)false,
-                             _(strike out)false,
-                             DEFAULT_CHARSET, // ? ansi?
-                             OUT_DEFAULT_PRECIS, // precision
-                             CLIP_DEFAULT_PRECIS, // cliping
-                             ANTIALIASED_QUALITY, // anti-aliased type
-                             DEFAULT_PITCH|FF_DONTCARE, // pitch?
-                             fontname);
-    
-    device_context = CreateCompatibleDC(GetDC(0));
-    
-    BITMAPINFO info = {};
-    
-    info.bmiHeader.biSize = sizeof(info.bmiHeader);
-    info.bmiHeader.biWidth = max_width;
-    info.bmiHeader.biHeight = max_height;
-    info.bmiHeader.biPlanes = 1;
-    info.bmiHeader.biBitCount = 32;
-    info.bmiHeader.biCompression = BI_RGB;
-    info.bmiHeader.biSizeImage = 0;
-    info.bmiHeader.biXPelsPerMeter = 0;
-    info.bmiHeader.biYPelsPerMeter = 0;
-    info.bmiHeader.biClrUsed = 0;
-    info.bmiHeader.biClrImportant = 0;
-    
-    HBITMAP bitmap = CreateDIBSection(device_context, &info, DIB_RGB_COLORS, &bits, 0, 0);
-    SelectObject(device_context, bitmap);
-    SelectObject(device_context, font);
-    SetBkColor(device_context, RGB(0, 0, 0));
-    
-    GetTextMetrics(device_context, &text_metric);
-  }
-  
-  memset(bits, 0xff, max_width * max_height * sizeof(u32));
-  
-  wchar_t point = (wchar_t)codepoint;
+  SelectObject(global_font_device_context, font->win32_handle);
+  memset(global_font_bits, 0xff, MAX_FONT_HEIGHT * MAX_FONT_WIDTH * sizeof(u32));
+  wchar_t cheese_point = (wchar_t)code_point;
   
   SIZE size;
-  GetTextExtentPoint32W(device_context, &point, 1, &size);
+  GetTextExtentPoint32W(global_font_device_context, &cheese_point, 1, &size);
   
   i32 bound_width = size.cx;
   i32 bound_height = size.cy;
   
-  if (bound_width  > max_width)  bound_width  = max_width;
-  if (bound_height > max_height) bound_height = max_height;
+  if (bound_width  > MAX_FONT_WIDTH)  bound_width  = MAX_FONT_WIDTH;
+  if (bound_height > MAX_FONT_HEIGHT) bound_height = MAX_FONT_HEIGHT;
   
-  SetTextColor(device_context, RGB(255, 255, 255));
-  TextOutW(device_context, 0, 0, &point, 1);
+  SetTextColor(global_font_device_context, RGB(255, 255, 255));
+  TextOutW(global_font_device_context, 0, 0, &cheese_point, 1);
   
   i32 min_x = 10000;
   i32 min_y = 10000;
   i32 max_x = -10000;
   i32 max_y = -10000;
   
-  u32 *row = (u32*)bits + (max_height - 1) * max_width;
+  u32 *row = (u32*)global_font_bits + (MAX_FONT_HEIGHT - 1) * MAX_FONT_WIDTH;
   
   for (i32 y = 0; y < bound_height; y++) {
     u32 *pixel = row;
@@ -438,7 +420,7 @@ load_glyph(char *filename, char* fontname, u32 codepoint, Hha_asset *asset) {
       pixel++;
     }
     
-    row -= max_width;
+    row -= MAX_FONT_WIDTH;
   }
   
   if (min_x <= max_x) {
@@ -461,7 +443,7 @@ load_glyph(char *filename, char* fontname, u32 codepoint, Hha_asset *asset) {
     memset(bmp.memory, 0, bmp.height * bmp.pitch);
     
     u8  *dst_row = (u8*)bmp.memory + (bmp.height - 1 - 1) * bmp.pitch;
-    u32 *src_row = (u32*)bits      + (max_height - 1 - min_y) * max_width;
+    u32 *src_row = (u32*)global_font_bits + (MAX_FONT_HEIGHT - 1 - min_y) * MAX_FONT_WIDTH;
     
     for (i32 y = min_y; y <= max_y; y += 1) {
       u32 *src = (u32*)src_row + min_x;
@@ -482,12 +464,12 @@ load_glyph(char *filename, char* fontname, u32 codepoint, Hha_asset *asset) {
       }
       
       dst_row -= bmp.pitch;
-      src_row -= max_width;
+      src_row -= MAX_FONT_WIDTH;
     }
   }
   
   asset->bitmap.align_pcent[0] = 1.0f / (f32)bmp.width;
-  asset->bitmap.align_pcent[1] = (1.0f + (max_y - (bound_height - text_metric.tmDescent))) / (f32)bmp.height;
+  asset->bitmap.align_pcent[1] = (1.0f + (max_y - (bound_height - font->text_metric.tmDescent))) / (f32)bmp.height;
 #else
   
   File_read_result font_file = read_entire_file(filename);
@@ -651,53 +633,96 @@ end_asset_type(Game_asset_list *asset_list) {
   asset_list->asset_index = 0;
 }
 
-static
-Bitmap_id
-add_bitmap_asset(Game_asset_list* asset_list, char *filename, f32 align_pcent_x = .5f, f32 align_pcent_y = .5f) {
+struct Added_asset {
+  u32 id;
+  Hha_asset *hha;
+  Asset_source *source;
+};
+
+static 
+Added_asset
+add_asset(Game_asset_list *asset_list) {
   assert(asset_list->debug_asset_type);
   assert(asset_list->debug_asset_type->one_past_last_asset_index < array_count(asset_list->asset_list));
   
-  Bitmap_id id = {asset_list->debug_asset_type->one_past_last_asset_index++};
-  Asset_source *source = asset_list->asset_source_list + id.value;
+  u32 index = asset_list->debug_asset_type->one_past_last_asset_index++;
+  Asset_source *source = asset_list->asset_source_list + index;
   
-  Hha_asset *asset = asset_list->asset_list + id.value;
+  Hha_asset *hha = asset_list->asset_list + index;
+  hha->first_tag_index = asset_list->tag_count;
+  hha->one_past_last_tag_index = hha->first_tag_index;
   
-  asset->first_tag_index = asset_list->tag_count;
-  asset->one_past_last_tag_index = asset->first_tag_index;
-  asset->bitmap.align_pcent[0] = align_pcent_x;
-  asset->bitmap.align_pcent[1] = align_pcent_y;
+  asset_list->asset_index = index;
   
-  source->type = Asset_type_bitmap;
-  source->filename = filename;
+  Added_asset result;
+  result.id = index;
+  result.hha = hha;
+  result.source = source;
   
-  asset_list->asset_index = id.value;
+  return result;
+}
+
+static
+Bitmap_id
+add_bitmap_asset(Game_asset_list* asset_list, char *filename, f32 align_pcent_x = .5f, f32 align_pcent_y = .5f) {
   
-  return id;
+  Added_asset asset = add_asset(asset_list);
+  asset.hha->bitmap.align_pcent[0] = align_pcent_x;
+  asset.hha->bitmap.align_pcent[1] = align_pcent_y;
+  asset.source->type = Asset_type_bitmap;
+  asset.source->bitmap.filename = filename;
+  
+  Bitmap_id result = {asset.id};
+  return result;
+}
+
+static
+Font_id
+add_font_asset(Game_asset_list *asset_list, Loaded_font *font) {
+  
+  Added_asset asset = add_asset(asset_list);
+  
+  asset.hha->font.code_point_count = font->code_point_count;
+  asset.hha->font.line_advance = font->line_advance;
+  asset.source->type = Asset_type_font;
+  asset.source->font.font = font;
+  
+  Font_id result = { asset.id }; 
+  return result;
+}
+
+static
+Bitmap_id
+add_char_asset(Game_asset_list *asset_list, Loaded_font *font, u32 code_point, f32 align_pcent_x =.5f, f32 align_pcent_y = .5f) {
+  
+  Added_asset asset = add_asset(asset_list);
+  
+  asset.hha->bitmap.align_pcent[0] = align_pcent_x;
+  asset.hha->bitmap.align_pcent[1] = align_pcent_y;
+  
+  asset.source->type = Asset_type_font_glyph;
+  asset.source->glyph.font = font;
+  asset.source->glyph.code_point = code_point;
+  
+  Bitmap_id result = { asset.id };
+  return result;
 }
 
 static
 Sound_id
 add_sound_asset(Game_asset_list* asset_list, char *filename, u32 first_sample_index = 0, u32 sample_count = 0) {
-  assert(asset_list->debug_asset_type);
-  assert(asset_list->debug_asset_type->one_past_last_asset_index < array_count(asset_list->asset_list));
   
-  Sound_id id = {asset_list->debug_asset_type->one_past_last_asset_index++};
-  Asset_source *source = asset_list->asset_source_list + id.value;
+  Added_asset asset = add_asset(asset_list);
   
-  Hha_asset *asset = asset_list->asset_list + id.value;
+  asset.hha->sound.sample_count = sample_count;
+  asset.hha->sound.chain = Hha_sound_chain_none;
   
-  asset->first_tag_index = asset_list->tag_count;
-  asset->one_past_last_tag_index = asset->first_tag_index;
-  asset->sound.sample_count = sample_count;
-  asset->sound.chain = Hha_sound_chain_none;
+  asset.source->type = Asset_type_sound;
+  asset.source->sound.filename = filename;
+  asset.source->sound.first_sample_index = first_sample_index;
   
-  source->type = Asset_type_sound;
-  source->filename = filename;
-  source->first_sample_index = first_sample_index;
-  
-  asset_list->asset_index = id.value;
-  
-  return id;
+  Sound_id result = {asset.id};
+  return result;
 }
 
 static
@@ -764,7 +789,7 @@ write_hha_file(Game_asset_list *asset_list, char *filename) {
       dst->data_offset = ftell(out);
       
       if (src->type == Asset_type_sound) {
-        Loaded_sound wav = load_wav(src->filename, src->first_sample_index, dst->sound.sample_count);
+        Loaded_sound wav = load_wav(src->sound.filename, src->sound.first_sample_index, dst->sound.sample_count);
         
         dst->sound.sample_count = wav.sample_count;
         dst->sound.channel_count = wav.channel_count;
@@ -776,15 +801,24 @@ write_hha_file(Game_asset_list *asset_list, char *filename) {
         
         free(wav.free);
       }
+      
+      else if (src->type == Asset_type_font) {
+        Loaded_font *font = src->font.font;
+        u32 horizontal_advance_size = sizeof(f32) * font->code_point_count * font->code_point_count;
+        u32 code_point_size = font->code_point_count * sizeof(Bitmap_id);
+        fwrite(font->bitmap_ids, code_point_size, 1, out);
+        fwrite(font->horizontal_advance, horizontal_advance_size, 1, out);
+      }
+      
       else {
         Loaded_bmp bitmap;
-        assert(src->type == Asset_type_bitmap || src->type == Asset_type_font);
+        assert(src->type == Asset_type_bitmap || src->type == Asset_type_font_glyph);
         
-        if (src->type == Asset_type_font) {
-          bitmap = load_glyph(src->filename, src->fontname, src->codepoint, dst);
+        if (src->type == Asset_type_font_glyph) {
+          bitmap = load_glyph(src->glyph.font, src->glyph.code_point, dst);
         }
         else {
-          bitmap = load_bmp(src->filename);
+          bitmap = load_bmp(src->bitmap.filename);
         }
         
         dst->bitmap.dim[0] = bitmap.width;
@@ -811,29 +845,39 @@ write_hha_file(Game_asset_list *asset_list, char *filename) {
 }
 
 static
-Bitmap_id
-add_char_asset(Game_asset_list *asset_list, char *font_file, char *font_name, u32 codepoint, f32 align_pcent_x =.5f, f32 align_pcent_y = .5f) {
-  assert(asset_list->debug_asset_type);
-  assert(asset_list->debug_asset_type->one_past_last_asset_index < array_count(asset_list->asset_list));
+Loaded_font*
+load_font(char *filename, char *fontname, u32 code_point_count) {
   
-  Bitmap_id id = {asset_list->debug_asset_type->one_past_last_asset_index++};
-  Asset_source *source = asset_list->asset_source_list + id.value;
+  Loaded_font *result = (Loaded_font*)malloc(sizeof(Loaded_font));
   
-  Hha_asset *asset = asset_list->asset_list + id.value;
+  AddFontResourceExA(filename, FR_PRIVATE, 0);
+  i32 height = 128;
   
-  asset->first_tag_index = asset_list->tag_count;
-  asset->one_past_last_tag_index = asset->first_tag_index;
-  asset->bitmap.align_pcent[0] = align_pcent_x;
-  asset->bitmap.align_pcent[1] = align_pcent_y;
+  assert(global_font_device_context);
+  assert(global_font_bits);
   
-  source->type = Asset_type_font;
-  source->filename = font_file;
-  source->codepoint = codepoint;
-  source->fontname = font_name;
+  result->win32_handle = CreateFontA(height, 0, 0, 0,
+                                     FW_NORMAL, // weight - normal, bold (0 to 1000) FW_NORMAL - 400
+                                     _(italic)false,
+                                     _(underline)false,
+                                     _(strike out)false,
+                                     DEFAULT_CHARSET, // ? ansi?
+                                     OUT_DEFAULT_PRECIS, // precision
+                                     CLIP_DEFAULT_PRECIS, // cliping
+                                     ANTIALIASED_QUALITY, // anti-aliased type
+                                     DEFAULT_PITCH|FF_DONTCARE, // pitch?
+                                     fontname);
   
-  asset_list->asset_index = id.value;
+  SelectObject(global_font_device_context, result->win32_handle);
+  GetTextMetrics(global_font_device_context, &result->text_metric);
   
-  return id;
+  result->line_advance = (f32)result->text_metric.tmHeight + (f32)result->text_metric.tmExternalLeading;
+  
+  result->code_point_count = code_point_count;
+  result->bitmap_ids = (Bitmap_id*)malloc(sizeof(Bitmap_id) * code_point_count);
+  result->horizontal_advance = (f32*)malloc(sizeof(f32) * code_point_count * code_point_count);
+  
+  return result;
 }
 
 static
@@ -871,12 +915,15 @@ write_non_hero() {
   add_bitmap_asset(asset_list, "../data/tree.bmp");
   end_asset_type(asset_list);
   
+  Loaded_font *debug_font = load_font("c:/Windows/Fonts/arial.ttf", "Arial", 256);
+  
   begin_asset_type(asset_list, Asset_font);
+  add_font_asset(asset_list, debug_font);
+  end_asset_type(asset_list);
+  
+  begin_asset_type(asset_list, Asset_font_glyph);
   for (u32 ch = 0; ch < 256; ch++) {
-    add_char_asset(asset_list, "c:/windows/Fonts/arial.ttf", "Arial", ch);
-    //add_char_asset(asset_list, "c:/windows/Fonts/cour.ttf", "Courier New", ch);
-    //add_char_asset(asset_list, "../data/m3x6.ttf", ch);
-    add_tag(asset_list, Tag_unicode_codepoint, (f32)ch);
+    debug_font->bitmap_ids[ch] = add_char_asset(asset_list, debug_font, ch);
   }
   end_asset_type(asset_list);
   
@@ -1001,6 +1048,28 @@ write_sounds() {
 
 int
 main(int arg_count, char **arg_list) {
+  
+  {
+    global_font_device_context = CreateCompatibleDC(GetDC(0));
+    
+    BITMAPINFO info = {};
+    
+    info.bmiHeader.biSize = sizeof(info.bmiHeader);
+    info.bmiHeader.biWidth = MAX_FONT_WIDTH;
+    info.bmiHeader.biHeight = MAX_FONT_HEIGHT;
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+    info.bmiHeader.biSizeImage = 0;
+    info.bmiHeader.biXPelsPerMeter = 0;
+    info.bmiHeader.biYPelsPerMeter = 0;
+    info.bmiHeader.biClrUsed = 0;
+    info.bmiHeader.biClrImportant = 0;
+    
+    HBITMAP bitmap = CreateDIBSection(global_font_device_context, &info, DIB_RGB_COLORS, &global_font_bits, 0, 0);
+    SelectObject(global_font_device_context, bitmap);
+    SetBkColor(global_font_device_context, RGB(0, 0, 0));
+  }
   
   write_non_hero();
   write_hero();
