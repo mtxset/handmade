@@ -237,7 +237,7 @@ get_file(Game_asset_list *asset_list, u32 file_index) {
 }
 
 void 
-load_font(Game_asset_list *asset_list, Bitmap_id id, bool immediate) {
+load_font(Game_asset_list *asset_list, Font_id id, bool immediate) {
   
   Asset *asset = asset_list->asset_list + id.value;
   
@@ -296,6 +296,23 @@ load_font(Game_asset_list *asset_list, Bitmap_id id, bool immediate) {
     while (*state == Asset_state_queued) {}
     
   }
+}
+
+
+inline
+Loaded_font*
+push_font(Render_group *group, Font_id id) {
+  Loaded_font *font = get_font(group->asset_list, id, group->generation_id);
+  
+  if (font) {
+  }
+  else {
+    assert(!group->renders_in_background);
+    load_font(group->asset_list, id, _(immediate)false);
+    group->missing_resource_count++;
+  }
+  
+  return font;
 }
 
 void 
@@ -578,6 +595,7 @@ Bitmap_id
 get_bitmap_for_glyph(Game_asset_list *asset_list, Hha_font *info, Loaded_font *font, u32 desired_code_point) {
   u32 code_point = get_clamped_code_point(info, desired_code_point);
   Bitmap_id result = font->code_point_list[code_point];
+  result.value += font->bitmap_id_offset;
   
   return result;
 }

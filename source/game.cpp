@@ -1181,7 +1181,7 @@ static f32 font_scale;
 static
 void
 debug_reset(u32 width, u32 height) {
-  font_scale = 1.0f;
+  font_scale = .5f;
   ortographic(debug_render_group, width, height, 1.0f);
   at_y = 0.5f * height - 0.5f * font_scale;
   left_edge = -0.5f * width + 0.5f * font_scale;
@@ -1198,11 +1198,10 @@ debug_text_line(char *string) {
   
   Asset_vector match_vector = {};
   Asset_vector weight_vector = {};
-  weight_vector.e[Tag_unicode_codepoint] = 1.0f;
   
   Font_id font_id = get_best_match_font_from(render_group->asset_list, Asset_font, &match_vector, &weight_vector);
   
-  Loaded_font *font = get_font(render_group->asset_list, font_id, render_group->generation_id);
+  Loaded_font *font = push_font(render_group, font_id);
   
   if (!font)
     return;
@@ -1242,9 +1241,7 @@ debug_text_line(char *string) {
     else {
       
       u32 code_point = *at;
-      f32 code_point_advance = get_horizontal_advance_for_pair(info, font, prev_code_point, code_point);
-      f32 advance_x = char_scale * code_point_advance;
-      
+      f32 advance_x = char_scale * get_horizontal_advance_for_pair(info, font, prev_code_point, code_point);
       at_x += advance_x;
       
       if (code_point != ' ') {
@@ -1268,6 +1265,7 @@ debug_text_line(char *string) {
 static
 void
 overlay_cycle_counters(Game_memory *memory) {
+  
   char *cycle_counter_names[] = {
     "game_update_render",
     "render_group_to_output",
@@ -1287,6 +1285,8 @@ overlay_cycle_counters(Game_memory *memory) {
     
     debug_text_line(cycle_counter_names[counter_index]);
   }
+  
+  debug_text_line("AVA Wa Ta");
   
 }
 

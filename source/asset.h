@@ -214,6 +214,7 @@ struct Game_asset_list {
 
 void load_bitmap(Game_asset_list *asset_list, Bitmap_id id, bool immediate);
 void load_sound(Game_asset_list *asset_list, Sound_id id);
+void load_font(Game_asset_list *asset_list, Font_id id, bool immediate);
 
 void
 move_header_to_front(Game_asset_list *asset_list, Asset *asset);
@@ -336,6 +337,12 @@ inline
 void 
 prefetch_sound(Game_asset_list *asset_list, Sound_id id) { 
   load_sound(asset_list, id);
+}
+
+inline 
+void 
+prefetch_font(Game_asset_list *asset_list, Font_id id) { 
+  load_font(asset_list, id, _(immediate)false);
 }
 
 inline 
