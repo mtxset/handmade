@@ -18,6 +18,7 @@
 
 #include <windows.h>
 
+#define ONE_PAST_MAX_FONT_CODEPOINT (0x10FFFF + 1)
 #define MAX_FONT_WIDTH 1024
 #define MAX_FONT_HEIGHT 1024
 
@@ -127,11 +128,18 @@ struct Loaded_bmp {
 struct Loaded_font {
   HFONT win32_handle;
   TEXTMETRIC text_metric;
-  u32 code_point_count;
   f32 line_advance;
   
-  Bitmap_id *bitmap_ids;
+  Hha_font_glyph *glyph_list;
   f32 *horizontal_advance;
+  
+  //u32 min_code_point;
+  //u32 max_code_point;
+  
+  u32 max_glyph_count;
+  u32 glyph_count;
+  
+  u32 *glyph_index_from_code_point;
 };
 
 enum Asset_type {
@@ -378,6 +386,8 @@ load_glyph(Loaded_font *font, u32 code_point, Hha_asset *asset) {
   
   Loaded_bmp bmp = {};
   
+  u32 glyph_index = font->glyph_index_from_code_point[code_point];
+  
 #if USE_FONTS_FROM_WINDOWS
   
   SelectObject(global_font_device_context, font->win32_handle);
@@ -483,11 +493,11 @@ load_glyph(Loaded_font *font, u32 code_point, Hha_asset *asset) {
   f32 char_advance = (f32)this_width;
 #endif
   
-  for (u32 other_codepoint_index = 0; other_codepoint_index < font->code_point_count; other_codepoint_index++) {
-    font->horizontal_advance[code_point * font->code_point_count + other_codepoint_index] += char_advance - kerning_change;
+  for (u32 other_glyph_index = 0; other_glyph_index < font->max_glyph_count; other_glyph_index++) {
+    font->horizontal_advance[glyph_index * font->max_glyph_count + other_glyph_index] += char_advance - kerning_change;
     
-    if (other_codepoint_index != 0) {
-      font->horizontal_advance[other_codepoint_index * font->code_point_count + code_point] += kerning_change;
+    if (other_glyph_index != 0) {
+      font->horizontal_advance[other_glyph_index * font->max_glyph_count + glyph_index] += kerning_change;
     }
     
   }
@@ -704,7 +714,7 @@ add_font_asset(Game_asset_list *asset_list, Loaded_font *font) {
   
   Added_asset asset = add_asset(asset_list);
   
-  asset.hha->font.code_point_count = font->code_point_count;
+  asset.hha->font.glyph_count = font->glyph_count;
   asset.hha->font.ascender_height  = (f32)font->text_metric.tmAscent;
   asset.hha->font.descender_height = (f32)font->text_metric.tmDescent;
   asset.hha->font.external_leading = (f32)font->text_metric.tmExternalLeading;
@@ -723,12 +733,20 @@ add_char_asset(Game_asset_list *asset_list, Loaded_font *font, u32 code_point) {
   
   asset.hha->bitmap.align_pcent[0] = 0.0f;
   asset.hha->bitmap.align_pcent[1] = 0.0f;
-  
   asset.source->type = Asset_type_font_glyph;
   asset.source->glyph.font = font;
   asset.source->glyph.code_point = code_point;
   
   Bitmap_id result = { asset.id };
+  
+  assert(font->glyph_count < font->max_glyph_count);
+  u32 glyph_index = font->glyph_count++;
+  Hha_font_glyph *glyph = font->glyph_list + glyph_index;
+  glyph->unicode_code_point = code_point;
+  glyph->bitmap_id = result;
+  
+  font->glyph_index_from_code_point[code_point] = glyph_index;
+  
   return result;
 }
 
@@ -774,6 +792,30 @@ init(Game_asset_list *asset_list) {
   
   asset_list->asset_type_count = Asset_count;
   memset(asset_list->asset_type_list, 0, sizeof(asset_list->asset_type_list));
+}
+
+static
+void
+finalize_font_kerning(Loaded_font *font) {
+  
+  SelectObject(global_font_device_context, font->win32_handle);
+  
+  DWORD kerning_pair_count = GetKerningPairsW(global_font_device_context, 0, 0);
+  auto kerning_pair_list = (KERNINGPAIR*)malloc(kerning_pair_count * sizeof(KERNINGPAIR));
+  GetKerningPairsW(global_font_device_context, kerning_pair_count, kerning_pair_list);
+  
+  for (DWORD kerning_pair_index = 0; kerning_pair_index < kerning_pair_count; kerning_pair_index++) {
+    KERNINGPAIR *pair = kerning_pair_list + kerning_pair_index;
+    
+    if (pair->wFirst  < ONE_PAST_MAX_FONT_CODEPOINT && 
+        pair->wSecond < ONE_PAST_MAX_FONT_CODEPOINT) {
+      u32 first  = font->glyph_index_from_code_point[pair->wFirst];
+      u32 second = font->glyph_index_from_code_point[pair->wSecond];
+      font->horizontal_advance[first * font->max_glyph_count + second] += (f32)pair->iKernAmount;
+    }
+  }
+  
+  free(kerning_pair_list);
 }
 
 static
@@ -828,10 +870,20 @@ write_hha_file(Game_asset_list *asset_list, char *filename) {
       
       else if (src->type == Asset_type_font) {
         Loaded_font *font = src->font.font;
-        u32 horizontal_advance_size = sizeof(f32) * font->code_point_count * font->code_point_count;
-        u32 code_point_size = font->code_point_count * sizeof(Bitmap_id);
-        fwrite(font->bitmap_ids, code_point_size, 1, out);
-        fwrite(font->horizontal_advance, horizontal_advance_size, 1, out);
+        
+        finalize_font_kerning(font);
+        
+        u32 glyph_list_size = font->glyph_count * sizeof(Hha_font_glyph);
+        fwrite(font->glyph_list, glyph_list_size, 1, out);
+        
+        u8 *horizontal_advance = (u8*)font->horizontal_advance;
+        for (u32 glyph_index = 0; glyph_index < font->glyph_count; glyph_index++) {
+          u32 horizontal_advance_slice_size = sizeof(f32) * font->glyph_count;
+          
+          fwrite(horizontal_advance, horizontal_advance_slice_size, 1, out);
+          horizontal_advance += sizeof(f32) * font->max_glyph_count;
+        }
+        
       }
       
       else {
@@ -870,7 +922,7 @@ write_hha_file(Game_asset_list *asset_list, char *filename) {
 
 static
 Loaded_font*
-load_font(char *filename, char *fontname, u32 code_point_count) {
+load_ttf_font(char *filename, char *fontname) {
   
   Loaded_font *font = (Loaded_font*)malloc(sizeof(Loaded_font));
   
@@ -895,24 +947,20 @@ load_font(char *filename, char *fontname, u32 code_point_count) {
   SelectObject(global_font_device_context, font->win32_handle);
   GetTextMetrics(global_font_device_context, &font->text_metric);
   
-  font->code_point_count = code_point_count;
-  font->bitmap_ids = (Bitmap_id*)malloc(sizeof(Bitmap_id) * code_point_count);
-  size_t horizontal_advance_size = sizeof(f32) * code_point_count * code_point_count;
+  //font->min_code_point = INT_MAX;
+  //font->max_code_point = 0;
+  
+  font->max_glyph_count = 5000;
+  font->glyph_count = 0;
+  
+  u32 glyph_index_from_code_point_size = ONE_PAST_MAX_FONT_CODEPOINT * sizeof(Loaded_font);
+  font->glyph_index_from_code_point = (u32*)malloc(glyph_index_from_code_point_size);
+  memset(font->glyph_index_from_code_point, 0, glyph_index_from_code_point_size);
+  
+  font->glyph_list = (Hha_font_glyph*)malloc(sizeof(Hha_font_glyph) * font->max_glyph_count);
+  size_t horizontal_advance_size = sizeof(f32) * font->max_glyph_count * font->max_glyph_count;
   font->horizontal_advance = (f32*)malloc(horizontal_advance_size);
   memset(font->horizontal_advance, 0, horizontal_advance_size);
-  
-  DWORD kerning_pair_count = GetKerningPairsW(global_font_device_context, 0, 0);
-  auto kerning_pair_list = (KERNINGPAIR*)malloc(kerning_pair_count * sizeof(KERNINGPAIR));
-  GetKerningPairsW(global_font_device_context, kerning_pair_count, kerning_pair_list);
-  
-  for (DWORD kerning_pair_index = 0; kerning_pair_index < kerning_pair_count; kerning_pair_index++) {
-    KERNINGPAIR *pair = kerning_pair_list + kerning_pair_index;
-    if (pair->wFirst < font->code_point_count && pair->wSecond < font->code_point_count) {
-      u32 index = pair->wFirst * font->code_point_count + pair->wSecond;
-      font->horizontal_advance[index] += (f32)pair->iKernAmount;
-    }
-  }
-  free(kerning_pair_list);
   
   return font;
 }
@@ -926,13 +974,21 @@ write_fonts() {
   
   init(asset_list);
   
-  Loaded_font *debug_font = load_font("c:/Windows/Fonts/arial.ttf", "Arial", ('~' + 1));
+  Loaded_font *debug_font = load_ttf_font("c:/Windows/Fonts/arial.ttf", "Arial");
   //Loaded_font *debug_font = load_font("../data/DMSans_18pt-Regular.ttf", "DMSans", 256);
   
   begin_asset_type(asset_list, Asset_font_glyph);
-  for (u32 ch = '!'; ch <= '~'; ch++) {
-    debug_font->bitmap_ids[ch] = add_char_asset(asset_list, debug_font, ch);
+  
+  for (u32 ch = 0; ch <= 255; ch++) {
+    add_char_asset(asset_list, debug_font, ch);
   }
+  
+  // Kanji
+  add_char_asset(asset_list, debug_font, 0x5c0f);
+  add_char_asset(asset_list, debug_font, 0x8033);
+  add_char_asset(asset_list, debug_font, 0x6728);
+  add_char_asset(asset_list, debug_font, 0x514e);
+  
   end_asset_type(asset_list);
   
   begin_asset_type(asset_list, Asset_font);

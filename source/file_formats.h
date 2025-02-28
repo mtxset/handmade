@@ -55,8 +55,13 @@ struct Hha_sound {
   u32 chain;
 };
 
+struct Hha_font_glyph {
+  u32 unicode_code_point;
+  Bitmap_id bitmap_id;
+};
+
 struct Hha_font {
-  u32 code_point_count;
+  u32 glyph_count;
   f32 ascender_height;
   f32 descender_height;
   f32 external_leading;

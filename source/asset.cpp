@@ -254,8 +254,8 @@ load_font(Game_asset_list *asset_list, Font_id id, bool immediate) {
       
       Hha_font *info = &asset->hha.font;
       
-      u32 horizontal_advance_size = sizeof(f32) * info->code_point_count * info->code_point_count;
-      u32 code_point_size = info->code_point_count * sizeof(Bitmap_id);
+      u32 horizontal_advance_size = sizeof(f32) * info->glyph_count * info->glyph_count;
+      u32 code_point_size = info->glyph_count * sizeof(Bitmap_id);
       u32 size_data = code_point_size + horizontal_advance_size;
       u32 size_total = size_data + sizeof(Asset_memory_header);
       
@@ -572,7 +572,7 @@ get_clamped_code_point(Hha_font *info, u32 code_point) {
   
   u32 result = 0;
   
-  if (code_point < info->code_point_count) {
+  if (code_point < info->glyph_count) {
     result = code_point;
   }
   
@@ -585,7 +585,7 @@ get_horizontal_advance_for_pair(Hha_font *info, Loaded_font *font, u32 desired_p
   u32 prev_code_point = get_clamped_code_point(info, desired_prev_code_point);
   u32 code_point      = get_clamped_code_point(info, desired_code_point);
   
-  f32 result = font->horizontal_advance[prev_code_point * info->code_point_count + code_point];
+  f32 result = font->horizontal_advance[prev_code_point * info->glyph_count + code_point];
   
   return result;
 }
