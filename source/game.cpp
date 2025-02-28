@@ -1177,14 +1177,22 @@ static Render_group *debug_render_group;
 static f32 left_edge;
 static f32 at_y;
 static f32 font_scale;
+static Font_id font_id;
 
 static
 void
-debug_reset(u32 width, u32 height) {
-  font_scale = .5f;
+debug_reset(Game_asset_list *asset_list, u32 width, u32 height) {
+  Asset_vector match_vector = {};
+  Asset_vector weight_vector = {};
+  
+  font_id = get_best_match_font_from(asset_list, Asset_font, &match_vector, &weight_vector);
+  
+  font_scale = 1.0f;
   ortographic(debug_render_group, width, height, 1.0f);
-  at_y = 0.5f * height - 0.5f * font_scale;
-  left_edge = -0.5f * width + 0.5f * font_scale;
+  left_edge = -.5f * width;
+  
+  Hha_font *info = get_font_info(asset_list, font_id);
+  at_y = 0.5f * height - font_scale * get_starting_baseline_y(info);
 }
 
 static
@@ -1195,11 +1203,6 @@ debug_text_line(char *string) {
     return;
   
   Render_group *render_group = debug_render_group;
-  
-  Asset_vector match_vector = {};
-  Asset_vector weight_vector = {};
-  
-  Font_id font_id = get_best_match_font_from(render_group->asset_list, Asset_font, &match_vector, &weight_vector);
   
   Loaded_font *font = push_font(render_group, font_id);
   
@@ -1259,7 +1262,7 @@ debug_text_line(char *string) {
     }
   }
   
-  at_y -= get_line_advance_for(info, font) * font_scale;
+  at_y -= get_line_advance_for(info) * font_scale;
 }
 
 static
@@ -1619,7 +1622,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   
   if (debug_render_group) {
     begin_render(debug_render_group);
-    debug_reset(bitmap_buffer->width, bitmap_buffer->height);
+    debug_reset(tran_state->asset_list, bitmap_buffer->width, bitmap_buffer->height);
   }
   
 #if 0

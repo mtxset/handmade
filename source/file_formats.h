@@ -57,7 +57,9 @@ struct Hha_sound {
 
 struct Hha_font {
   u32 code_point_count;
-  f32 line_advance;
+  f32 ascender_height;
+  f32 descender_height;
+  f32 external_leading;
 };
 
 struct Hha_asset {

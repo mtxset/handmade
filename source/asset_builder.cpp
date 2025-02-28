@@ -410,7 +410,7 @@ load_glyph(Loaded_font *font, u32 code_point, Hha_asset *asset) {
       
       //COLORREF pixel = GetPixel(device_context, x, y);
       
-      if (pixel != 0) {
+      if (*pixel != 0) {
         if (min_x > x) min_x = x;
         if (max_x < x) max_x = x;
         
@@ -424,6 +424,7 @@ load_glyph(Loaded_font *font, u32 code_point, Hha_asset *asset) {
     row -= MAX_FONT_WIDTH;
   }
   
+  f32 kerning_change = 0.0f;
   if (min_x <= max_x) {
     
     i32 width  = (max_x - min_x) + 1;
@@ -465,10 +466,32 @@ load_glyph(Loaded_font *font, u32 code_point, Hha_asset *asset) {
       dst_row -= bmp.pitch;
       src_row -= MAX_FONT_WIDTH;
     }
+    
+    asset->bitmap.align_pcent[0] = 1.0f / (f32)bmp.width;
+    asset->bitmap.align_pcent[1] = (1.0f + (max_y - (bound_height - font->text_metric.tmDescent))) / (f32)bmp.height;
+    
+    kerning_change = (f32)(min_x - pre_step_x);
   }
   
-  asset->bitmap.align_pcent[0] = (1.0f - (min_x - pre_step_x)) / (f32)bmp.width;
-  asset->bitmap.align_pcent[1] = (1.0f + (max_y - (bound_height - font->text_metric.tmDescent))) / (f32)bmp.height;
+#if 0
+  ABC abc;
+  GetCharABCWidthsW(global_font_device_context, code_point, code_point, &abc);
+  f32 char_advance = (f32)(abc.abcA + abc.abcB + abc.abcC);
+#else
+  i32 this_width;
+  GetCharWidth32W(global_font_device_context, code_point, code_point, &this_width);
+  f32 char_advance = (f32)this_width;
+#endif
+  
+  for (u32 other_codepoint_index = 0; other_codepoint_index < font->code_point_count; other_codepoint_index++) {
+    font->horizontal_advance[code_point * font->code_point_count + other_codepoint_index] += char_advance - kerning_change;
+    
+    if (other_codepoint_index != 0) {
+      font->horizontal_advance[other_codepoint_index * font->code_point_count + code_point] += kerning_change;
+    }
+    
+  }
+  
 #else
   
   File_read_result font_file = read_entire_file(filename);
@@ -682,7 +705,9 @@ add_font_asset(Game_asset_list *asset_list, Loaded_font *font) {
   Added_asset asset = add_asset(asset_list);
   
   asset.hha->font.code_point_count = font->code_point_count;
-  asset.hha->font.line_advance = font->line_advance;
+  asset.hha->font.ascender_height  = (f32)font->text_metric.tmAscent;
+  asset.hha->font.descender_height = (f32)font->text_metric.tmDescent;
+  asset.hha->font.external_leading = (f32)font->text_metric.tmExternalLeading;
   asset.source->type = Asset_type_font;
   asset.source->font.font = font;
   
@@ -870,25 +895,11 @@ load_font(char *filename, char *fontname, u32 code_point_count) {
   SelectObject(global_font_device_context, font->win32_handle);
   GetTextMetrics(global_font_device_context, &font->text_metric);
   
-  font->line_advance = (f32)font->text_metric.tmHeight + (f32)font->text_metric.tmExternalLeading;
-  
   font->code_point_count = code_point_count;
   font->bitmap_ids = (Bitmap_id*)malloc(sizeof(Bitmap_id) * code_point_count);
-  font->horizontal_advance = (f32*)malloc(sizeof(f32) * code_point_count * code_point_count);
-  
-  auto abc = (ABC*)malloc(sizeof(ABC) * font->code_point_count);
-  GetCharABCWidthsW(global_font_device_context, 0, font->code_point_count - 1, abc);
-  
-  for (u32 codepoint_index = 0; codepoint_index < font->code_point_count; codepoint_index++) {
-    ABC *it = abc + codepoint_index;
-    f32 w = (f32)it->abcA + (f32)it->abcB + (f32)it->abcC;
-    
-    for (u32 other_codepoint_index = 0; other_codepoint_index < font->code_point_count; other_codepoint_index++) {
-      u32 index = codepoint_index * font->code_point_count + other_codepoint_index;
-      font->horizontal_advance[index] = (f32)w;
-    }
-  }
-  free(abc);
+  size_t horizontal_advance_size = sizeof(f32) * code_point_count * code_point_count;
+  font->horizontal_advance = (f32*)malloc(horizontal_advance_size);
+  memset(font->horizontal_advance, 0, horizontal_advance_size);
   
   DWORD kerning_pair_count = GetKerningPairsW(global_font_device_context, 0, 0);
   auto kerning_pair_list = (KERNINGPAIR*)malloc(kerning_pair_count * sizeof(KERNINGPAIR));
@@ -915,17 +926,17 @@ write_fonts() {
   
   init(asset_list);
   
-  //Loaded_font *debug_font = load_font("c:/Windows/Fonts/arial.ttf", "Arial", 256);
-  Loaded_font *debug_font = load_font("../data/DMSans_18pt-Regular.ttf", "DMSans", 256);
+  Loaded_font *debug_font = load_font("c:/Windows/Fonts/arial.ttf", "Arial", ('~' + 1));
+  //Loaded_font *debug_font = load_font("../data/DMSans_18pt-Regular.ttf", "DMSans", 256);
+  
+  begin_asset_type(asset_list, Asset_font_glyph);
+  for (u32 ch = '!'; ch <= '~'; ch++) {
+    debug_font->bitmap_ids[ch] = add_char_asset(asset_list, debug_font, ch);
+  }
+  end_asset_type(asset_list);
   
   begin_asset_type(asset_list, Asset_font);
   add_font_asset(asset_list, debug_font);
-  end_asset_type(asset_list);
-  
-  begin_asset_type(asset_list, Asset_font_glyph);
-  for (u32 ch = 0; ch < 256; ch++) {
-    debug_font->bitmap_ids[ch] = add_char_asset(asset_list, debug_font, ch);
-  }
   end_asset_type(asset_list);
   
   write_hha_file(asset_list, "font_data.hha");

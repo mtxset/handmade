@@ -802,7 +802,7 @@ win32_debug_sync_display(Win32_bitmap_buffer* backbuffer, i32 marker_count, i32 
 
 internal
 HWND
-create_default_window(LRESULT win32_window_processor, HINSTANCE current_instance, char* class_name, i32 initial_window_width, i32 initial_window_height) {
+create_default_window(LRESULT win32_window_processor, HINSTANCE current_instance, char* class_name) {
   
   HWND result = {};
   
@@ -822,8 +822,8 @@ create_default_window(LRESULT win32_window_processor, HINSTANCE current_instance
   result = CreateWindowEx(0, window_class.lpszClassName, "GG", 
                           WS_OVERLAPPEDWINDOW | WS_VISIBLE,
                           CW_USEDEFAULT, CW_USEDEFAULT,
-                          initial_window_width + 150,
-                          initial_window_height + 150, 
+                          CW_USEDEFAULT,
+                          CW_USEDEFAULT,
                           0, 0, current_instance, 0);
   
   if (result == 0) {
@@ -1236,8 +1236,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
   Global_show_cursor = false;
 #endif
   
-  HWND window_handle = create_default_window((LRESULT)win32_window_proc, current_instance, "GG", 
-                                             initial_window_width, initial_window_height);
+  HWND window_handle = create_default_window((LRESULT)win32_window_proc, current_instance, "GG");
   
   assert(window_handle);
   

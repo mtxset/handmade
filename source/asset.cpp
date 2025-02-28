@@ -602,8 +602,16 @@ get_bitmap_for_glyph(Game_asset_list *asset_list, Hha_font *info, Loaded_font *f
 
 static
 f32
-get_line_advance_for(Hha_font *info, Loaded_font *font) {
-  f32 result = info->line_advance;
+get_line_advance_for(Hha_font *info) {
+  f32 result = info->ascender_height + info->descender_height + info->external_leading;
+  
+  return result;
+}
+
+static
+f32
+get_starting_baseline_y(Hha_font *info) {
+  f32 result = info->ascender_height;
   
   return result;
 }
