@@ -89,9 +89,10 @@ struct Wave_fmt_ {
 #pragma pack(pop)
 
 struct Loaded_font {
-  Bitmap_id *code_point_list;
+  Hha_font_glyph *glyph_list;
   f32 *horizontal_advance;
   u32 bitmap_id_offset;
+  u16 *unicode_map;
 };
 
 struct Loaded_sound {

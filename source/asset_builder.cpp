@@ -140,6 +140,7 @@ struct Loaded_font {
   u32 glyph_count;
   
   u32 *glyph_index_from_code_point;
+  u32 one_past_highest_code_point;
 };
 
 enum Asset_type {
@@ -714,6 +715,7 @@ add_font_asset(Game_asset_list *asset_list, Loaded_font *font) {
   
   Added_asset asset = add_asset(asset_list);
   
+  asset.hha->font.one_past_highest_code_point = font->one_past_highest_code_point;
   asset.hha->font.glyph_count = font->glyph_count;
   asset.hha->font.ascender_height  = (f32)font->text_metric.tmAscent;
   asset.hha->font.descender_height = (f32)font->text_metric.tmDescent;
@@ -746,6 +748,10 @@ add_char_asset(Game_asset_list *asset_list, Loaded_font *font, u32 code_point) {
   glyph->bitmap_id = result;
   
   font->glyph_index_from_code_point[code_point] = glyph_index;
+  
+  if (font->one_past_highest_code_point <= code_point) {
+    font->one_past_highest_code_point = code_point + 1;
+  }
   
   return result;
 }
@@ -811,6 +817,10 @@ finalize_font_kerning(Loaded_font *font) {
         pair->wSecond < ONE_PAST_MAX_FONT_CODEPOINT) {
       u32 first  = font->glyph_index_from_code_point[pair->wFirst];
       u32 second = font->glyph_index_from_code_point[pair->wSecond];
+      
+      if (first == 0 || second == 0)
+        continue;
+      
       font->horizontal_advance[first * font->max_glyph_count + second] += (f32)pair->iKernAmount;
     }
   }
@@ -962,6 +972,12 @@ load_ttf_font(char *filename, char *fontname) {
   font->horizontal_advance = (f32*)malloc(horizontal_advance_size);
   memset(font->horizontal_advance, 0, horizontal_advance_size);
   
+  font->one_past_highest_code_point = 0;
+  
+  font->glyph_count = 1;
+  font->glyph_list[0].unicode_code_point = 0;
+  font->glyph_list[0].bitmap_id.value = 0;
+  
   return font;
 }
 
@@ -974,12 +990,13 @@ write_fonts() {
   
   init(asset_list);
   
-  Loaded_font *debug_font = load_ttf_font("c:/Windows/Fonts/arial.ttf", "Arial");
-  //Loaded_font *debug_font = load_font("../data/DMSans_18pt-Regular.ttf", "DMSans", 256);
+  //Loaded_font *debug_font = load_ttf_font("c:/Windows/Fonts/arial.ttf", "Arial");
+  Loaded_font *debug_font = load_ttf_font("../data/DMSans_18pt-Regular.ttf", "DMSans");
   
   begin_asset_type(asset_list, Asset_font_glyph);
   
-  for (u32 ch = 0; ch <= 255; ch++) {
+  // 0 is left for nothing, crucial for correct spacing
+  for (u32 ch = 1; ch < 256; ch++) {
     add_char_asset(asset_list, debug_font, ch);
   }
   

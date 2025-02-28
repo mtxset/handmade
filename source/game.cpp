@@ -1187,13 +1187,40 @@ debug_reset(Game_asset_list *asset_list, u32 width, u32 height) {
   
   font_id = get_best_match_font_from(asset_list, Asset_font, &match_vector, &weight_vector);
   
-  font_scale = 1.0f;
+  font_scale = .5f;
   ortographic(debug_render_group, width, height, 1.0f);
   left_edge = -.5f * width;
   
   Hha_font *info = get_font_info(asset_list, font_id);
   at_y = 0.5f * height - font_scale * get_starting_baseline_y(info);
 }
+
+
+inline
+bool
+is_hex(char ch) {
+  
+  bool result = ((ch >= '0' && ch <= '9') ||
+                 (ch >= 'A' && ch <= 'F'));
+  
+  return result;
+}
+
+inline 
+u32
+get_hex(char ch) {
+  u32 result = 0;
+  
+  if ((ch >= '0') && (ch <= '9')) {
+    result = ch - '0';
+  }
+  else if ((ch >= 'A') && (ch <= 'F')) {
+    result = 0xA + (ch - 'A');
+  }
+  
+  return result;
+}
+
 
 static
 void
@@ -1244,6 +1271,19 @@ debug_text_line(char *string) {
     else {
       
       u32 code_point = *at;
+      
+      if(at[0] == '\\' &&
+         is_hex(at[1]) &&
+         is_hex(at[2]) &&
+         is_hex(at[3]) &&
+         is_hex(at[4])) {
+        code_point= ((get_hex(at[1]) << 12) |
+                     (get_hex(at[2]) << 8) |
+                     (get_hex(at[3]) << 4) |
+                     (get_hex(at[4]) << 0));
+        at += 4;
+      }
+      
       f32 advance_x = char_scale * get_horizontal_advance_for_pair(info, font, prev_code_point, code_point);
       at_x += advance_x;
       
@@ -1290,7 +1330,7 @@ overlay_cycle_counters(Game_memory *memory) {
   }
   
   debug_text_line("AVA Wa Ta");
-  
+  debug_text_line("\\5C0F\\8033\\6728\\514E");
 }
 
 extern "C" // to prevent name mangle by compiler, so function can looked up by name exactly

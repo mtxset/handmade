@@ -1,3 +1,9 @@
+
+enum Finalize_asset_operation {
+  Finalize_asset_none,
+  Finalize_asset_font,
+};
+
 struct Load_asset_work {
   Task_with_memory *task;
   Asset *asset;
@@ -9,6 +15,7 @@ struct Load_asset_work {
   
   void *destination;
   
+  Finalize_asset_operation finalize_operation;
   u32 final_state;
 };
 
@@ -33,6 +40,28 @@ void
 load_asset_work_directly(Load_asset_work *work) {
   
   platform.read_data_from_file(work->handle, work->offset, work->size, work->destination);
+  
+  if (work->handle->no_errors) {
+    switch (work->finalize_operation) {
+      case Finalize_asset_none: break;
+      
+      case Finalize_asset_font: {
+        
+        Loaded_font *font = &work->asset->header->font;
+        Hha_font *hha = &work->asset->hha.font;
+        
+        for (u32 glyph_index = 1; glyph_index < hha->glyph_count; glyph_index++) {
+          Hha_font_glyph *glyph = font->glyph_list + glyph_index;
+          
+          assert(glyph->unicode_code_point < hha->one_past_highest_code_point);
+          assert((u32)(u16)glyph_index == glyph_index); // making sure we don't go over u16 size
+          
+          font->unicode_map[glyph->unicode_code_point] = (u16)glyph_index;
+        }
+        
+      } break;
+    }
+  }
   
   _WriteBarrier();
   
@@ -255,16 +284,20 @@ load_font(Game_asset_list *asset_list, Font_id id, bool immediate) {
       Hha_font *info = &asset->hha.font;
       
       u32 horizontal_advance_size = sizeof(f32) * info->glyph_count * info->glyph_count;
-      u32 code_point_size = info->glyph_count * sizeof(Bitmap_id);
-      u32 size_data = code_point_size + horizontal_advance_size;
-      u32 size_total = size_data + sizeof(Asset_memory_header);
+      u32 glyph_list_size = info->glyph_count * sizeof(Hha_font_glyph);
+      u32 unicode_map_size = sizeof(u16) * info->one_past_highest_code_point;
+      u32 size_data = glyph_list_size + horizontal_advance_size;
+      u32 size_total = size_data + sizeof(Asset_memory_header) + unicode_map_size;
       
-      asset->header = (Asset_memory_header*)acquire_asset_memory(asset_list, size_total, id.value);
+      asset->header = acquire_asset_memory(asset_list, size_total, id.value);
       
       Loaded_font *font = &asset->header->font;
       font->bitmap_id_offset = get_file(asset_list, asset->file_index)->font_bitmap_id_offset;
-      font->code_point_list = (Bitmap_id*)(asset->header + 1);
-      font->horizontal_advance = (f32*)((u8*)font->code_point_list + code_point_size);
+      font->glyph_list = (Hha_font_glyph*)(asset->header + 1);
+      font->horizontal_advance = (f32*)((u8*)font->glyph_list + glyph_list_size);
+      font->unicode_map = (u16*)((u8*)font->horizontal_advance + horizontal_advance_size);
+      
+      mem_zero_size(unicode_map_size, font->unicode_map);
       
       Load_asset_work work;
       work.task = task;
@@ -272,7 +305,8 @@ load_font(Game_asset_list *asset_list, Font_id id, bool immediate) {
       work.handle = get_file_handle_for(asset_list, asset->file_index);
       work.offset = asset->hha.data_offset;
       work.size = size_data;
-      work.destination = font->code_point_list;
+      work.destination = font->glyph_list;
+      work.finalize_operation = Finalize_asset_font;
       work.final_state = Asset_state_loaded;
       
       if (task) {
@@ -358,6 +392,7 @@ load_bitmap(Game_asset_list *asset_list, Bitmap_id id, bool immediate) {
       work.offset = asset->hha.data_offset;
       work.size = size.data;
       work.destination = bitmap->memory;
+      work.finalize_operation = Finalize_asset_none;
       work.final_state = Asset_state_loaded;
       
       if (task) {
@@ -423,6 +458,7 @@ load_sound(Game_asset_list *asset_list, Sound_id id) {
       work->offset = asset->hha.data_offset;
       work->size = size.data;
       work->destination = memory;
+      work->finalize_operation = Finalize_asset_none;
       work->final_state = Asset_state_loaded;
       
       platform.add_entry(asset_list->tran_state->low_priority_queue, load_asset_work, work);
@@ -568,12 +604,12 @@ get_random_sound_from(Game_asset_list *asset_list, Asset_type_id type_id, Random
 
 inline
 u32
-get_clamped_code_point(Hha_font *info, u32 code_point) {
-  
+get_glyph_from_code_point(Hha_font *info, Loaded_font *font, u32 code_point) {
   u32 result = 0;
   
-  if (code_point < info->glyph_count) {
-    result = code_point;
+  if (code_point < info->one_past_highest_code_point) {
+    result = font->unicode_map[code_point];
+    assert(result < info->glyph_count);
   }
   
   return result;
@@ -582,10 +618,10 @@ get_clamped_code_point(Hha_font *info, u32 code_point) {
 static
 f32
 get_horizontal_advance_for_pair(Hha_font *info, Loaded_font *font, u32 desired_prev_code_point, u32 desired_code_point) {
-  u32 prev_code_point = get_clamped_code_point(info, desired_prev_code_point);
-  u32 code_point      = get_clamped_code_point(info, desired_code_point);
+  u32 prev_glyph = get_glyph_from_code_point(info, font, desired_prev_code_point);
+  u32 glyph      = get_glyph_from_code_point(info, font, desired_code_point);
   
-  f32 result = font->horizontal_advance[prev_code_point * info->glyph_count + code_point];
+  f32 result = font->horizontal_advance[prev_glyph * info->glyph_count + glyph];
   
   return result;
 }
@@ -593,8 +629,9 @@ get_horizontal_advance_for_pair(Hha_font *info, Loaded_font *font, u32 desired_p
 static
 Bitmap_id
 get_bitmap_for_glyph(Game_asset_list *asset_list, Hha_font *info, Loaded_font *font, u32 desired_code_point) {
-  u32 code_point = get_clamped_code_point(info, desired_code_point);
-  Bitmap_id result = font->code_point_list[code_point];
+  
+  u32 glyph = get_glyph_from_code_point(info, font, desired_code_point);
+  Bitmap_id result = font->glyph_list[glyph].bitmap_id;
   result.value += font->bitmap_id_offset;
   
   return result;

@@ -61,6 +61,7 @@ struct Hha_font_glyph {
 };
 
 struct Hha_font {
+  u32 one_past_highest_code_point;
   u32 glyph_count;
   f32 ascender_height;
   f32 descender_height;

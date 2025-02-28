@@ -950,16 +950,14 @@ static
 Platform_file_handle
 win32_open_next_file(Platform_file_group *file_group) {
   
-  Win32_platform_file_group *win32_file_group = (Win32_platform_file_group*)file_group->platform;
+  auto win32_file_group = (Win32_platform_file_group*)file_group->platform;
   Platform_file_handle result = {};
   
   if (win32_file_group->find_handle == INVALID_HANDLE_VALUE) {
     assert(!"gg");
   }
   
-  Win32_platform_file_handle *win_file_handle = (Win32_platform_file_handle*)
-    VirtualAlloc(0, sizeof(Win32_platform_file_handle),
-                 MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+  auto win_file_handle = (Win32_platform_file_handle*)VirtualAlloc(0, sizeof(Win32_platform_file_handle), MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
   
   assert(win_file_handle);
   
