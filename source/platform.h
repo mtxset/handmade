@@ -99,8 +99,14 @@ enum Debug_cycle_counter_type {
   Debug_cycle_counter_type_render_draw_rect_slow,   // 2
   Debug_cycle_counter_type_process_pixel,           // 3
   Debug_cycle_counter_type_render_draw_rect_quak,   // 4
+  
   Debug_cycle_counter_count
 };
+
+typedef struct Debug_cycle_counter {
+  u64 cycle_count;
+  u32 hit_count;
+} Debug_cycle_counter;
 
 struct Game_bitmap_buffer {
   // pixels are always 32 bit, memory order BB GG RR XX (padding)
@@ -112,10 +118,6 @@ struct Game_bitmap_buffer {
   u32 window_height;
 };
 
-typedef struct Debug_cycle_counter {
-  u64 cycle_count;
-  u32 hit_count;
-} Debug_cycle_counter;
 #endif
 
 struct Game_sound_buffer {
@@ -296,7 +298,8 @@ get_gamepad(Game_input* input, i32 input_index) {
 
 extern struct Game_memory* debug_global_memory;
 
-
+#define CB_CHECK // should be removed after after few commits
+/*
 #define begin_timed_block(id) u64 debug_cycle_count_##id = __rdtsc();
 #define end_timed_block(id) debug_global_memory->counter_list[Debug_cycle_counter_type_##id].cycle_count += __rdtsc() - debug_cycle_count_##id; debug_global_memory->counter_list[Debug_cycle_counter_type_##id].hit_count++;
 #define get_timed_block(id) debug_cycle_count_##id
@@ -316,5 +319,6 @@ debug_end_timer(Debug_cycle_counter_type type, u64 start_cycle_count, u32 count)
   debug_global_memory->counter_list[type].hit_count += count;
 }
 #endif
+*/
 
 #endif //PLATFORM_H

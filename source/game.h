@@ -18,6 +18,7 @@
 #include "asset.h"
 #include "random.h"
 #include "audio.h"
+#include "debug.h"
 
 struct drop {
   bool active;

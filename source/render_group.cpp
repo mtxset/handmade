@@ -1,4 +1,5 @@
 
+#include "debug.h"
 #include "color.h"
 
 inline
@@ -91,7 +92,7 @@ push_render_element_(Render_group* group, u32 size, Render_group_entry_type type
   size += sizeof(Render_group_entry_header);
   
   if ((group->push_buffer_size + size) < group->max_push_buffer_size) {
-    Render_group_entry_header* header = (Render_group_entry_header*)(group->push_buffer_base + group->push_buffer_size);
+    auto header = (Render_group_entry_header*)(group->push_buffer_base + group->push_buffer_size);
     header->type = type;
     result = (u8*)header + sizeof(*header);
     group->push_buffer_size += size;
@@ -346,7 +347,7 @@ distance_from_map_z - how far the map is from sample point in z, in meters
 internal
 void
 draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Loaded_bmp* bitmap, Loaded_bmp* normal_map, Env_map* top, Env_map* middle, Env_map* bottom, f32 pixel_to_meter) {
-  u64 start_cycle_timer = __rdtsc();
+  timed_block(render_draw_rect_slow);
   
   color.rgb *= color.a;
   
@@ -568,14 +569,6 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
     row += buffer->pitch;
   }
   
-  u32 pixels_processed = 0;
-  
-  if (x_max >= x_min && y_max >= y_min)
-    pixels_processed = (x_max - x_min + 1) * (y_max - y_min + 1);
-  
-  debug_end_timer(Debug_cycle_counter_type_process_pixel, pixel_cycle_timer, pixels_processed);
-  
-  debug_end_timer(Debug_cycle_counter_type_render_draw_rect_slow, start_cycle_timer);
 }
 
 internal
@@ -723,7 +716,7 @@ internal
 void
 render_group_to_output(Render_group* render_group, Loaded_bmp* output_target, Rect2i clip_rect, bool even) {
   
-  auto start_cycle_count = __rdtsc();
+  timed_block(render_group_to_output);
   
   f32 null_pixels_to_meters = 1.0f;
   
@@ -819,8 +812,6 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target, Re
       } break;
     }
   }
-  
-  debug_end_timer(Debug_cycle_counter_type_render_group_to_output, start_cycle_count);
 }
 
 struct Tile_render_work

@@ -1187,14 +1187,13 @@ debug_reset(Game_asset_list *asset_list, u32 width, u32 height) {
   
   font_id = get_best_match_font_from(asset_list, Asset_font, &match_vector, &weight_vector);
   
-  font_scale = .5f;
+  font_scale = .2f;
   ortographic(debug_render_group, width, height, 1.0f);
   left_edge = -.5f * width;
   
   Hha_font *info = get_font_info(asset_list, font_id);
   at_y = 0.5f * height - font_scale * get_starting_baseline_y(info);
 }
-
 
 inline
 bool
@@ -1326,7 +1325,14 @@ overlay_cycle_counters(Game_memory *memory) {
     if (counter->hit_count == 0) 
       continue;
     
-    debug_text_line(cycle_counter_names[counter_index]);
+    char buffer[256];
+    u64 cycles_per_hit = counter->cycle_count / counter->hit_count;
+    _snprintf_s(buffer, sizeof(buffer),
+                "%s: %I64u cy %uh %I64u cy/h\n", 
+                cycle_counter_names[counter_index],
+                counter->cycle_count, counter->hit_count, cycles_per_hit);
+    
+    debug_text_line(buffer);
   }
   
   debug_text_line("AVA Wa Ta");
@@ -1339,12 +1345,11 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   
   platform = memory->platform_api;
   
-  begin_timed_block(game_update_render);
-  
 #if INTERNAL
   debug_global_memory = memory;
-  auto start_cycle_count = __rdtsc();
 #endif
+  
+  timed_block(game_update_render);
   
 #if 0
   run_tests();
@@ -2393,10 +2398,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   check_arena(&game_state->world_arena);
   check_arena(&tran_state->arena);
   
-  end_timed_block(game_update_render);
-  
-  u64 game_update_render_cycles = get_timed_block(game_update_render);
-  
+  stop_timed_block(game_update_render);
   overlay_cycle_counters(memory);
   
   if (debug_render_group) {
@@ -2427,10 +2429,6 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   
 #if 0
   each_pixel(draw_buffer, game_state, input->time_delta);
-#endif
-  
-#if INTERNAL
-  debug_end_timer(Debug_cycle_counter_type_game_update_render, start_cycle_count);
 #endif
 }
 
