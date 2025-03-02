@@ -740,6 +740,8 @@ struct Fill_ground_chunk_work {
 internal
 PLATFORM_WORK_QUEUE_CALLBACK(fill_ground_chunk_work) {
   
+  timed_block();
+  
   Fill_ground_chunk_work *work = (Fill_ground_chunk_work*)data;
   
   Loaded_bmp* bitmap_buffer = &work->ground_buffer->bitmap;
@@ -1185,10 +1187,12 @@ debug_reset(Game_asset_list *asset_list, u32 width, u32 height) {
   timed_block();
   Asset_vector match_vector = {};
   Asset_vector weight_vector = {};
+  match_vector.e[Tag_font_type] = (f32)Font_type_debug;
+  weight_vector.e[Tag_font_type] = 1.0f;
   
   font_id = get_best_match_font_from(asset_list, Asset_font, &match_vector, &weight_vector);
   
-  font_scale = .2f;
+  font_scale = 1.0f;
   ortographic(debug_render_group, width, height, 1.0f);
   left_edge = -.5f * width;
   
@@ -2366,6 +2370,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   check_arena(&game_state->world_arena);
   check_arena(&tran_state->arena);
   
+  
   overlay_cycle_counters(memory);
   
   if (debug_render_group) {
@@ -2412,35 +2417,55 @@ game_get_sound_samples(Game_memory *memory, Game_sound_buffer *sound_buffer) {
 
 // because it's preprocessing it parses and replaces each __COUNTER__ incremental value
 // so by the time it gets here it's increments again, and we compile having ids
-Debug_record main_debug_record_list[__COUNTER__];
+const u32 main_debug_record_list_count = __COUNTER__;
+Debug_record main_debug_record_list[main_debug_record_list_count];
+
+static
+void
+output_debug_records(u32 counter_count, Debug_record *counter_list) {
+  
+  for (u32 counter_index = 0; counter_index < counter_count; counter_index++) {
+    
+    Debug_record *counter = counter_list + counter_index;
+    
+    u64 hit_count_cycle_count = atomic_exchange_u64(&counter->hit_count_cycle_count, 0);
+    u32 hit_count = (u32)(hit_count_cycle_count >> 32);
+    u32 cycle_count = (u32)(hit_count_cycle_count & 0xffffffff);
+    
+    if (hit_count == 0) 
+      continue;
+    
+    char buffer[256];
+    _snprintf_s(buffer, sizeof(buffer),
+                "%32s(%4d): %10ucy %8uh %10ucy/h", 
+                counter->function_name,
+                counter->line_number,
+                cycle_count, 
+                hit_count, 
+                cycle_count / hit_count);
+    
+    debug_text_line(buffer);
+  }
+}
+
+extern u32 const debug_record_list_optimized_count;
+Debug_record optimized_debug_record_list[];
 
 static
 void
 overlay_cycle_counters(Game_memory *memory) {
   
-  debug_text_line("\\#900DEBUG \\#090CYCLE \\#990\\^5COUNTS:");
-  
-  for (u32 counter_index = 0; counter_index < array_count(debug_record_list); counter_index++) {
-    
-    Debug_record *counter = main_debug_record_list + counter_index;
-    
-    if (counter->hit_count == 0) 
-      continue;
-    
-    char buffer[256];
-    u64 cycles_per_hit = counter->cycle_count / counter->hit_count;
-    _snprintf_s(buffer, sizeof(buffer),
-                "%s: %I64u cy %uh %I64ucy/h\n", 
-                counter->function_name,
-                counter->cycle_count, 
-                counter->hit_count, 
-                cycles_per_hit);
-    
-    debug_text_line(buffer);
-    counter->hit_count = 0;
-    counter->cycle_count = 0;
-  }
+#if 0
+  debug_text_line("The quick brown fox jumps over the lazy dog");
   
   debug_text_line("AVA Wa Ta");
   debug_text_line("\\5C0F\\8033\\6728\\514E");
+#endif
+  
+#if INTERNAL
+  debug_text_line("\\#900DEBUG \\#090CYCLE \\#990\\^5COUNTS:");
+  output_debug_records(debug_record_list_optimized_count, optimized_debug_record_list);
+  output_debug_records(main_debug_record_list_count, main_debug_record_list);
+#endif
+  
 }

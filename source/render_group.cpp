@@ -43,6 +43,9 @@ struct Entity_basis_result {
 inline
 Entity_basis_result
 get_render_entity_basis_pos(Render_transform *transform, v3 original_pos) {
+  
+  timed_block();
+  
   Entity_basis_result result = {};
   
   v3 pos = v2_to_v3(original_pos.xy, 0) + transform->offset_pos;
@@ -87,6 +90,9 @@ get_render_entity_basis_pos(Render_transform *transform, v3 original_pos) {
 inline
 void*
 push_render_element_(Render_group* group, u32 size, Render_group_entry_type type) {
+  
+  timed_block();
+  
   void* result = 0;
   
   size += sizeof(Render_group_entry_header);
@@ -216,6 +222,8 @@ draw_rect_old(Loaded_bmp* buffer, v2 start, v2 end, v4 color) {
 internal
 void
 draw_rect(Loaded_bmp* buffer, v2 v_min, v2 v_max, v4 color, Rect2i clip_rect, bool even) {
+  
+  timed_block();
   
   u32 color_hex = (round_f32_u32(color.a * 255.0f) << 24 | 
                    round_f32_u32(color.r * 255.0f) << 16 | 
@@ -575,6 +583,8 @@ internal
 void
 change_saturation(Loaded_bmp* bitmap_buffer, f32 level) {
   
+  timed_block();
+  
   u8* dest_row = (u8*)bitmap_buffer->memory;
   
   for (i32 y = 0; y < bitmap_buffer->height; y++) {
@@ -616,6 +626,8 @@ change_saturation(Loaded_bmp* bitmap_buffer, f32 level) {
 internal
 void
 draw_bitmap(Loaded_bmp* bitmap_buffer, Loaded_bmp* bitmap, v2 start, f32 c_alpha = 1.0f) {
+  
+  timed_block();
   
   i32 min_x = round_f32_i32(start.x);
   i32 min_y = round_f32_i32(start.y);
@@ -836,6 +848,8 @@ PLATFORM_WORK_QUEUE_CALLBACK(do_tile_render_work)
 internal
 void
 render_group_to_output(Render_group *render_group, Loaded_bmp *output_target) {
+  
+  timed_block();
   
   assert(((uintptr)output_target->memory & 15) == 0);
   
@@ -1074,6 +1088,9 @@ all_resources_present(Render_group *group) {
 static
 void
 begin_render(Render_group *group) {
+  
+  timed_block();
+  
   if (group) {
     assert(!group->inside_render);
     group->inside_render = true;
@@ -1085,6 +1102,9 @@ begin_render(Render_group *group) {
 static
 void
 end_render(Render_group *group) {
+  
+  timed_block();
+  
   if (group) {
     assert(group->inside_render);
     group->inside_render = false;

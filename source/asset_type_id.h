@@ -8,7 +8,7 @@ enum Asset_tag_id {
   Tag_flatness,
   Tag_facing_dir,
   Tag_unicode_codepoint,
-  
+  Tag_font_type,
   Tag_count,
 };
 

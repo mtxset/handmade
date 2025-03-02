@@ -932,17 +932,16 @@ write_hha_file(Game_asset_list *asset_list, char *filename) {
 
 static
 Loaded_font*
-load_ttf_font(char *filename, char *fontname) {
+load_ttf_font(char *filename, char *fontname, i32 pixel_height) {
   
   Loaded_font *font = (Loaded_font*)malloc(sizeof(Loaded_font));
   
   AddFontResourceExA(filename, FR_PRIVATE, 0);
-  i32 height = 128;
   
   assert(global_font_device_context);
   assert(global_font_bits);
   
-  font->win32_handle = CreateFontA(height, 0, 0, 0,
+  font->win32_handle = CreateFontA(pixel_height, 0, 0, 0,
                                    FW_NORMAL, // weight - normal, bold (0 to 1000) FW_NORMAL - 400
                                    _(italic)false,
                                    _(underline)false,
@@ -991,25 +990,34 @@ write_fonts() {
   init(asset_list);
   
   //Loaded_font *debug_font = load_ttf_font("c:/Windows/Fonts/arial.ttf", "Arial");
-  Loaded_font *debug_font = load_ttf_font("../data/DMSans_18pt-Regular.ttf", "DMSans");
+  Loaded_font *font_list[] = {
+    load_ttf_font("../data/DMSans_18pt-Regular.ttf", "DMSans 18pt", 128),
+    load_ttf_font("../data/liberation-mono.ttf", "Liberation Mono", 18)
+  };
   
   begin_asset_type(asset_list, Asset_font_glyph);
-  
-  // 0 is left for nothing, crucial for correct spacing
-  for (u32 ch = 1; ch < 256; ch++) {
-    add_char_asset(asset_list, debug_font, ch);
+  for (u32 font_index = 0; font_index < array_count(font_list); font_index++) {
+    Loaded_font *font = font_list[font_index];
+    // 0 is left for nothing, crucial for correct spacing
+    for (u32 ch = 1; ch < 256; ch++) {
+      add_char_asset(asset_list, font, ch);
+    }
+    
+    // Kanji
+    add_char_asset(asset_list, font, 0x5c0f);
+    add_char_asset(asset_list, font, 0x8033);
+    add_char_asset(asset_list, font, 0x6728);
+    add_char_asset(asset_list, font, 0x514e);
+    
   }
-  
-  // Kanji
-  add_char_asset(asset_list, debug_font, 0x5c0f);
-  add_char_asset(asset_list, debug_font, 0x8033);
-  add_char_asset(asset_list, debug_font, 0x6728);
-  add_char_asset(asset_list, debug_font, 0x514e);
-  
   end_asset_type(asset_list);
   
   begin_asset_type(asset_list, Asset_font);
-  add_font_asset(asset_list, debug_font);
+  add_font_asset(asset_list, font_list[0]);
+  add_tag(asset_list, Tag_font_type, Font_type_default);
+  
+  add_font_asset(asset_list, font_list[1]);
+  add_tag(asset_list, Tag_font_type, Font_type_debug);
   end_asset_type(asset_list);
   
   write_hha_file(asset_list, "font_data.hha");

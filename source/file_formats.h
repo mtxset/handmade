@@ -5,6 +5,13 @@
 
 #define CODE(a,b,c,d) (((u32)(a) << 0) | ((u32)(b) << 8) | ((u32)(c) << 16) | ((u32)(d) << 24))
 
+
+enum Asset_font_type {
+  Font_type_default = 0,
+  Font_type_debug   = 10,
+};
+
+
 #pragma pack(push, 1)
 
 struct Bitmap_id { u32 value; };

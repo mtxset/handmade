@@ -23,6 +23,9 @@ World_position null_position() {
 
 inline
 World_chunk* get_world_chunk(World* world, i32 x, i32 y, i32 z, Memory_arena* arena = 0) {
+  
+  timed_block();
+  
   assert(x > -TILE_CHUNK_SAFE_MARGIN);
   assert(y > -TILE_CHUNK_SAFE_MARGIN);
   assert(z > -TILE_CHUNK_SAFE_MARGIN);
@@ -177,6 +180,8 @@ void init_world(World* world, v3 chunk_dim_meters) {
 inline
 void change_entity_location_raw(Memory_arena* arena, World* world, u32 low_entity_index, World_position* old_pos, World_position* new_pos) {
   
+  timed_block();
+  
   assert(!old_pos || is_position_valid(*old_pos));
   assert(!new_pos || is_position_valid(*new_pos));
   
@@ -247,6 +252,8 @@ void change_entity_location_raw(Memory_arena* arena, World* world, u32 low_entit
 internal
 void 
 change_entity_location(Memory_arena* arena, World* world, u32 low_entity_index, Low_entity* low_entity, World_position new_pos_init) {
+  
+  timed_block();
   
   World_position* old_pos = 0;
   World_position* new_pos = 0;

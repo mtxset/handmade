@@ -52,6 +52,8 @@ internal
 Playing_sound*
 play_sound(Audio_state *audio_state, Sound_id sound_id, v2 volume = v2_one) {
   
+  timed_block();
+  
   if (!audio_state->first_free_playing_sound) {
     audio_state->first_free_playing_sound = mem_push_struct(audio_state->perm_arena, Playing_sound);
     audio_state->first_free_playing_sound->next = 0;
@@ -98,6 +100,8 @@ change_volume(Audio_state *audio_state, Playing_sound *sound, f32 fade_duration_
 static
 void
 output_playing_sounds(Audio_state *audio_state, Game_sound_buffer *sound_buffer, Game_asset_list *asset_list, Memory_arena *temp_arena) {
+  
+  timed_block();
   
   Temp_memory mixer_memory = begin_temp_memory(temp_arena);
   

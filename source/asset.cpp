@@ -39,6 +39,8 @@ static
 void
 load_asset_work_directly(Load_asset_work *work) {
   
+  timed_block();
+  
   platform.read_data_from_file(work->handle, work->offset, work->size, work->destination);
   
   if (work->handle->no_errors) {
@@ -181,6 +183,8 @@ generation_has_completed(Game_asset_list *asset_list, u32 check_id) {
 inline 
 Asset_memory_header*
 acquire_asset_memory(Game_asset_list *asset_list, u32 size, u32 asset_index) {
+  
+  timed_block();
   
   Asset_memory_header *result = 0;
   
@@ -352,6 +356,8 @@ push_font(Render_group *group, Font_id id) {
 void 
 load_bitmap(Game_asset_list *asset_list, Bitmap_id id, bool immediate) {
   
+  timed_block();
+  
   Asset *asset = asset_list->asset_list + id.value;
   
   if (id.value &&
@@ -420,6 +426,8 @@ load_bitmap(Game_asset_list *asset_list, Bitmap_id id, bool immediate) {
 
 void
 load_sound(Game_asset_list *asset_list, Sound_id id) {
+  
+  timed_block();
   
   Asset *asset = asset_list->asset_list + id.value;
   
