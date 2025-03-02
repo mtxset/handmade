@@ -833,7 +833,7 @@ create_default_window(LRESULT win32_window_processor, HINSTANCE current_instance
   
   return result;
 }
-
+#if 0
 internal
 void
 handle_debug_cycle_count(Game_memory* memory) {
@@ -864,6 +864,7 @@ handle_debug_cycle_count(Game_memory* memory) {
   }
 #endif
 }
+#endif
 
 struct Platform_work_queue_entry {
   Platform_work_queue_callback *callback;
@@ -1493,7 +1494,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       
       if (game_code.update_and_render) {
         game_code.update_and_render(&memory, new_input, &game_buffer);
-        handle_debug_cycle_count(&memory);
+        //handle_debug_cycle_count(&memory);
       }
     }
     
@@ -1645,7 +1646,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       }
 #endif
       
-      bool output_to_debug_fps = false;
+      bool output_to_debug_fps = true;
       if (output_to_debug_fps) {
         auto cycles_elapsed = (u32)(end_cycle_count - begin_cycle_count);
         auto counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;

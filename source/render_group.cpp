@@ -347,7 +347,7 @@ distance_from_map_z - how far the map is from sample point in z, in meters
 internal
 void
 draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Loaded_bmp* bitmap, Loaded_bmp* normal_map, Env_map* top, Env_map* middle, Env_map* bottom, f32 pixel_to_meter) {
-  timed_block(render_draw_rect_slow);
+  timed_block();
   
   color.rgb *= color.a;
   
@@ -716,7 +716,7 @@ internal
 void
 render_group_to_output(Render_group* render_group, Loaded_bmp* output_target, Rect2i clip_rect, bool even) {
   
-  timed_block(render_group_to_output);
+  timed_block();
   
   f32 null_pixels_to_meters = 1.0f;
   
@@ -860,6 +860,8 @@ internal
 void
 tiled_render_group_to_output(Platform_work_queue *render_queue, 
                              Render_group *render_group, Loaded_bmp *output_target) {
+  
+  timed_block();
   
   i32 const tile_count_x = 9;
   i32 const tile_count_y = 9;

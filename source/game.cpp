@@ -1182,6 +1182,7 @@ static Font_id font_id;
 static
 void
 debug_reset(Game_asset_list *asset_list, u32 width, u32 height) {
+  timed_block();
   Asset_vector match_vector = {};
   Asset_vector weight_vector = {};
   
@@ -1304,40 +1305,7 @@ debug_text_line(char *string) {
   at_y -= get_line_advance_for(info) * font_scale;
 }
 
-static
-void
-overlay_cycle_counters(Game_memory *memory) {
-  
-  char *cycle_counter_names[] = {
-    "game_update_render",
-    "render_group_to_output",
-    "render_draw_rect_slow",
-    "process_pixel",
-    "render_draw_rect_quak",
-  };
-  
-  debug_text_line("\\#900DEBUG \\#090CYCLE \\#990\\^5COUNTS:");
-  
-  for (u32 counter_index = 0; counter_index < array_count(memory->counter_list); counter_index++) {
-    
-    Debug_cycle_counter *counter = memory->counter_list + counter_index;
-    
-    if (counter->hit_count == 0) 
-      continue;
-    
-    char buffer[256];
-    u64 cycles_per_hit = counter->cycle_count / counter->hit_count;
-    _snprintf_s(buffer, sizeof(buffer),
-                "%s: %I64u cy %uh %I64u cy/h\n", 
-                cycle_counter_names[counter_index],
-                counter->cycle_count, counter->hit_count, cycles_per_hit);
-    
-    debug_text_line(buffer);
-  }
-  
-  debug_text_line("AVA Wa Ta");
-  debug_text_line("\\5C0F\\8033\\6728\\514E");
-}
+static void overlay_cycle_counters(Game_memory *memory);
 
 extern "C" // to prevent name mangle by compiler, so function can looked up by name exactly
 void 
@@ -1349,7 +1317,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   debug_global_memory = memory;
 #endif
   
-  timed_block(game_update_render);
+  timed_block();
   
 #if 0
   run_tests();
@@ -2398,7 +2366,6 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   check_arena(&game_state->world_arena);
   check_arena(&tran_state->arena);
   
-  stop_timed_block(game_update_render);
   overlay_cycle_counters(memory);
   
   if (debug_render_group) {
@@ -2441,4 +2408,39 @@ game_get_sound_samples(Game_memory *memory, Game_sound_buffer *sound_buffer) {
   auto tran_state = (Transient_state*)memory->transient_storage;
   
   output_playing_sounds(&game_state->audio_state, sound_buffer, tran_state->asset_list, &tran_state->arena);
+}
+
+// because it's preprocessing it parses and replaces each __COUNTER__ incremental value
+// so by the time it gets here it's increments again, and we compile having ids
+Debug_record main_debug_record_list[__COUNTER__];
+
+static
+void
+overlay_cycle_counters(Game_memory *memory) {
+  
+  debug_text_line("\\#900DEBUG \\#090CYCLE \\#990\\^5COUNTS:");
+  
+  for (u32 counter_index = 0; counter_index < array_count(debug_record_list); counter_index++) {
+    
+    Debug_record *counter = main_debug_record_list + counter_index;
+    
+    if (counter->hit_count == 0) 
+      continue;
+    
+    char buffer[256];
+    u64 cycles_per_hit = counter->cycle_count / counter->hit_count;
+    _snprintf_s(buffer, sizeof(buffer),
+                "%s: %I64u cy %uh %I64ucy/h\n", 
+                counter->function_name,
+                counter->cycle_count, 
+                counter->hit_count, 
+                cycles_per_hit);
+    
+    debug_text_line(buffer);
+    counter->hit_count = 0;
+    counter->cycle_count = 0;
+  }
+  
+  debug_text_line("AVA Wa Ta");
+  debug_text_line("\\5C0F\\8033\\6728\\514E");
 }

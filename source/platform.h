@@ -93,20 +93,6 @@ truncate_u64_u32(u64 value) {
 }
 
 #if INTERNAL
-enum Debug_cycle_counter_type {
-  Debug_cycle_counter_type_game_update_render,      // 0
-  Debug_cycle_counter_type_render_group_to_output,  // 1
-  Debug_cycle_counter_type_render_draw_rect_slow,   // 2
-  Debug_cycle_counter_type_process_pixel,           // 3
-  Debug_cycle_counter_type_render_draw_rect_quak,   // 4
-  
-  Debug_cycle_counter_count
-};
-
-typedef struct Debug_cycle_counter {
-  u64 cycle_count;
-  u32 hit_count;
-} Debug_cycle_counter;
 
 struct Game_bitmap_buffer {
   // pixels are always 32 bit, memory order BB GG RR XX (padding)
@@ -276,9 +262,7 @@ typedef struct Game_memory {
   
   u64 cpu_frequency;
   
-#if INTERNAL
-  Debug_cycle_counter counter_list[Debug_cycle_counter_count];
-#endif
+  
 } Game_memory;
 
 typedef 

@@ -24,10 +24,24 @@ debug_simd_example() {
   sum = _mm_add_ps(xxxx, yyyy);
 }
 
+inline
+i32
+get_clamped_rect_area(Rect2i rect) {
+  i32 width  = (rect.max_x - rect.min_x);
+  i32 height = (rect.max_y - rect.min_y);
+  
+  i32 result = 0;
+  
+  if (width > 0 && height > 0) 
+    result = width * height;
+  
+  return result;
+}
+
 void
 draw_rect_quak(Loaded_bmp *buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Loaded_bmp *bitmap, f32 pixel_to_meter, Rect2i clip_rect, bool even) {
   
-  timed_block(render_draw_rect_quak);
+  timed_block();
   
   assert(bitmap->memory);
   
@@ -158,9 +172,8 @@ draw_rect_quak(Loaded_bmp *buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
   i32 max_x = fill_rect.max_x;
   i32 max_y = fill_rect.max_y;
   
+  timed_block(get_clamped_rect_area(fill_rect) / 2);
   for (i32 y = min_y; y < max_y; y += 2) {
-    
-    timed_block(process_pixel);
     
     __m128 pixel_pos_y = _mm_set1_ps((f32)y);
     pixel_pos_y = _mm_sub_ps(pixel_pos_y, origin_y_4x);
@@ -418,3 +431,5 @@ draw_rect_quak(Loaded_bmp *buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
     row += row_advance;
   }
 }
+
+Debug_record optimized_debug_record_list[__COUNTER__];

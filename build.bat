@@ -34,9 +34,9 @@ echo Waiting for pbd > lock.tmp
 
 cl.exe %common_compiler_flags% "..\source\asset_builder.cpp" /link %common_linker_flags%
 
-cl %include_iaca% %common_compiler_flags% -O2 -c ..\source\optimized.cpp -Fooptimized.obj -LD
+cl %include_iaca% %common_compiler_flags% -Ddebug_record_list=optimized_debug_record_list -O2 -c ..\source\optimized.cpp -Fooptimized.obj -LD
 
-cl.exe %include_iaca% %common_compiler_flags% "..\source\game.cpp" optimized.obj /LD /link -incremental:no -opt:ref -PDB:game%random%.pdb  -EXPORT:game_get_sound_samples -EXPORT:game_update_render
+cl.exe %include_iaca% %common_compiler_flags% -Ddebug_record_list=main_debug_record_list "..\source\game.cpp" optimized.obj /LD /link -incremental:no -opt:ref -PDB:game%random%.pdb  -EXPORT:game_get_sound_samples -EXPORT:game_update_render
 del lock.tmp
 
 cl.exe %common_compiler_flags% "..\source\main.cpp" /link %common_linker_flags%
