@@ -81,6 +81,18 @@ struct Debug_state {
   u32 snapshot_index;
   u32 counter_count;
   Debug_counter_state counter_state_list[512];
+  Debug_frame_end_info frame_end_info_list[DEBUG_SNAPSHOT_COUNT];
 };
+
+
+// because it's preprocessing it parses and replaces each __COUNTER__ incremental value
+// so by the time it gets here it's increments again, and we compile having ids
+
+struct Render_group;
+struct Game_asset_list;
+static Render_group *debug_render_group;
+
+static void debug_reset(Game_asset_list *asset_list, u32 width, u32 height);
+static void debug_overlay(Game_memory *memory);
 
 #endif //DEBUG_H

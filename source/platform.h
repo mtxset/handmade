@@ -267,13 +267,14 @@ typedef struct Game_memory {
   
 } Game_memory;
 
+struct Debug_frame_timestamp {
+  char *name;
+  f32  seconds;
+};
+
 struct Debug_frame_end_info {
-  f32 exe_ready;
-  f32 input_processed;
-  f32 game_updated;
-  f32 audio_updated;
-  f32 framerate_wait_complete;
-  f32 end_of_frame;
+  u32 timestamp_count;
+  Debug_frame_timestamp timestamp_list[64];
 };
 
 typedef 

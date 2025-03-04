@@ -460,6 +460,7 @@ win32_resize_dib_section(Win32_bitmap_buffer* bitmap_buffer, i32 width, i32 heig
 internal
 void
 win32_display_buffer_to_window(Win32_bitmap_buffer* bitmap_buffer, HDC device_context, i32 window_width, i32 window_height) {
+#if 0
   i32 offset_x = 10;
   i32 offset_y = 10;
   
@@ -494,6 +495,39 @@ win32_display_buffer_to_window(Win32_bitmap_buffer* bitmap_buffer, HDC device_co
                 offset_x, offset_y, window_width, window_height, 
                 0, 0, bitmap_buffer->width, bitmap_buffer->height, 
                 bitmap_buffer->memory, &bitmap_buffer->info, DIB_RGB_COLORS, SRCCOPY);
+#else
+  
+  if (window_width >= bitmap_buffer->width * 2 && window_height >= bitmap_buffer->height*2) {
+    
+    int offset_x = 0;
+    int offset_y = 0;
+    
+    StretchDIBits(device_context, 
+                  offset_x, offset_y, 2*bitmap_buffer->width, 2*bitmap_buffer->height, 
+                  0, 0, 2*bitmap_buffer->width, 2*bitmap_buffer->height, 
+                  bitmap_buffer->memory, &bitmap_buffer->info, DIB_RGB_COLORS, SRCCOPY);
+  }
+  else {
+#if 0
+    int offset_x = 10;
+    int offset_y = 10;
+    
+    PatBlt(DeviceContext, 0, 0, window_width, offset_y, BLACKNESS);
+    PatBlt(DeviceContext, 0, offset_y + bitmap_buffer->Height, window_width, window_height, BLACKNESS);
+    PatBlt(DeviceContext, 0, 0, offset_x, window_height, BLACKNESS);
+    PatBlt(DeviceContext, offset_x + bitmap_buffer->Width, 0, window_width, window_height, BLACKNESS);
+#else
+    int offset_x = 0;
+    int offset_y = 0;
+#endif
+    
+    StretchDIBits(device_context, 
+                  offset_x, offset_y, bitmap_buffer->width, bitmap_buffer->height, 
+                  0, 0, bitmap_buffer->width, bitmap_buffer->height, 
+                  bitmap_buffer->memory, &bitmap_buffer->info, DIB_RGB_COLORS, SRCCOPY);
+  }
+  
+#endif
 }
 
 internal
@@ -675,12 +709,6 @@ win32_window_proc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
     case WM_PAINT: {
       PAINTSTRUCT paint;
       auto device_context = BeginPaint(window, &paint);
-      
-      auto x = paint.rcPaint.left;
-      auto y = paint.rcPaint.top;
-      auto width = paint.rcPaint.right - paint.rcPaint.left;
-      auto height = paint.rcPaint.bottom - paint.rcPaint.top;
-      
       auto dimensions = get_window_dimensions(window);
       win32_display_buffer_to_window(&Global_backbuffer, device_context, dimensions.width, dimensions.height);
       EndPaint(window, &paint);
@@ -1151,6 +1179,16 @@ win32_deallocate_memory(void *memory) {
 typedef void*
 Platform_allocate_memory(sz size);
 
+inline
+void
+win32_record_timestamp(Debug_frame_end_info *info, char *name, f32 seconds) {
+  assert(info->timestamp_count < array_count(info->timestamp_list));
+  
+  Debug_frame_timestamp *timestamp = info->timestamp_list + info->timestamp_count++;
+  timestamp->name = name;
+  timestamp->seconds = seconds;
+}
+
 i32
 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
   
@@ -1222,7 +1260,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
   initial_window_height = 600; // 1080 
 #endif
   
-#if 0
+#if 1
   initial_window_width  = 1920; // 2560
   initial_window_height = 1080; // 1080 
 #endif
@@ -1253,10 +1291,12 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
   
   if (win32_refresh_rate > 1)
     refresh_rate = win32_refresh_rate;
+  
   local_persist const i32 monitor_refresh_rate     = refresh_rate;
   local_persist const i32 game_update_refresh_rate = monitor_refresh_rate;
   
-  f32 target_seconds_per_frame = 1.0f / (f32)game_update_refresh_rate;
+#define CB_CHECK // cuz manual rendering
+  f32 target_seconds_per_frame = 1.0f / ((f32)game_update_refresh_rate / 2.0f);
   
   // sound stuff
   Win32_sound_output sound_output = {};
@@ -1372,7 +1412,10 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       }
     }
     
-    frame_end_info.exe_ready = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
+    {
+      f32 delta = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
+      win32_record_timestamp(&frame_end_info, "executable_ready", delta);
+    }
     
     // input
     {
@@ -1490,7 +1533,10 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     swap(new_input, old_input);
     // end input
     
-    frame_end_info.input_processed = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
+    {
+      f32 delta = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
+      win32_record_timestamp(&frame_end_info, "input_processed", delta);
+    }
     
     // record, playback, update and render
     {
@@ -1514,7 +1560,10 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       }
     }
     
-    frame_end_info.game_updated = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
+    {
+      f32 delta = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
+      win32_record_timestamp(&frame_end_info, "game_updated", delta);
+    }
     
     // sound stuff
     {
@@ -1619,7 +1668,10 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       win32_fill_sound_buffer(&sound_output, bytes_to_lock, bytes_to_write, &sound_buffer);
     }
     
-    frame_end_info.audio_updated = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
+    {
+      f32 delta = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
+      win32_record_timestamp(&frame_end_info, "audio_updated", delta);
+    }
     
     // ensuring stable fps
     {
@@ -1639,7 +1691,10 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
         // missing frames
       }
       
-      frame_end_info.framerate_wait_complete = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
+      {
+        f32 delta = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
+        win32_record_timestamp(&frame_end_info, "framerate_wait_complete", delta);
+      }
       
 #if INTERNAL
       {
@@ -1683,7 +1738,10 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
         OutputDebugStringA(buffer);
       }
       
-      frame_end_info.end_of_frame = win32_get_seconds_elapsed(last_counter, end_counter);
+      {
+        f32 delta = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
+        win32_record_timestamp(&frame_end_info, "end_of_frame", delta);
+      }
       
 #if INTERNAL
       if (game_code.debug_frame_end) {
