@@ -3,7 +3,6 @@
 #ifndef DEBUG_H
 #define DEBUG_H
 
-
 #if (!COMPILER_MSVC && !COMPILER_LLVM)
 assert(!"not supported")
 #endif
@@ -61,14 +60,27 @@ struct Timed_block {
     u64 delta = (__rdtsc() - start_cycles) | ((u64)hit_count << 32);
     atomic_add_u64(&record->hit_count_cycle_count, delta);
   }
+};
+
+struct Debug_counter_snapshot {
+  u32 hit_count;
+  u32 cycle_count;
+};
+
+#define DEBUG_SNAPSHOT_COUNT 120
+struct Debug_counter_state {
+  char *file_name;
+  char *function_name;
   
-  void end() {
-    ended = true;
-    
-    u64 delta = (__rdtsc() - start_cycles) | ((u64)hit_count << 32);
-    atomic_add_u64(&record->hit_count_cycle_count, delta);
-  }
+  u32 line_number;
   
+  Debug_counter_snapshot snapshot_list[DEBUG_SNAPSHOT_COUNT];
+};
+
+struct Debug_state {
+  u32 snapshot_index;
+  u32 counter_count;
+  Debug_counter_state counter_state_list[512];
 };
 
 #endif //DEBUG_H

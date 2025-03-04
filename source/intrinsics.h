@@ -17,6 +17,7 @@ atomic_compare_exchange_u32(u32 volatile *value, u32 new_value, u32 expected) {
 inline
 u64
 atomic_add_u64(u64 volatile *value, u64 addend) {
+  
   u64 result = _InterlockedExchangeAdd64((__int64*)value, addend);
   
   return result;

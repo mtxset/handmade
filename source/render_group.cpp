@@ -33,7 +33,6 @@ unscale_bias_normal(v4 normal) {
   return result;
 }
 
-
 struct Entity_basis_result {
   v2 pos;
   f32 scale;
@@ -114,6 +113,8 @@ inline
 void
 push_bitmap(Render_group* group, Loaded_bmp* bitmap, f32 height, v3 offset, v4 color = white_v4) {
   
+  timed_block();
+  
   v2 size = { 
     height * bitmap->width_over_height, 
     height
@@ -141,6 +142,8 @@ inline
 void
 push_bitmap(Render_group* group, Bitmap_id id, f32 height, v3 offset, v4 color = white_v4) {
   
+  timed_block();
+  
   Loaded_bmp *bitmap = get_bitmap(group->asset_list, id, group->generation_id);
   
   if (group->renders_in_background && !bitmap) {
@@ -163,6 +166,7 @@ inline
 void
 push_rect(Render_group* group, v3 offset, v2 dim, v4 color = white_v4) {
   
+  timed_block();
   v3 pos = offset - v2_to_v3(0.5 * dim, 0);
   Entity_basis_result basis = get_render_entity_basis_pos(&group->transform, pos);
   
@@ -194,6 +198,7 @@ push_rect_outline(Render_group* group, v3 offset, v2 dim, v4 color = white_v4) {
 internal
 void
 draw_rect_old(Loaded_bmp* buffer, v2 start, v2 end, v4 color) {
+  timed_block();
   u32 color_hex = 0;
   
   color_hex = (round_f32_u32(color.a * 255.0f) << 24 | 
@@ -927,6 +932,9 @@ tiled_render_group_to_output(Platform_work_queue *render_queue,
 internal
 Render_group*
 allocate_render_group(Game_asset_list *asset_list, Memory_arena* arena, u32 max_push_buffer_size, bool renders_in_background) {
+  
+  timed_block();
+  
   Render_group* result = mem_push_struct(arena, Render_group);
   
   if (max_push_buffer_size == 0)

@@ -212,6 +212,7 @@ void
 end_sim(Sim_region* region, Game_state* game_state) {
   
   timed_block();
+  
   Sim_entity* entity = region->entity_list;
   for (u32 entity_index = 0; entity_index < region->entity_count; entity_index++, entity++) {
     
@@ -271,6 +272,8 @@ struct Test_wall {
 internal
 bool 
 test_wall(f32 wall_x, f32 rel_x, f32 rel_y, f32 player_delta_x, f32 player_delta_y, f32* t_min, f32 min_y, f32 max_y) {
+  
+  timed_block();
   
   bool hit = false;
   
@@ -492,6 +495,8 @@ entities_overlap(Sim_entity* entity, Sim_entity* test_entity, v3 epsilon = v3{0,
 internal
 void
 move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, f32 time_delta, Move_spec* move_spec, v3 player_acceleration_dd) {
+  
+#define CB_CHECK // not being logged in clocks
   
   timed_block();
   

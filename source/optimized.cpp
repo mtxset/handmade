@@ -172,7 +172,7 @@ draw_rect_quak(Loaded_bmp *buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
   i32 max_x = fill_rect.max_x;
   i32 max_y = fill_rect.max_y;
   
-  timed_block(get_clamped_rect_area(fill_rect) / 2);
+  //timed_block(get_clamped_rect_area(fill_rect) / 2);
   for (i32 y = min_y; y < max_y; y += 2) {
     
     __m128 pixel_pos_y = _mm_set1_ps((f32)y);
@@ -432,5 +432,5 @@ draw_rect_quak(Loaded_bmp *buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
   }
 }
 
-extern u32 const debug_record_list_optimized_count = __COUNTER__;
-Debug_record optimized_debug_record_list[debug_record_list_optimized_count];
+extern u32 const optimized_debug_record_list_count = __COUNTER__;
+Debug_record optimized_debug_record_list[optimized_debug_record_list_count];

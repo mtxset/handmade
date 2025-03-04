@@ -641,6 +641,9 @@ void game_update_render(thread_context* thread, Game_memory* memory, Game_input*
 inline
 void
 draw_hitpoints(Render_group* piece_group, Sim_entity* entity) {
+  
+  timed_block();
+  
   if (entity->hit_points_max > 0) {
     v2 health_dim = { 0.2f, 0.2f };
     f32 spacing_x = 1.5f * health_dim.x;
@@ -683,6 +686,9 @@ make_null_collision(Game_state* game_state) {
 
 Sim_entity_collision_group*
 make_simple_grounded_collision(Game_state* game_state, f32 x, f32 y, f32 z) {
+  
+  timed_block();
+  
   Sim_entity_collision_group* group = mem_push_struct(&game_state->world_arena, Sim_entity_collision_group);
   group->volume_count = 1;
   group->volume_list = mem_push_array(&game_state->world_arena, group->volume_count, Sim_entity_collision_volume);
@@ -831,6 +837,8 @@ PLATFORM_WORK_QUEUE_CALLBACK(fill_ground_chunk_work) {
 internal
 void
 fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_buffer* ground_buffer, World_position* chunk_pos) {
+  
+  timed_block();
   
   Task_with_memory *task = begin_task_with_mem(tran_state);
   
@@ -1309,7 +1317,104 @@ debug_text_line(char *string) {
   at_y -= get_line_advance_for(info) * font_scale;
 }
 
-static void overlay_cycle_counters(Game_memory *memory);
+struct Debug_stats {
+  f64 min;
+  f64 max;
+  f64 avg;
+  u32 count;
+};
+
+inline
+void
+begin_debug_stat(Debug_stats *stat) {
+  stat->min = FLT_MAX;
+  stat->max = -FLT_MAX;
+  stat->avg = 0.0f;
+  stat->count = 0;
+}
+
+inline
+void
+close_debug_stat(Debug_stats *stat) {
+  
+  if (stat->count) {
+    stat->avg /= (f64)stat->count;
+  }
+  else {
+    stat->min = 0.0f;
+    stat->max = 0.0f;
+  }
+}
+
+inline
+void
+accumulate_debug_stats(Debug_stats *stat, f64 value) {
+  stat->count++;
+  stat->avg += value;
+  
+  if (stat->min > value) stat->min = value;
+  if (stat->max < value) stat->max = value;
+}
+
+static
+void
+overlay_cycle_counters(Game_memory *memory) {
+  
+#if 0
+  debug_text_line("The quick brown fox jumps over the lazy dog");
+  debug_text_line("\\#900DEBUG \\#090CYCLE \\#990\\^5COUNTS:");
+  debug_text_line("AVA Wa Ta");
+  debug_text_line("\\5C0F\\8033\\6728\\514E");
+#endif
+  
+  Debug_state *debug_state = (Debug_state*)memory->debug_storage;
+  
+  if (!debug_state)
+    return;
+  
+  for (u32 counter_index = 0; counter_index < debug_state->counter_count; counter_index += 1) {
+    Debug_counter_state *counter = debug_state->counter_state_list + counter_index++;
+    
+    Debug_stats hit_count, cycle_count, cycle_over_hit;
+    
+    begin_debug_stat(&hit_count);
+    begin_debug_stat(&cycle_count);
+    begin_debug_stat(&cycle_over_hit);
+    
+    for (u32 snapshot_index = 0; snapshot_index < DEBUG_SNAPSHOT_COUNT; snapshot_index += 1) {
+      accumulate_debug_stats(&hit_count, counter->snapshot_list[snapshot_index].hit_count);
+      accumulate_debug_stats(&cycle_count, counter->snapshot_list[snapshot_index].cycle_count);
+      
+      f64 cycles_over_hits = .0f;
+      
+      if (counter->snapshot_list[snapshot_index].hit_count) {
+        cycles_over_hits = ((f64)counter->snapshot_list[snapshot_index].cycle_count /
+                            (f64)counter->snapshot_list[snapshot_index].hit_count);
+      }
+      
+      accumulate_debug_stats(&cycle_over_hit, cycles_over_hits);
+    }
+    
+    close_debug_stat(&hit_count);
+    close_debug_stat(&cycle_count);
+    close_debug_stat(&cycle_over_hit);
+    
+    if (hit_count.max > 0.0f) {
+      
+      char buffer[256];
+      _snprintf_s(buffer, sizeof(buffer),
+                  "%32s(%4d): %10ucy %8uh %10ucy/h", 
+                  counter->function_name,
+                  counter->line_number,
+                  (u32)cycle_count.avg, 
+                  (u32)hit_count.avg, 
+                  (u32)cycle_over_hit.avg);
+      
+      debug_text_line(buffer);
+      
+    }
+  }
+}
 
 extern "C" // to prevent name mangle by compiler, so function can looked up by name exactly
 void 
@@ -2370,7 +2475,6 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   check_arena(&game_state->world_arena);
   check_arena(&tran_state->arena);
   
-  
   overlay_cycle_counters(memory);
   
   if (debug_render_group) {
@@ -2417,55 +2521,58 @@ game_get_sound_samples(Game_memory *memory, Game_sound_buffer *sound_buffer) {
 
 // because it's preprocessing it parses and replaces each __COUNTER__ incremental value
 // so by the time it gets here it's increments again, and we compile having ids
-const u32 main_debug_record_list_count = __COUNTER__;
-Debug_record main_debug_record_list[main_debug_record_list_count];
+Debug_record debug_record_list[__COUNTER__];
+
+#include <string.h>
 
 static
 void
-output_debug_records(u32 counter_count, Debug_record *counter_list) {
+update_debug_records(Debug_state *debug_state, u32 counter_count, Debug_record *record_list) {
   
-  for (u32 counter_index = 0; counter_index < counter_count; counter_index++) {
+  for (u32 counter_index = 0; counter_index < counter_count; counter_index += 1) {
+    Debug_record        *src = record_list + counter_index;
+    Debug_counter_state *dst = debug_state->counter_state_list + debug_state->counter_count++;
     
-    Debug_record *counter = counter_list + counter_index;
+    if (false) {
+      u32 k = 0;
+    }
     
-    u64 hit_count_cycle_count = atomic_exchange_u64(&counter->hit_count_cycle_count, 0);
+    u64 hit_count_cycle_count = atomic_exchange_u64(&src->hit_count_cycle_count, 0);
     u32 hit_count = (u32)(hit_count_cycle_count >> 32);
     u32 cycle_count = (u32)(hit_count_cycle_count & 0xffffffff);
     
-    if (hit_count == 0) 
-      continue;
-    
-    char buffer[256];
-    _snprintf_s(buffer, sizeof(buffer),
-                "%32s(%4d): %10ucy %8uh %10ucy/h", 
-                counter->function_name,
-                counter->line_number,
-                cycle_count, 
-                hit_count, 
-                cycle_count / hit_count);
-    
-    debug_text_line(buffer);
+    dst->file_name = src->file_name;
+    dst->function_name = src->function_name;
+    dst->line_number = src->line_number;
+    dst->snapshot_list[debug_state->snapshot_index].hit_count = hit_count;
+    dst->snapshot_list[debug_state->snapshot_index].cycle_count = cycle_count;
   }
 }
 
-extern u32 const debug_record_list_optimized_count;
+extern u32 const optimized_debug_record_list_count;
 Debug_record optimized_debug_record_list[];
 
-static
-void
-overlay_cycle_counters(Game_memory *memory) {
+u32 const main_debug_record_list_count = array_count(debug_record_list);
+//Debug_record main_debug_record_list[main_debug_record_list_count]; defined in build.bat
+
+extern "C" // to prevent name mangle by compiler, so function can looked up by name exactly
+void 
+debug_game_frame_end(Game_memory* memory, Debug_frame_end_info *info) {
   
-#if 0
-  debug_text_line("The quick brown fox jumps over the lazy dog");
+  Debug_state *debug_state = (Debug_state*)memory->debug_storage;
   
-  debug_text_line("AVA Wa Ta");
-  debug_text_line("\\5C0F\\8033\\6728\\514E");
-#endif
-  
-#if INTERNAL
-  debug_text_line("\\#900DEBUG \\#090CYCLE \\#990\\^5COUNTS:");
-  output_debug_records(debug_record_list_optimized_count, optimized_debug_record_list);
-  output_debug_records(main_debug_record_list_count, main_debug_record_list);
-#endif
+  if (debug_state) {
+    debug_state->counter_count = 0;
+    
+    update_debug_records(debug_state, optimized_debug_record_list_count, optimized_debug_record_list);
+    update_debug_records(debug_state, main_debug_record_list_count, main_debug_record_list);
+    
+    debug_state->snapshot_index++;
+    
+    if (debug_state->snapshot_index >= DEBUG_SNAPSHOT_COUNT) {
+      debug_state->snapshot_index = 0;
+    }
+    
+  }
   
 }

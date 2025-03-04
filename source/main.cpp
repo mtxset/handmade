@@ -18,32 +18,33 @@
 #pragma optimize("", off)
 
 // if for recording of input and gamestate we use disk this will allocate file of PERMANENT_MEMORY_SIZE_MB + TRANSIENT_MEMORY_SIZE_MB size, and that will hang game till it's written
-global_var const i32           PERMANENT_MEMORY_SIZE_MB = 256;
-global_var const i32           TRANSIENT_MEMORY_SIZE_MB = 1024;
+static const i32 PERMANENT_MEMORY_SIZE_MB = 256;
+static const i32 TRANSIENT_MEMORY_SIZE_MB = 1024;
+static const i32 Global_debug_memory_size_mb = 128;
 
-global_var bool                Global_game_running = true;
-global_var bool                Global_pause_sound_debug_sync = false;
+static bool                Global_game_running = true;
+static bool                Global_pause_sound_debug_sync = false;
 
-global_var Win32_game_code     Global_game_code;
-global_var Win32_bitmap_buffer Global_backbuffer;
-global_var HBITMAP             Global_bitmap_handle;
-global_var HDC                 Global_bitmap_device_context;
-global_var LPDIRECTSOUNDBUFFER Global_sound_buffer;
-global_var i64                 Global_perf_freq;
-global_var bool                Global_show_cursor;
-global_var WINDOWPLACEMENT     Global_window_last_position = { sizeof(Global_window_last_position) };
-global_var bool                Global_fullscreen = false;
+static Win32_game_code     Global_game_code;
+static Win32_bitmap_buffer Global_backbuffer;
+static HBITMAP             Global_bitmap_handle;
+static HDC                 Global_bitmap_device_context;
+static LPDIRECTSOUNDBUFFER Global_sound_buffer;
+static i64                 Global_perf_freq;
+static bool                Global_show_cursor;
+static WINDOWPLACEMENT     Global_window_last_position = { sizeof(Global_window_last_position) };
+static bool                Global_fullscreen = false;
 
 // making sure that if we don't have links to functions we don't crash because we use stubs
 typedef DWORD WINAPI x_input_get_state(DWORD dwUserIndex, XINPUT_STATE* pState);            // test 
 typedef DWORD WINAPI x_input_set_state(DWORD dwUserIndex, XINPUT_VIBRATION* pVibration);    // test
-global_var x_input_get_state* XInputGetState_;
-global_var x_input_set_state* XInputSetState_;
+static x_input_get_state* XInputGetState_;
+static x_input_set_state* XInputSetState_;
 #define XInputGetState XInputGetState_
 #define XInputSetState XInputSetState_
 
 typedef HRESULT WINAPI direct_sound_create(LPCGUID pcGuidDevice, LPDIRECTSOUND* ppDS, LPUNKNOWN pUnkOuter); // define delegate
-global_var direct_sound_create* DirectSoundCreate_;                                                             // define variable to hold it
+static direct_sound_create* DirectSoundCreate_;                                                             // define variable to hold it
 #define DirectSoundCreate DirectSoundCreate_                                                                // change name by which we reference upper-line mentioned variable
 
 template <typename T> 
@@ -58,6 +59,20 @@ void debug_free_file_memory(void* handle) {
   if (handle) { 
     VirtualFree(handle, 0, MEM_RELEASE);
   }
+}
+
+i32 
+string_len(char* string) {
+  i32 result = 0;
+  
+  // *string dereference value
+  // string++ advances poi32er
+  // search for null terminator
+  while (*string++ != 0) {
+    result++;
+  }
+  
+  return result;
 }
 
 static
@@ -128,20 +143,6 @@ win32_get_exe_filename(Win32_state* win_state) {
     if (*scan == '\\')
       win_state->last_slash = scan + 1;
   }
-}
-
-i32 
-string_len(char* string) {
-  i32 result = 0;
-  
-  // *string dereference value
-  // string++ advances poi32er
-  // search for null terminator
-  while (*string++ != 0) {
-    result++;
-  }
-  
-  return result;
 }
 
 void 
@@ -357,14 +358,18 @@ win32_load_game_code(char* source_dll_filepath, char* source_temp_filepath, char
     goto exit;
   
   result.update_and_render = (game_update_render_signature*)GetProcAddress(result.game_code_dll, "game_update_render");
+  
   result.get_sound_samples = (game_get_sound_samples_signature*)GetProcAddress(result.game_code_dll, "game_get_sound_samples");
   
-  result.valid = (result.update_and_render && result.get_sound_samples);
+  result.debug_frame_end = (debug_game_frame_end_signature*)GetProcAddress(result.game_code_dll, "debug_game_frame_end");
+  
+  result.valid = (result.update_and_render && result.get_sound_samples && result.debug_frame_end);
   
   exit:
   if (!result.valid) {
     result.update_and_render = 0;
     result.get_sound_samples = 0;
+    result.debug_frame_end   = 0; 
   }
   
   return result;
@@ -381,6 +386,7 @@ win32_unload_game_code(Win32_game_code* game_code) {
   game_code->valid = false;
   game_code->update_and_render = 0;
   game_code->get_sound_samples = 0;
+  game_code->debug_frame_end   = 0;
 }
 
 internal
@@ -1278,6 +1284,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     memory.low_priority_queue = &low_priority_queue;
     memory.permanent_storage_size = megabytes(PERMANENT_MEMORY_SIZE_MB);
     memory.transient_storage_size = megabytes(TRANSIENT_MEMORY_SIZE_MB);
+    memory.debug_storage_size     = megabytes(Global_debug_memory_size_mb);
     
     memory.platform_api.add_entry = win32_add_entry;
     memory.platform_api.complete_all_work = win32_complete_all_work;
@@ -1298,7 +1305,9 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     
     // consider trying MEM_LARGE_PAGES which would enable larger virtual memory page sizes (2mb? compared to 4k pages).
     // That would allow Translation lookaside buffer (TLB) (cpu table between physical memory and virtual) to work faster, maybe.
-    win_state.total_memory_size = memory.permanent_storage_size + memory.transient_storage_size;
+    win_state.total_memory_size = 
+      memory.permanent_storage_size + memory.transient_storage_size + memory.debug_storage_size;
+    
     win_state.game_memory_block = VirtualAlloc(base_address,
                                                (size_t)win_state.total_memory_size,
                                                MEM_RESERVE|MEM_COMMIT, 
@@ -1306,8 +1315,9 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     
     memory.permanent_storage = win_state.game_memory_block;
     memory.transient_storage = (u8*)memory.permanent_storage + memory.permanent_storage_size;
+    memory.debug_storage     = (u8*)memory.transient_storage + memory.transient_storage_size;
     
-    assert(samples && memory.permanent_storage && memory.transient_storage);
+    assert(samples && memory.permanent_storage && memory.transient_storage && memory.debug_storage);
   }
   
   win32_init_direct_sound(window_handle, sound_output.samples_per_second, sound_output.buffer_size);
@@ -1339,6 +1349,8 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
   
   while (Global_game_running) {
     
+    Debug_frame_end_info frame_end_info = {};
+    
     new_input->executable_reloaded = false;
     new_input->time_delta = target_seconds_per_frame;
     
@@ -1359,6 +1371,8 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
         new_input->executable_reloaded = true;
       }
     }
+    
+    frame_end_info.exe_ready = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
     
     // input
     {
@@ -1476,6 +1490,8 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     swap(new_input, old_input);
     // end input
     
+    frame_end_info.input_processed = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
+    
     // record, playback, update and render
     {
       Game_bitmap_buffer game_buffer = {};
@@ -1497,6 +1513,8 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
         //handle_debug_cycle_count(&memory);
       }
     }
+    
+    frame_end_info.game_updated = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
     
     // sound stuff
     {
@@ -1601,6 +1619,8 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       win32_fill_sound_buffer(&sound_output, bytes_to_lock, bytes_to_write, &sound_buffer);
     }
     
+    frame_end_info.audio_updated = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
+    
     // ensuring stable fps
     {
       auto elapsed_s = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
@@ -1619,16 +1639,8 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
         // missing frames
       }
       
-      auto end_cycle_count = __rdtsc();
-      end_counter = win32_get_wall_clock();
+      frame_end_info.framerate_wait_complete = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
       
-      // draw
-      auto dimensions = get_window_dimensions(window_handle);
-      HDC device_context = GetDC(window_handle);
-      win32_display_buffer_to_window(&Global_backbuffer, device_context, dimensions.width, dimensions.height);
-      ReleaseDC(window_handle, device_context);
-      
-      flip_wall_clock = win32_get_wall_clock();
 #if INTERNAL
       {
         DWORD temp_play_cursor, temp_write_cursor;
@@ -1646,7 +1658,18 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       }
 #endif
       
-      bool output_to_debug_fps = true;
+      auto end_cycle_count = __rdtsc();
+      end_counter = win32_get_wall_clock();
+      
+      // draw
+      auto dimensions = get_window_dimensions(window_handle);
+      HDC device_context = GetDC(window_handle);
+      win32_display_buffer_to_window(&Global_backbuffer, device_context, dimensions.width, dimensions.height);
+      ReleaseDC(window_handle, device_context);
+      
+      flip_wall_clock = win32_get_wall_clock();
+      
+      bool output_to_debug_fps = false;
       if (output_to_debug_fps) {
         auto cycles_elapsed = (u32)(end_cycle_count - begin_cycle_count);
         auto counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
@@ -1659,6 +1682,14 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
         // approx. cpu speed - fps * (cycles_elapsed / 1000000)
         OutputDebugStringA(buffer);
       }
+      
+      frame_end_info.end_of_frame = win32_get_seconds_elapsed(last_counter, end_counter);
+      
+#if INTERNAL
+      if (game_code.debug_frame_end) {
+        game_code.debug_frame_end(&memory, &frame_end_info);
+      }
+#endif
       
       last_counter = end_counter;
       begin_cycle_count = end_cycle_count;

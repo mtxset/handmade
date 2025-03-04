@@ -255,6 +255,9 @@ typedef struct Game_memory {
   u64 transient_storage_size;
   void* transient_storage;
   
+  u64 debug_storage_size;
+  void *debug_storage;
+  
   Platform_work_queue *high_priority_queue;
   Platform_work_queue *low_priority_queue;
   
@@ -262,14 +265,25 @@ typedef struct Game_memory {
   
   u64 cpu_frequency;
   
-  
 } Game_memory;
+
+struct Debug_frame_end_info {
+  f32 exe_ready;
+  f32 input_processed;
+  f32 game_updated;
+  f32 audio_updated;
+  f32 framerate_wait_complete;
+  f32 end_of_frame;
+};
 
 typedef 
 void (game_update_render_signature) (Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer);
 
 typedef 
 void (game_get_sound_samples_signature) (Game_memory* memory, Game_sound_buffer* sound_buffer);
+
+typedef
+void (debug_game_frame_end_signature) (Game_memory* memory, Debug_frame_end_info *info);
 
 inline
 Game_controller_input* 
@@ -281,28 +295,5 @@ get_gamepad(Game_input* input, i32 input_index) {
 }
 
 extern struct Game_memory* debug_global_memory;
-
-#define CB_CHECK // should be removed after after few commits
-/*
-#define begin_timed_block(id) u64 debug_cycle_count_##id = __rdtsc();
-#define end_timed_block(id) debug_global_memory->counter_list[Debug_cycle_counter_type_##id].cycle_count += __rdtsc() - debug_cycle_count_##id; debug_global_memory->counter_list[Debug_cycle_counter_type_##id].hit_count++;
-#define get_timed_block(id) debug_cycle_count_##id
-
-#if INTERNAL
-internal
-void
-debug_end_timer(Debug_cycle_counter_type type, u64 start_cycle_count) {
-  debug_global_memory->counter_list[type].cycle_count += __rdtsc() - start_cycle_count;
-  debug_global_memory->counter_list[type].hit_count++;
-}
-
-internal
-void
-debug_end_timer(Debug_cycle_counter_type type, u64 start_cycle_count, u32 count) {
-  debug_global_memory->counter_list[type].cycle_count += __rdtsc() - start_cycle_count;
-  debug_global_memory->counter_list[type].hit_count += count;
-}
-#endif
-*/
 
 #endif //PLATFORM_H
