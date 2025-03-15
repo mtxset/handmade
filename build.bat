@@ -25,7 +25,7 @@ for /F "tokens=1-4 delims=:.," %%a in ("%time%") do (
 :: 32-bit
 :: cl.exe %common_compiler_flags% "..\source\main.cpp" /link -subsystem:windows,5.1  %common_linker_flags%
 
-cl.exe %common_compiler_flags% "..\source\asset_builder.cpp" /link %common_linker_flags%
+cl.exe %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=0 "..\source\asset_builder.cpp" /link %common_linker_flags%
 
 :: 64-bit
 :: /O2 /Oi /fp:fast - optimizations
@@ -33,15 +33,19 @@ cl.exe %common_compiler_flags% "..\source\asset_builder.cpp" /link %common_linke
 :: game wont load new code till there is lock file
 echo Waiting for pbd > lock.tmp
 
+:: MASM 
+:: https://learn.microsoft.com/en-us/cpp/assembler/masm/ml-and-ml64-command-line-reference?view=msvc-170
+ml64.exe -nologo /c /Zd masm.obj ..\source\masm.asm
+
 :: optimized.cpp
-cl %include_iaca% %common_compiler_flags% -Ddebug_record_array_index_const=1 -Ddebug_record_list=debug_record_list_optimized -O2 -c ..\source\optimized.cpp -Fooptimized.obj -LD
+cl %include_iaca% %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=1 -O2 -c ..\source\optimized.cpp -Fooptimized.obj -LD
 
 :: game.cpp
-cl.exe %include_iaca% %common_compiler_flags% -Ddebug_record_array_index_const=0 -Ddebug_record_list=debug_record_list_main "..\source\game.cpp" optimized.obj /LD /link -incremental:no -opt:ref -PDB:game%random%.pdb  -EXPORT:game_get_sound_samples -EXPORT:game_update_render -EXPORT:debug_game_frame_end
+cl.exe %include_iaca% %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=0 "..\source\game.cpp" optimized.obj masm.obj /LD /link -incremental:no -opt:ref -PDB:game%random%.pdb  -EXPORT:game_get_sound_samples -EXPORT:game_update_render -EXPORT:debug_game_frame_end
 
 del lock.tmp
 
-cl.exe %common_compiler_flags% "..\source\main.cpp" /link %common_linker_flags%
+cl.exe %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=2 "..\source\main.cpp" masm.obj /link %common_linker_flags%
 popd
 
 :: -Zo      - enables additional debug info, so you can debug "better" with optimizations on otherwise you won't have vars in watch, because code is different

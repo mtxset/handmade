@@ -1190,8 +1190,20 @@ win32_record_timestamp(Debug_frame_end_info *info, char *name, f32 seconds) {
   timestamp->seconds = seconds;
 }
 
+extern "C" u32 asm_get_thread_id();
+extern "C" u32 asm_get_core_id();
+
 i32
 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
+  
+  auto thread_id = GetCurrentThreadId();
+  auto thread_asm_id = asm_get_thread_id();
+  
+  auto core_id = GetCurrentProcessorNumber();
+  auto core_asm_id = asm_get_core_id();
+  
+  assert(thread_id == thread_asm_id);
+  assert(core_id == core_asm_id);
   
   Platform_work_queue high_priority_queue = {};
   Platform_work_queue low_priority_queue = {};

@@ -295,6 +295,140 @@ get_gamepad(Game_input* input, i32 input_index) {
   return &input->gamepad[input_index];
 }
 
-extern struct Game_memory* debug_global_memory;
+extern struct Game_memory *debug_global_memory;
+
+#if COMPILER_MSVC
+
+#include <intrin.h>
+inline u32 
+atomic_compare_exchange_u32(u32 volatile *value, u32 new_value, u32 expected) {
+  u32 result = _InterlockedCompareExchange((long*)value, new_value, expected);
+  return result;
+}
+
+inline
+u64
+atomic_add_u64(u64 volatile *value, u64 addend) {
+  
+  u64 result = _InterlockedExchangeAdd64((__int64*)value, addend);
+  
+  return result;
+}
+
+inline
+u64
+atomic_exchange_u64(u64 volatile *value, u64 new_value) {
+  u64 result = _InterlockedExchange64((__int64*)value, new_value);
+  
+  return result;
+}
+
+inline 
+u32 get_thread_id() {
+  u8 *thread_local_storage = (u8*)__readgsqword(0x30);
+  u32 thread_id = *(u32*)(thread_local_storage + 0x48);
+  
+  return thread_id;
+}
+
+extern "C" u32 asm_get_thread_id();
+extern "C" u32 asm_get_core_id();
+
+#endif
+
+struct Debug_record {
+  char *file_name;
+  char *function_name;
+  
+  u32 line_number;
+  u32 reserved;
+  
+  u64 hit_count__cycle_count;
+};
+
+enum Debug_event_type {
+  Debug_event_type_begin_block,
+  Debug_event_type_end_block
+};
+
+struct Debug_event {
+  u64 clock;
+  u16 thread_index;
+  u16 core_index;
+  u16 debug_record_index;
+  u8 translation_unit_index;
+  u8 type;
+};
+
+#define MAX_DEBUG_TRANSLATION_UNITS 3
+#define MAX_DEBUG_EVENT_COUNT       (32*65536)
+#define MAX_DEBUG_RECORD_COUNT      (65536)
+
+struct Debug_table {
+  
+  u32 current_event_array_index;
+  u64 volatile event_array_index__event_index;
+  
+  Debug_event event_list[2][MAX_DEBUG_EVENT_COUNT];
+  Debug_record record_list[MAX_DEBUG_TRANSLATION_UNITS][MAX_DEBUG_RECORD_COUNT];
+};
+
+extern Debug_table global_debug_table;
+
+
+inline
+void
+record_debug_event(i32 record_index, Debug_event_type event_type) {
+  u64 array_index__event_index = atomic_add_u64(&global_debug_table.event_array_index__event_index, 1);
+  
+  u32 event_index = array_index__event_index & 0xffffffff;
+  assert(event_index < MAX_DEBUG_EVENT_COUNT);
+  Debug_event *event = global_debug_table.event_list[array_index__event_index >> 32] + event_index;
+  
+  event->clock = __rdtsc();
+  event->thread_index = (u16)asm_get_thread_id();
+  event->core_index = (u16)asm_get_core_id();
+  event->debug_record_index = (u16)record_index;
+  event->translation_unit_index = TRANSLATION_UNIT_INDEX;
+  event->type = (u8)event_type;
+}
+
+#if INTERNAL
+#define timed_block_raw(id, ...) \
+Timed_block Timed_block##id(__COUNTER__, __FILE__, __LINE__, __FUNCTION__, ## __VA_ARGS__);
+
+#define timed_block_sub(id, ...) \
+timed_block_raw(id, ## __VA_ARGS__)
+
+#define timed_block(...) timed_block_sub(__LINE__, ## __VA_ARGS__)
+
+#define stop_timed_block(id) Timed_block##id.end()
+#else
+#define timed_block(id)
+#endif
+
+struct Timed_block {
+  i32 counter;
+  
+  Timed_block(u32 counter_init, char *file_name, i32 line_number, char *function_name, int hit_count_param = 1) {
+    counter = counter_init;
+    
+    Debug_record *record = global_debug_table.record_list[TRANSLATION_UNIT_INDEX] + counter;
+    
+    record->file_name = file_name;
+    record->line_number = line_number;
+    record->function_name = function_name;
+    
+    record_debug_event(counter, Debug_event_type_begin_block);
+  }
+  
+  ~Timed_block() {
+    record_debug_event(counter, Debug_event_type_end_block);
+  }
+};
+
+// because it's preprocessing it parses and replaces each __COUNTER__ incremental value
+// so by the time it gets here it's increments again, and we compile having ids
+// __COUNTER__ will be incremented each time anyone asks for it (per TU)
 
 #endif //PLATFORM_H

@@ -3,9 +3,6 @@ static f32 at_y;
 static f32 font_scale;
 static Font_id font_id;
 
-u64 global_debug_event_array_index_debug_event_index = 0;
-Debug_event global_debug_event_array[2][MAX_DEBUG_EVENT_COUNT];
-
 static
 void
 debug_reset(Game_asset_list *asset_list, u32 width, u32 height) {
@@ -33,7 +30,7 @@ update_debug_records(Debug_state *debug_state, u32 counter_count, Debug_record *
     Debug_record        *src = record_list + counter_index;
     Debug_counter_state *dst = debug_state->counter_state_list + debug_state->counter_count++;
     
-    u64 hit_count_cycle_count = atomic_exchange_u64(&src->hit_count_cycle_count, 0);
+    u64 hit_count_cycle_count = atomic_exchange_u64(&src->hit_count__cycle_count, 0);
     u32 hit_count = (u32)(hit_count_cycle_count >> 32);
     u32 cycle_count = (u32)(hit_count_cycle_count & 0xffffffff);
     
@@ -269,7 +266,7 @@ debug_overlay(Game_memory *memory) {
   f32 chart_left   = left_edge + 10.0f;
   f32 chart_height = 200.0f;
   f32 chart_width  = bar_spacing * (f32)DEBUG_SNAPSHOT_COUNT;
-  f32 chart_min_y  = at_y - (chart_height + 250.0f);
+  f32 chart_min_y  = at_y - (chart_height + 350.0f);
   f32 scale = 1.0f / 0.03333f;
   
   v3 color_list[] = {
@@ -329,17 +326,20 @@ debug_overlay(Game_memory *memory) {
   
 }
 
-Debug_record debug_record_list[__COUNTER__];
+#define debug_record_list_main_count __COUNTER__
+extern u32 debug_record_list_optimized_count;
 
-extern u32 global_current_event_array_index = 0;
-extern u32 const debug_record_list_count_optimized;
-Debug_record debug_record_list_optimized[];
+Debug_table global_debug_table;
 
 static
 void
 collate_debug_records(Debug_state *debug_state, u32 event_count, Debug_event *event_list) {
   
-  debug_state->counter_count = debug_record_list_count_optimized + array_count(debug_record_list_main);
+#define debug_record_list_platform_count 0
+  
+  debug_state->counter_count = (debug_record_list_main_count + 
+                                debug_record_list_optimized_count +
+                                debug_record_list_platform_count);
   
   for (u32 counter_index = 0; counter_index < debug_state->counter_count; counter_index += 1) {
     Debug_counter_state *dst = debug_state->counter_state_list + counter_index;
@@ -347,22 +347,18 @@ collate_debug_records(Debug_state *debug_state, u32 event_count, Debug_event *ev
     dst->snapshot_list[debug_state->snapshot_index].cycle_count = 0;
   }
   
-  Debug_counter_state *counter_array[2] = {
+  Debug_counter_state *counter_array[3] = {
     debug_state->counter_state_list,
-    debug_state->counter_state_list + array_count(debug_record_list_main)
-  };
-  
-  Debug_record *debug_record_array[2] = {
-    debug_record_list_main,
-    debug_record_list_optimized,
+    debug_state->counter_state_list + debug_record_list_main_count,
+    debug_state->counter_state_list + debug_record_list_main_count + debug_record_list_optimized_count
   };
   
   for (u32 event_index = 0; event_index < event_count; event_index++) {
     Debug_event *event = event_list + event_index;
     
-    Debug_counter_state *dst = counter_array[event->debug_record_array_index] + event->debug_record_index;
+    Debug_counter_state *dst = counter_array[event->translation_unit_index] + event->debug_record_index;
     
-    Debug_record *src = debug_record_array[event->debug_record_array_index] + event->debug_record_index;
+    Debug_record *src = global_debug_table.record_list[event->translation_unit_index] + event->debug_record_index;
     
     dst->file_name = src->file_name;
     dst->function_name = src->function_name;
@@ -384,8 +380,9 @@ extern "C" // to prevent name mangle by compiler, so function can looked up by n
 void 
 debug_game_frame_end(Game_memory* memory, Debug_frame_end_info *info) {
   
-  global_current_event_array_index = !global_current_event_array_index;
-  u64 array_index__event_index = atomic_exchange_u64(&global_debug_event_array_index_debug_event_index, (u64)global_current_event_array_index << 32);
+  global_debug_table.current_event_array_index = !global_debug_table.current_event_array_index;
+  
+  u64 array_index__event_index = atomic_exchange_u64(&global_debug_table.event_array_index__event_index, (u64)global_debug_table.current_event_array_index << 32);
   
   u32 event_array_index = array_index__event_index >> 32;
   u32 event_count = array_index__event_index & 0xffffffff;
@@ -394,13 +391,7 @@ debug_game_frame_end(Game_memory* memory, Debug_frame_end_info *info) {
   
   if (debug_state) {
     debug_state->counter_count = 0;
-    
-#if 0
-    update_debug_records(debug_state, optimized_debug_record_list_count, optimized_debug_record_list);
-    update_debug_records(debug_state, debug_record_list_main_count, debug_record_list_main);
-#else
-    collate_debug_records(debug_state, event_count, global_debug_event_array[event_array_index]);
-#endif
+    collate_debug_records(debug_state, event_count, global_debug_table.event_list[event_array_index]);
     
     debug_state->frame_end_info_list[debug_state->snapshot_index] = *info;
     

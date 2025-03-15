@@ -4,33 +4,6 @@
 #define INTRINSICS_H
 
 #include "math.h"
-#if COMPILER_MSVC
-
-#include <intrin.h>
-inline u32 
-atomic_compare_exchange_u32(u32 volatile *value, u32 new_value, u32 expected) {
-  u32 result = _InterlockedCompareExchange((long*)value, new_value, expected);
-  return result;
-}
-
-
-inline
-u64
-atomic_add_u64(u64 volatile *value, u64 addend) {
-  
-  u64 result = _InterlockedExchangeAdd64((__int64*)value, addend);
-  
-  return result;
-}
-
-inline
-u64
-atomic_exchange_u64(u64 volatile *value, u64 new_value) {
-  u64 result = _InterlockedExchange64((__int64*)value, new_value);
-  
-  return result;
-}
-#endif
 
 //
 /*
