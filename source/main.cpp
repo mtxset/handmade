@@ -1,4 +1,4 @@
-// https://youtu.be/oDZ-sh0cKoY?t=4526
+// https://youtu.be/s_qSvBp6nFw?t=564
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include "types.h"
@@ -45,7 +45,8 @@ static x_input_set_state* XInputSetState_;
 
 typedef HRESULT WINAPI direct_sound_create(LPCGUID pcGuidDevice, LPDIRECTSOUND* ppDS, LPUNKNOWN pUnkOuter); // define delegate
 static direct_sound_create* DirectSoundCreate_;                                                             // define variable to hold it
-#define DirectSoundCreate DirectSoundCreate_                                                                // change name by which we reference upper-line mentioned variable
+#define DirectSoundCreateZ DirectSoundCreate_                                                             
+// change name by which we reference upper-line mentioned variable
 
 template <typename T> 
 inline 

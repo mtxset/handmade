@@ -1209,45 +1209,6 @@ get_hex(char ch) {
 }
 
 
-struct Debug_stats {
-  f64 min;
-  f64 max;
-  f64 avg;
-  u32 count;
-};
-
-inline
-void
-begin_debug_stat(Debug_stats *stat) {
-  stat->min = FLT_MAX;
-  stat->max = -FLT_MAX;
-  stat->avg = 0.0f;
-  stat->count = 0;
-}
-
-inline
-void
-close_debug_stat(Debug_stats *stat) {
-  
-  if (stat->count) {
-    stat->avg /= (f64)stat->count;
-  }
-  else {
-    stat->min = 0.0f;
-    stat->max = 0.0f;
-  }
-}
-
-inline
-void
-accumulate_debug_stats(Debug_stats *stat, f64 value) {
-  stat->count++;
-  stat->avg += value;
-  
-  if (stat->min > value) stat->min = value;
-  if (stat->max < value) stat->max = value;
-}
-
 extern "C" // to prevent name mangle by compiler, so function can looked up by name exactly
 void 
 game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer) {

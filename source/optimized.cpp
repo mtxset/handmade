@@ -432,5 +432,5 @@ draw_rect_quak(Loaded_bmp *buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
   }
 }
 
-extern u32 const optimized_debug_record_list_count = __COUNTER__;
-Debug_record optimized_debug_record_list[optimized_debug_record_list_count];
+extern u32 const debug_record_list_count_optimized = __COUNTER__;
+Debug_record debug_record_list_optimized[debug_record_list_count_optimized];

@@ -33,16 +33,51 @@ struct Debug_record {
   u64 hit_count_cycle_count;
 };
 
+enum Debug_event_type {
+  Debug_event_type_begin_block,
+  Debug_event_type_end_block
+};
+
+struct Debug_event {
+  u64 clock;
+  u16 thread_index;
+  u16 core_index;
+  u16 debug_record_index;
+  u8 debug_record_array_index;
+  u8 type;
+};
+
 Debug_record debug_record_list[];
+
+#define MAX_DEBUG_EVENT_COUNT (32*65536)
+extern u64 global_debug_event_array_index_debug_event_index;
+extern Debug_event global_debug_event_array[2][MAX_DEBUG_EVENT_COUNT];
+
+inline
+void
+record_debug_event(i32 record_index, Debug_event_type event_type) {
+  u64 array_index__event_index = atomic_add_u64(&global_debug_event_array_index_debug_event_index, 1);
+  
+  u32 event_index = array_index__event_index & 0xffffffff;
+  assert(event_index < MAX_DEBUG_EVENT_COUNT);
+  Debug_event *event = global_debug_event_array[array_index__event_index >> 32] + event_index;
+  
+  event->clock = __rdtsc();
+  event->thread_index = 0;
+  event->core_index = 0;
+  event->debug_record_index = (u16)record_index;
+  event->debug_record_array_index = debug_record_array_index_const;
+  event->type = (u8)event_type;
+}
 
 struct Timed_block {
   Debug_record *record;
   u64 start_cycles;
   u32 hit_count;
+  i32 counter;
   
-  bool ended = false;
-  
-  Timed_block(u32 counter, char *file_name, i32 line_number, char *function_name, int hit_count_param = 1) {
+  Timed_block(u32 counter_init, char *file_name, i32 line_number, char *function_name, int hit_count_param = 1) {
+    counter = counter_init;
     hit_count = hit_count_param;
     
     record = debug_record_list + counter;
@@ -51,20 +86,22 @@ struct Timed_block {
     record->function_name = function_name;
     
     start_cycles = __rdtsc();
+    
+    record_debug_event(counter, Debug_event_type_begin_block);
   }
   
   ~Timed_block() {
-    if (ended)
-      return;
     
     u64 delta = (__rdtsc() - start_cycles) | ((u64)hit_count << 32);
     atomic_add_u64(&record->hit_count_cycle_count, delta);
+    
+    record_debug_event(counter, Debug_event_type_end_block);
   }
 };
 
 struct Debug_counter_snapshot {
   u32 hit_count;
-  u32 cycle_count;
+  u64 cycle_count;
 };
 
 #define DEBUG_SNAPSHOT_COUNT 120

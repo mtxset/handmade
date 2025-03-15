@@ -3,6 +3,9 @@ static f32 at_y;
 static f32 font_scale;
 static Font_id font_id;
 
+u64 global_debug_event_array_index_debug_event_index = 0;
+Debug_event global_debug_event_array[2][MAX_DEBUG_EVENT_COUNT];
+
 static
 void
 debug_reset(Game_asset_list *asset_list, u32 width, u32 height) {
@@ -29,10 +32,6 @@ update_debug_records(Debug_state *debug_state, u32 counter_count, Debug_record *
   for (u32 counter_index = 0; counter_index < counter_count; counter_index += 1) {
     Debug_record        *src = record_list + counter_index;
     Debug_counter_state *dst = debug_state->counter_state_list + debug_state->counter_count++;
-    
-    if (false) {
-      u32 k = 0;
-    }
     
     u64 hit_count_cycle_count = atomic_exchange_u64(&src->hit_count_cycle_count, 0);
     u32 hit_count = (u32)(hit_count_cycle_count >> 32);
@@ -129,6 +128,47 @@ debug_text_line(char *string) {
   at_y -= get_line_advance_for(info) * font_scale;
 }
 
+
+struct Debug_stats {
+  f64 min;
+  f64 max;
+  f64 avg;
+  u32 count;
+};
+
+inline
+void
+begin_debug_stat(Debug_stats *stat) {
+  stat->min = FLT_MAX;
+  stat->max = -FLT_MAX;
+  stat->avg = 0.0f;
+  stat->count = 0;
+}
+
+inline
+void
+close_debug_stat(Debug_stats *stat) {
+  
+  if (stat->count) {
+    stat->avg /= (f64)stat->count;
+  }
+  else {
+    stat->min = 0.0f;
+    stat->max = 0.0f;
+  }
+}
+
+inline
+void
+accumulate_debug_stats(Debug_stats *stat, f64 value) {
+  stat->count++;
+  stat->avg += value;
+  
+  if (stat->min > value) stat->min = value;
+  if (stat->max < value) stat->max = value;
+}
+
+
 static
 void
 debug_overlay(Game_memory *memory) {
@@ -166,7 +206,7 @@ debug_overlay(Game_memory *memory) {
       
       for (u32 snapshot_index = 0; snapshot_index < DEBUG_SNAPSHOT_COUNT; snapshot_index += 1) {
         accumulate_debug_stats(&hit_count, counter->snapshot_list[snapshot_index].hit_count);
-        accumulate_debug_stats(&cycle_count, counter->snapshot_list[snapshot_index].cycle_count);
+        accumulate_debug_stats(&cycle_count, (u32)counter->snapshot_list[snapshot_index].cycle_count);
         
         f64 cycles_over_hits = .0f;
         
@@ -291,23 +331,76 @@ debug_overlay(Game_memory *memory) {
 
 Debug_record debug_record_list[__COUNTER__];
 
-extern u32 const optimized_debug_record_list_count;
-Debug_record optimized_debug_record_list[];
+extern u32 global_current_event_array_index = 0;
+extern u32 const debug_record_list_count_optimized;
+Debug_record debug_record_list_optimized[];
 
-u32 const main_debug_record_list_count = array_count(debug_record_list);
-//Debug_record main_debug_record_list[main_debug_record_list_count]; defined in build.bat
+static
+void
+collate_debug_records(Debug_state *debug_state, u32 event_count, Debug_event *event_list) {
+  
+  debug_state->counter_count = debug_record_list_count_optimized + array_count(debug_record_list_main);
+  
+  for (u32 counter_index = 0; counter_index < debug_state->counter_count; counter_index += 1) {
+    Debug_counter_state *dst = debug_state->counter_state_list + counter_index;
+    dst->snapshot_list[debug_state->snapshot_index].hit_count = 0;
+    dst->snapshot_list[debug_state->snapshot_index].cycle_count = 0;
+  }
+  
+  Debug_counter_state *counter_array[2] = {
+    debug_state->counter_state_list,
+    debug_state->counter_state_list + array_count(debug_record_list_main)
+  };
+  
+  Debug_record *debug_record_array[2] = {
+    debug_record_list_main,
+    debug_record_list_optimized,
+  };
+  
+  for (u32 event_index = 0; event_index < event_count; event_index++) {
+    Debug_event *event = event_list + event_index;
+    
+    Debug_counter_state *dst = counter_array[event->debug_record_array_index] + event->debug_record_index;
+    
+    Debug_record *src = debug_record_array[event->debug_record_array_index] + event->debug_record_index;
+    
+    dst->file_name = src->file_name;
+    dst->function_name = src->function_name;
+    dst->line_number = src->line_number;
+    
+    if (event->type == Debug_event_type_begin_block) {
+      dst->snapshot_list[debug_state->snapshot_index].hit_count++;
+      dst->snapshot_list[debug_state->snapshot_index].cycle_count -= event->clock;
+    }
+    else {
+      assert(event->type == Debug_event_type_end_block);
+      dst->snapshot_list[debug_state->snapshot_index].cycle_count += event->clock;
+    }
+  }
+  
+}
 
 extern "C" // to prevent name mangle by compiler, so function can looked up by name exactly
 void 
 debug_game_frame_end(Game_memory* memory, Debug_frame_end_info *info) {
+  
+  global_current_event_array_index = !global_current_event_array_index;
+  u64 array_index__event_index = atomic_exchange_u64(&global_debug_event_array_index_debug_event_index, (u64)global_current_event_array_index << 32);
+  
+  u32 event_array_index = array_index__event_index >> 32;
+  u32 event_count = array_index__event_index & 0xffffffff;
   
   Debug_state *debug_state = (Debug_state*)memory->debug_storage;
   
   if (debug_state) {
     debug_state->counter_count = 0;
     
+#if 0
     update_debug_records(debug_state, optimized_debug_record_list_count, optimized_debug_record_list);
-    update_debug_records(debug_state, main_debug_record_list_count, main_debug_record_list);
+    update_debug_records(debug_state, debug_record_list_main_count, debug_record_list_main);
+#else
+    collate_debug_records(debug_state, event_count, global_debug_event_array[event_array_index]);
+#endif
     
     debug_state->frame_end_info_list[debug_state->snapshot_index] = *info;
     
