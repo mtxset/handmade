@@ -100,7 +100,7 @@ internal
 Sim_entity* 
 add_entity_raw(Game_state* game_state, Sim_region* sim_region, u32 storage_index, Low_entity* source) {
   
-  timed_block();
+  timed_function();
   
   assert(storage_index);
   Sim_entity* entity = 0;
@@ -156,7 +156,7 @@ internal
 Sim_region*
 begin_sim(Memory_arena* sim_arena, Game_state* game_state, World* world, World_position origin, Rect3 bounds, f32 dt) {
   
-  timed_block();
+  timed_function();
   
   Sim_region* sim_region = mem_push_struct(sim_arena, Sim_region);
   mem_zero_struct(sim_region->hash);
@@ -211,7 +211,7 @@ internal
 void
 end_sim(Sim_region* region, Game_state* game_state) {
   
-  timed_block();
+  timed_function();
   
   Sim_entity* entity = region->entity_list;
   for (u32 entity_index = 0; entity_index < region->entity_count; entity_index++, entity++) {
@@ -273,7 +273,7 @@ internal
 bool 
 test_wall(f32 wall_x, f32 rel_x, f32 rel_y, f32 player_delta_x, f32 player_delta_y, f32* t_min, f32 min_y, f32 max_y) {
   
-  timed_block();
+  timed_function();
   
   bool hit = false;
   
@@ -441,7 +441,7 @@ internal
 bool
 speculative_collide(Sim_entity* mover, Sim_entity* region, v3 test_pos) {
   
-  timed_block();
+  timed_function();
   
   bool result = true;
   
@@ -464,7 +464,7 @@ internal
 bool
 entities_overlap(Sim_entity* entity, Sim_entity* test_entity, v3 epsilon = v3{0,0,0}) {
   
-  timed_block();
+  timed_function();
   
   bool overlapped = false;
   
@@ -498,7 +498,7 @@ move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, 
   
 #define CB_CHECK // not being logged in clocks
   
-  timed_block();
+  timed_function();
   
   assert(!is_set(entity, Entity_flag_non_spatial));
   

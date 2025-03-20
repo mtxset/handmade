@@ -18,7 +18,7 @@ skip_check_1:
     test byte ptr [7FFE0294h], 0FFh
     jz     skip_check_2           ; If zero, jump to skip_check_2
 
-    rdtscp
+    rdtscp                        ; Read timestamp counter into edx:eax (edx is discarded)
     xor     eax, eax              ; Clear eax
     mov     al, cl                ; Move lower byte of rcx into al
     ret                           ; Return

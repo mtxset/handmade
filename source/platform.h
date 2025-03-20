@@ -92,8 +92,6 @@ truncate_u64_u32(u64 value) {
   return (u32)value;
 }
 
-#if INTERNAL
-
 struct Game_bitmap_buffer {
   // pixels are always 32 bit, memory order BB GG RR XX (padding)
   void* memory;
@@ -103,8 +101,6 @@ struct Game_bitmap_buffer {
   u32 window_width;
   u32 window_height;
 };
-
-#endif
 
 struct Game_sound_buffer {
   i32 sample_count;
@@ -153,9 +149,19 @@ struct Game_controller_input {
   };
 };
 
+
+enum Game_input_mouse_button {
+  
+  Game_input_mouse_button_left,
+  Game_input_mouse_button_middle,
+  Game_input_mouse_button_right,
+  
+  Game_input_mouse_button_count
+};
+
 struct Game_input {
   Game_button_state mouse_buttons[3];
-  i32 mouse_x, mouse_y;
+  f32 mouse_x, mouse_y, mouse_z; // mouse_z???
   
   // seconds to advance over update
   f32 time_delta;
@@ -165,6 +171,15 @@ struct Game_input {
   
   bool executable_reloaded;
 };
+
+inline
+bool
+was_pressed(Game_button_state state) {
+  bool result = (state.half_transition_count > 1 || 
+                 (state.half_transition_count == 1) && state.ended_down);
+  
+  return result;
+}
 
 typedef enum Platform_file_type {
   Platform_file_type_asset,
@@ -267,24 +282,13 @@ typedef struct Game_memory {
   
 } Game_memory;
 
-struct Debug_frame_timestamp {
-  char *name;
-  f32  seconds;
-};
-
-struct Debug_frame_end_info {
-  u32 timestamp_count;
-  Debug_frame_timestamp timestamp_list[64];
-};
+typedef 
+void (game_update_render_signature) 
+(Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer);
 
 typedef 
-void (game_update_render_signature) (Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer);
-
-typedef 
-void (game_get_sound_samples_signature) (Game_memory* memory, Game_sound_buffer* sound_buffer);
-
-typedef
-void (debug_game_frame_end_signature) (Game_memory* memory, Debug_frame_end_info *info);
+void (game_get_sound_samples_signature) 
+(Game_memory* memory, Game_sound_buffer* sound_buffer);
 
 inline
 Game_controller_input* 
@@ -295,14 +299,16 @@ get_gamepad(Game_input* input, i32 input_index) {
   return &input->gamepad[input_index];
 }
 
+#if INTERNAL
 extern struct Game_memory *debug_global_memory;
+#endif
 
 #if COMPILER_MSVC
 
 #include <intrin.h>
 inline u32 
 atomic_compare_exchange_u32(u32 volatile *value, u32 new_value, u32 expected) {
-  u32 result = _InterlockedCompareExchange((long*)value, new_value, expected);
+  u32 result = _InterlockedCompareExchange((long volatile*)value, new_value, expected);
   return result;
 }
 
@@ -310,7 +316,7 @@ inline
 u64
 atomic_add_u64(u64 volatile *value, u64 addend) {
   
-  u64 result = _InterlockedExchangeAdd64((__int64*)value, addend);
+  u64 result = _InterlockedExchangeAdd64((__int64 volatile *)value, addend);
   
   return result;
 }
@@ -318,7 +324,7 @@ atomic_add_u64(u64 volatile *value, u64 addend) {
 inline
 u64
 atomic_exchange_u64(u64 volatile *value, u64 new_value) {
-  u64 result = _InterlockedExchange64((__int64*)value, new_value);
+  u64 result = _InterlockedExchange64((__int64 volatile *)value, new_value);
   
   return result;
 }
@@ -338,29 +344,41 @@ extern "C" u32 asm_get_core_id();
 
 struct Debug_record {
   char *file_name;
-  char *function_name;
+  char *block_name;
   
   u32 line_number;
   u32 reserved;
-  
-  u64 hit_count__cycle_count;
 };
 
 enum Debug_event_type {
+  Debug_event_type_frame_marker,
   Debug_event_type_begin_block,
   Debug_event_type_end_block
 };
 
+struct Thread_id__Core_id {
+  u16 thread_id;
+  u16 core_id;
+};
+
 struct Debug_event {
   u64 clock;
-  u16 thread_index;
-  u16 core_index;
+  
+  union {
+    Thread_id__Core_id thread_id__core_id;
+    f32 seconds_elapsed;
+  };
+  
   u16 debug_record_index;
+  
   u8 translation_unit_index;
   u8 type;
 };
 
+
+
 #define MAX_DEBUG_TRANSLATION_UNITS 3
+#define MAX_DEBUG_EVENT_ARRAY_COUNT 8 // max fps saved
 #define MAX_DEBUG_EVENT_COUNT       (32*65536)
 #define MAX_DEBUG_RECORD_COUNT      (65536)
 
@@ -368,58 +386,102 @@ struct Debug_table {
   
   u32 current_event_array_index;
   u64 volatile event_array_index__event_index;
+  u32 event_count[MAX_DEBUG_EVENT_ARRAY_COUNT];
+  Debug_event event_list[MAX_DEBUG_EVENT_ARRAY_COUNT][MAX_DEBUG_EVENT_COUNT];
   
-  Debug_event event_list[2][MAX_DEBUG_EVENT_COUNT];
+  u32 record_count[MAX_DEBUG_TRANSLATION_UNITS];
   Debug_record record_list[MAX_DEBUG_TRANSLATION_UNITS][MAX_DEBUG_RECORD_COUNT];
 };
 
-extern Debug_table global_debug_table;
+extern Debug_table *global_debug_table;
 
+typedef
+Debug_table *(debug_game_frame_end_signature) (Game_memory* memory);
+
+inline
+Debug_event*
+record_debug_event_common(i32 record_index, Debug_event_type event_type) {
+  u64 array_index__event_index = atomic_add_u64(&global_debug_table->event_array_index__event_index, 1);
+  
+  u32 event_index = array_index__event_index & 0xffffffff;
+  
+  assert(event_index < MAX_DEBUG_EVENT_COUNT);
+  Debug_event *event = global_debug_table->event_list[array_index__event_index >> 32] + event_index;
+  
+  event->clock = __rdtsc();
+  event->debug_record_index = (u16)record_index;
+  event->translation_unit_index = TRANSLATION_UNIT_INDEX;
+  event->type = (u8)event_type;
+  
+  return event;
+}
 
 inline
 void
 record_debug_event(i32 record_index, Debug_event_type event_type) {
-  u64 array_index__event_index = atomic_add_u64(&global_debug_table.event_array_index__event_index, 1);
   
-  u32 event_index = array_index__event_index & 0xffffffff;
-  assert(event_index < MAX_DEBUG_EVENT_COUNT);
-  Debug_event *event = global_debug_table.event_list[array_index__event_index >> 32] + event_index;
+  Debug_event *event = record_debug_event_common(record_index, event_type);
   
-  event->clock = __rdtsc();
-  event->thread_index = (u16)asm_get_thread_id();
-  event->core_index = (u16)asm_get_core_id();
-  event->debug_record_index = (u16)record_index;
-  event->translation_unit_index = TRANSLATION_UNIT_INDEX;
-  event->type = (u8)event_type;
+  event->thread_id__core_id.thread_id = (u16)asm_get_thread_id();
+  event->thread_id__core_id.core_id   = (u16)asm_get_core_id();
+}
+
+inline
+void
+frame_marker(f32 seconds_elapsed_init) {
+  i32 counter = __COUNTER__;
+  Debug_event *event = record_debug_event_common(counter, Debug_event_type_frame_marker);
+  event->seconds_elapsed = seconds_elapsed_init;
+  
+  Debug_record *record = global_debug_table->record_list[TRANSLATION_UNIT_INDEX] + counter;
+  record->file_name = __FILE__;
+  record->line_number = __LINE__;
+  record->block_name = "frame marker";
 }
 
 #if INTERNAL
-#define timed_block_raw(id, ...) \
-Timed_block Timed_block##id(__COUNTER__, __FILE__, __LINE__, __FUNCTION__, ## __VA_ARGS__);
+#define timed_block_raw(block_name, id, ...) \
+Timed_block Timed_block##id(__COUNTER__, __FILE__, __LINE__, block_name, ## __VA_ARGS__);
 
-#define timed_block_sub(id, ...) \
-timed_block_raw(id, ## __VA_ARGS__)
+#define timed_block_sub(block_name, id, ...) \
+timed_block_raw(block_name, id, ## __VA_ARGS__)
 
-#define timed_block(...) timed_block_sub(__LINE__, ## __VA_ARGS__)
+#define timed_block(block_name, ...) timed_block_sub(block_name, __LINE__, ## __VA_ARGS__)
+#define timed_function(...) timed_block(__FUNCTION__, __LINE__, ## __VA_ARGS__)
 
-#define stop_timed_block(id) Timed_block##id.end()
+#define timed_block_begin(name)\
+i32 counter_##name = __COUNTER__; \
+{Debug_record *record = global_debug_table->record_list[TRANSLATION_UNIT_INDEX] + counter_##name; \
+record->file_name = __FILE__; \
+record->line_number = __LINE__; \
+record->block_name = #name; \
+record_debug_event(counter_##name, Debug_event_type_begin_block); }\
+
+#define timed_block_end(name) record_debug_event(counter_##name, Debug_event_type_end_block);
+
+
 #else
-#define timed_block(id)
+#define timed_block(id, ...)
+#define timed_function()
+#define timed_block_begin(id)
+#define timed_block_end(id)
 #endif
 
 struct Timed_block {
   i32 counter;
   
-  Timed_block(u32 counter_init, char *file_name, i32 line_number, char *function_name, int hit_count_param = 1) {
+  Timed_block(u32 counter_init, char *file_name, i32 line_number, char *block_name, int hit_count_param = 1) {
     counter = counter_init;
     
-    Debug_record *record = global_debug_table.record_list[TRANSLATION_UNIT_INDEX] + counter;
+    Debug_record *record = global_debug_table->record_list[TRANSLATION_UNIT_INDEX] + counter;
     
     record->file_name = file_name;
     record->line_number = line_number;
-    record->function_name = function_name;
+    record->block_name = block_name;
     
     record_debug_event(counter, Debug_event_type_begin_block);
+    
+    //begin_block_(counter, file_name, line_number, block_name);
   }
   
   ~Timed_block() {

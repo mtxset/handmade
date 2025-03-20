@@ -505,7 +505,7 @@ win32_display_buffer_to_window(Win32_bitmap_buffer* bitmap_buffer, HDC device_co
     
     StretchDIBits(device_context, 
                   offset_x, offset_y, 2*bitmap_buffer->width, 2*bitmap_buffer->height, 
-                  0, 0, 2*bitmap_buffer->width, 2*bitmap_buffer->height, 
+                  0, 0, bitmap_buffer->width, bitmap_buffer->height, 
                   bitmap_buffer->memory, &bitmap_buffer->info, DIB_RGB_COLORS, SRCCOPY);
   }
   else {
@@ -547,6 +547,7 @@ win32_process_keyboard_input(Game_button_state* new_state, bool is_down) {
   }
 }
 
+
 /*
     * Raymond Chen: https://devblogs.microsoft.com/oldnewthing/20100412-00/?p=14353
     * this will just set window to take "fullscreen" but it won't be able to affect refresh rate
@@ -561,7 +562,8 @@ toggle_fullscreen(HWND window_handle) {
     MONITORINFO monitor_info = { sizeof(monitor_info) };
     if (GetWindowPlacement(window_handle, &Global_window_last_position) && GetMonitorInfo(MonitorFromWindow(window_handle, MONITOR_DEFAULTTOPRIMARY), &monitor_info)) {
       
-      SetWindowLong(window_handle, GWL_STYLE, style & ~WS_OVERLAPPEDWINDOW);
+      SetWindowLong(window_handle, GWL_STYLE, (style & ~WS_OVERLAPPEDWINDOW));
+      //SetWindowLong(window_handle, GWL_EXSTYLE, GetWindowLong(window_handle, GWL_EXSTYLE) | WS_EX_APPWINDOW);
       
       SetWindowPos(window_handle, HWND_TOP,
                    monitor_info.rcMonitor.left, monitor_info.rcMonitor.top,
@@ -576,8 +578,7 @@ toggle_fullscreen(HWND window_handle) {
   else {
     SetWindowLong(window_handle, GWL_STYLE, style | WS_OVERLAPPEDWINDOW);
     SetWindowPlacement(window_handle, &Global_window_last_position);
-    SetWindowPos(window_handle, NULL, 
-                 0, 0, 0, 0,
+    SetWindowPos(window_handle, 0, 0, 0, 0, 0,
                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
     
     Global_fullscreen = false;
@@ -680,19 +681,19 @@ LRESULT CALLBACK
 win32_window_proc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
   LRESULT result = 0;
   switch (message) {
+    
     case WM_SETCURSOR: {
       if (Global_show_cursor)
         result = DefWindowProcA(window, message, wParam, lParam);
       else // hide cursor
         SetCursor(0);
     } break;
+    
     case WM_KEYUP:
     case WM_KEYDOWN:
     case WM_SYSKEYUP:
     case WM_SYSKEYDOWN: {
       assert(!"Should never hit it here");
-    } break;
-    case WM_SIZE: {
     } break;
     
     case WM_DESTROY: {
@@ -839,27 +840,25 @@ internal
 HWND
 create_default_window(LRESULT win32_window_processor, HINSTANCE current_instance, char* class_name) {
   
-  HWND result = {};
+  HWND result;
   
   WNDCLASSA window_class = {};
   
-  window_class.style         = CS_HREDRAW | CS_HREDRAW; // redraw full window (vertical/horizontal) (streches)
+  window_class.style         = CS_HREDRAW | CS_VREDRAW; // redraw full window (vertical/horizontal) (streches)
   window_class.lpfnWndProc   = (WNDPROC)win32_window_processor;
   window_class.hInstance     = current_instance;
   window_class.lpszClassName = class_name;
   window_class.hCursor = LoadCursor(0, IDC_ARROW); // 0, otherwise it will try to load cursor from our executable
   
-  if (RegisterClass(&window_class) == 0) {
+  if (RegisterClassA(&window_class) == 0) {
     OutputDebugStringA("RegisterClass failed\n");
     return 0;
   }
   
-  result = CreateWindowEx(0, window_class.lpszClassName, "GG", 
-                          WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-                          CW_USEDEFAULT, CW_USEDEFAULT,
-                          CW_USEDEFAULT,
-                          CW_USEDEFAULT,
-                          0, 0, current_instance, 0);
+  result = CreateWindowExA(0, window_class.lpszClassName, "GG", 
+                           WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                           CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+                           0, 0, current_instance, 0);
   
   if (result == 0) {
     OutputDebugStringA("CreateWindow failed\n");
@@ -868,6 +867,7 @@ create_default_window(LRESULT win32_window_processor, HINSTANCE current_instance
   
   return result;
 }
+
 #if 0
 internal
 void
@@ -1126,6 +1126,14 @@ thread_proc(LPVOID param) {
   }
 }
 
+static
+void
+convert_to_wchar(char* str) {
+  
+  
+  //return wide_string;
+}
+
 internal
 void
 win32_make_queue(Platform_work_queue *queue, u32 thread_count) {
@@ -1153,9 +1161,22 @@ win32_make_queue(Platform_work_queue *queue, u32 thread_count) {
     HANDLE thread_handle = CreateThread(0, // security attributes
                                         0, // stack size  will default to the we have in current context
                                         thread_proc, // thread function
-                                        queue, // thread args
-                                        0,    // start right away
+                                        queue,       // thread args
+                                        0,           // start right away
                                         &thread_id);
+    
+    {
+      char text[256];_snprintf_s(text, sizeof(text), "thread_%i", thread_id);
+      u32 size_needed = MultiByteToWideChar(CP_UTF8, 0, text, -1, NULL, 0);
+      
+      wchar_t *wstr = (wchar_t*)malloc(size_needed * sizeof(wchar_t));
+      
+      MultiByteToWideChar(CP_UTF8, 0, text, -1, wstr, size_needed);
+      
+      SetThreadDescription(thread_handle, wstr);
+      
+      free(wstr);
+    }
     
     assert(thread_handle != NULL);
     CloseHandle(thread_handle); // it will not terminate thread
@@ -1180,18 +1201,12 @@ win32_deallocate_memory(void *memory) {
 typedef void*
 Platform_allocate_memory(sz size);
 
-inline
-void
-win32_record_timestamp(Debug_frame_end_info *info, char *name, f32 seconds) {
-  assert(info->timestamp_count < array_count(info->timestamp_list));
-  
-  Debug_frame_timestamp *timestamp = info->timestamp_list + info->timestamp_count++;
-  timestamp->name = name;
-  timestamp->seconds = seconds;
-}
-
 extern "C" u32 asm_get_thread_id();
 extern "C" u32 asm_get_core_id();
+
+
+static Debug_table global_debug_table_;
+Debug_table *global_debug_table = &global_debug_table_;
 
 i32
 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
@@ -1238,7 +1253,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
   }
 #endif
   
-  LARGE_INTEGER performance_freq, end_counter, last_counter, flip_wall_clock;
+  LARGE_INTEGER performance_freq, last_counter, flip_wall_clock;
   QueryPerformanceFrequency(&performance_freq);
   Global_perf_freq = performance_freq.QuadPart;
   
@@ -1305,8 +1320,8 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
   if (win32_refresh_rate > 1)
     refresh_rate = win32_refresh_rate;
   
-  local_persist const i32 monitor_refresh_rate     = refresh_rate;
-  local_persist const i32 game_update_refresh_rate = monitor_refresh_rate;
+  static const i32 monitor_refresh_rate     = refresh_rate;
+  static const i32 game_update_refresh_rate = monitor_refresh_rate;
   
 #define CB_CHECK // cuz manual rendering
   f32 target_seconds_per_frame = 1.0f / ((f32)game_update_refresh_rate / 2.0f);
@@ -1402,18 +1417,19 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
   
   while (Global_game_running) {
     
-    Debug_frame_end_info frame_end_info = {};
-    
     new_input->executable_reloaded = false;
     new_input->time_delta = target_seconds_per_frame;
     
     // check if we need to reload game code
+    timed_block_begin(game_dll_reload);
     {
       auto new_dll_write_time = win32_get_last_write_time(game_code_dll_name);
       
       if (CompareFileTime(&new_dll_write_time, &game_code.dll_last_write_time) != 0) {
         win32_complete_all_work(&high_priority_queue);
         win32_complete_all_work(&low_priority_queue);
+        
+        global_debug_table = &global_debug_table_;
         
         win32_unload_game_code(&game_code);
         
@@ -1424,12 +1440,9 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
         new_input->executable_reloaded = true;
       }
     }
+    timed_block_end(game_dll_reload);
     
-    {
-      f32 delta = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
-      win32_record_timestamp(&frame_end_info, "executable_ready", delta);
-    }
-    
+    timed_block_begin(input);
     // input
     {
       auto old_keyboard_input = &old_input->gamepad[0];
@@ -1450,20 +1463,28 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       // we need to call screen to client because mouse positions we're getting are global, but our window's position is not aligned
       ScreenToClient(window_handle, &mouse_pos);
       
-      new_input->mouse_x = mouse_pos.x;
-      new_input->mouse_y = mouse_pos.y;
+      new_input->mouse_x = (-.5f * (f32)Global_backbuffer.width  + .5f) + (f32)mouse_pos.x;
+      new_input->mouse_y = (+.5f * (f32)Global_backbuffer.height - .5f) - (f32)mouse_pos.y;
+      
+      DWORD win_button_id[Game_input_mouse_button_count] = {
+        VK_LBUTTON,
+        VK_MBUTTON,
+        VK_RBUTTON,
+      };
+      
+      for (u32 button_index = 0; button_index < Game_input_mouse_button_count; button_index++) {
+        new_input->mouse_buttons[button_index] = old_input->mouse_buttons[button_index];
+        new_input->mouse_buttons[button_index].half_transition_count = 0;
+        
+        win32_process_keyboard_input(&new_input->mouse_buttons[button_index], GetKeyState(win_button_id[button_index]) & (1 << 15));
+      }
       
       bool show_mouse_coords = false;
-      
       if (show_mouse_coords) {
         char buffer[256];
         _snprintf_s(buffer, sizeof(buffer), "x: %d y: %d \n", mouse_pos.x, mouse_pos.y);
         OutputDebugStringA(buffer);
       }
-      
-      win32_process_keyboard_input(&new_input->mouse_buttons[0], GetKeyState(VK_LBUTTON) & (1 << 15));
-      win32_process_keyboard_input(&new_input->mouse_buttons[1], GetKeyState(VK_MBUTTON) & (1 << 15));
-      win32_process_keyboard_input(&new_input->mouse_buttons[2], GetKeyState(VK_RBUTTON) & (1 << 15));
     }
     
     // managing controller
@@ -1545,12 +1566,9 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     }
     swap(new_input, old_input);
     // end input
+    timed_block_end(input);
     
-    {
-      f32 delta = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
-      win32_record_timestamp(&frame_end_info, "input_processed", delta);
-    }
-    
+    timed_block_begin(game_update);
     // record, playback, update and render
     {
       Game_bitmap_buffer game_buffer = {};
@@ -1572,11 +1590,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
         //handle_debug_cycle_count(&memory);
       }
     }
-    
-    {
-      f32 delta = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
-      win32_record_timestamp(&frame_end_info, "game_updated", delta);
-    }
+    timed_block_end(game_update);
     
     // sound stuff
     {
@@ -1681,12 +1695,8 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       win32_fill_sound_buffer(&sound_output, bytes_to_lock, bytes_to_write, &sound_buffer);
     }
     
-    {
-      f32 delta = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
-      win32_record_timestamp(&frame_end_info, "audio_updated", delta);
-    }
-    
     // ensuring stable fps
+    if (1)
     {
       auto elapsed_s = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
       
@@ -1703,68 +1713,51 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       } else {
         // missing frames
       }
-      
-      {
-        f32 delta = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
-        win32_record_timestamp(&frame_end_info, "framerate_wait_complete", delta);
-      }
-      
-#if INTERNAL
-      {
-        DWORD temp_play_cursor, temp_write_cursor;
-        if (Global_sound_buffer->GetCurrentPosition(&temp_play_cursor, &temp_write_cursor) == DS_OK) {
-          assert(debug_last_marker_index < array_count(debug_time_marker_list));
-          auto marker = &debug_time_marker_list[debug_last_marker_index];
-          marker->play_cursor = temp_play_cursor;
-          marker->write_cursor = temp_write_cursor;
-        }
-        
-        debug_last_marker_index++;
-        if (debug_last_marker_index == array_count(debug_time_marker_list)) {
-          debug_last_marker_index = 0;
-        }
-      }
-#endif
-      
-      auto end_cycle_count = __rdtsc();
-      end_counter = win32_get_wall_clock();
-      
-      // draw
-      auto dimensions = get_window_dimensions(window_handle);
-      HDC device_context = GetDC(window_handle);
-      win32_display_buffer_to_window(&Global_backbuffer, device_context, dimensions.width, dimensions.height);
-      ReleaseDC(window_handle, device_context);
-      
-      flip_wall_clock = win32_get_wall_clock();
-      
-      bool output_to_debug_fps = false;
-      if (output_to_debug_fps) {
-        auto cycles_elapsed = (u32)(end_cycle_count - begin_cycle_count);
-        auto counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
-        
-        auto fps = (i32)(Global_perf_freq / counter_elapsed);
-        auto elapsed_ms = (i32)(counter_elapsed * 1000.0f / Global_perf_freq);
-        
-        char buffer[256];
-        _snprintf_s(buffer, sizeof(buffer), "%d ms/f  %d f/s  %d MC/f \n", elapsed_ms, fps, cycles_elapsed / 1000000);
-        // approx. cpu speed - fps * (cycles_elapsed / 1000000)
-        OutputDebugStringA(buffer);
-      }
-      
-      {
-        f32 delta = win32_get_seconds_elapsed(last_counter, win32_get_wall_clock());
-        win32_record_timestamp(&frame_end_info, "end_of_frame", delta);
-      }
-      
-#if INTERNAL
-      if (game_code.debug_frame_end) {
-        game_code.debug_frame_end(&memory, &frame_end_info);
-      }
-#endif
-      
-      last_counter = end_counter;
-      begin_cycle_count = end_cycle_count;
     }
+    
+#if INTERNAL
+    {
+      DWORD temp_play_cursor, temp_write_cursor;
+      if (Global_sound_buffer->GetCurrentPosition(&temp_play_cursor, &temp_write_cursor) == DS_OK) {
+        assert(debug_last_marker_index < array_count(debug_time_marker_list));
+        auto marker = &debug_time_marker_list[debug_last_marker_index];
+        marker->play_cursor = temp_play_cursor;
+        marker->write_cursor = temp_write_cursor;
+      }
+      
+      debug_last_marker_index++;
+      if (debug_last_marker_index == array_count(debug_time_marker_list)) {
+        debug_last_marker_index = 0;
+      }
+    }
+#endif
+    
+    auto end_cycle_count = __rdtsc();
+    
+    // draw
+    auto dimensions = get_window_dimensions(window_handle);
+    HDC device_context = GetDC(window_handle);
+    win32_display_buffer_to_window(&Global_backbuffer, device_context, dimensions.width, dimensions.height);
+    ReleaseDC(window_handle, device_context);
+    
+    flip_wall_clock = win32_get_wall_clock();
+    
+#if INTERNAL
+    if (game_code.debug_frame_end) {
+      global_debug_table = game_code.debug_frame_end(&memory);
+    }
+    global_debug_table_.event_array_index__event_index = 0;
+#endif
+    
+    LARGE_INTEGER end_counter = win32_get_wall_clock();
+    frame_marker(win32_get_seconds_elapsed(last_counter, end_counter));
+    last_counter = end_counter;
+    
+    if (global_debug_table) {
+      global_debug_table->record_count[TRANSLATION_UNIT_INDEX] = __COUNTER__;
+    }
+    
+    
   }
   
   CloseHandle(high_priority_queue.semaphore);

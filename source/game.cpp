@@ -642,7 +642,7 @@ inline
 void
 draw_hitpoints(Render_group* piece_group, Sim_entity* entity) {
   
-  timed_block();
+  timed_function();
   
   if (entity->hit_points_max > 0) {
     v2 health_dim = { 0.2f, 0.2f };
@@ -687,7 +687,7 @@ make_null_collision(Game_state* game_state) {
 Sim_entity_collision_group*
 make_simple_grounded_collision(Game_state* game_state, f32 x, f32 y, f32 z) {
   
-  timed_block();
+  timed_function();
   
   Sim_entity_collision_group* group = mem_push_struct(&game_state->world_arena, Sim_entity_collision_group);
   group->volume_count = 1;
@@ -746,7 +746,7 @@ struct Fill_ground_chunk_work {
 internal
 PLATFORM_WORK_QUEUE_CALLBACK(fill_ground_chunk_work) {
   
-  timed_block();
+  timed_function();
   
   Fill_ground_chunk_work *work = (Fill_ground_chunk_work*)data;
   
@@ -838,7 +838,7 @@ internal
 void
 fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_buffer* ground_buffer, World_position* chunk_pos) {
   
-  timed_block();
+  timed_function();
   
   Task_with_memory *task = begin_task_with_mem(tran_state);
   
@@ -1211,7 +1211,7 @@ get_hex(char ch) {
 
 extern "C" // to prevent name mangle by compiler, so function can looked up by name exactly
 void 
-game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer) {
+game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *bitmap_buffer) {
   
   platform = memory->platform_api;
   
@@ -1219,7 +1219,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   debug_global_memory = memory;
 #endif
   
-  timed_block();
+  timed_function();
   
 #if 0
   run_tests();
@@ -1488,9 +1488,6 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     u32 size = megabytes(10);
     tran_state->asset_list = allocate_game_asset_list(&tran_state->arena, size, tran_state);
     
-    bool render_in_background = false;
-    debug_render_group = allocate_render_group(tran_state->asset_list, &tran_state->arena, megabytes(16), render_in_background);
-    
 #define CB_MUSIC
     
     // game_state->music = play_sound(&game_state->audio_state, get_first_sound_from(tran_state->asset_list, Asset_music));
@@ -1535,10 +1532,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
     tran_state->is_initialized = true;
   }
   
-  if (debug_render_group) {
-    begin_render(debug_render_group);
-    debug_reset(tran_state->asset_list, bitmap_buffer->width, bitmap_buffer->height);
-  }
+  debug_start(tran_state->asset_list, bitmap_buffer->width, bitmap_buffer->height);
   
 #if 0
   if (input->executable_reloaded) {
@@ -2112,8 +2106,8 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   push_saturation(render_group, 0.5f + 0.5f * sin(10.0f * game_state->time));
 #endif 
   
-  bool particle_test = false;
 #define CB_PARTICLES
+  bool particle_test = false;
   if (particle_test) {
     render_group->global_alpha = 1.0f;
     render_group->transform.offset_pos = v3_zero;
@@ -2256,9 +2250,13 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
       //push_bitmap(render_group, id, particle->size, particle->pos, particle->color);
     }
   }
+  
+  timed_block_begin(tiled_render);
   // output buffers to bitmap
   tiled_render_group_to_output(tran_state->high_priority_queue, render_group, draw_buffer);
   end_render(render_group);
+  
+  timed_block_end(tiled_render);
   
   end_sim(sim_region, game_state);
   
@@ -2268,12 +2266,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer* b
   check_arena(&game_state->world_arena);
   check_arena(&tran_state->arena);
   
-  if (debug_render_group) {
-    timed_block();
-    debug_overlay(memory);
-    tiled_render_group_to_output(tran_state->high_priority_queue, debug_render_group,  draw_buffer);
-    end_render(debug_render_group);
-  }
+  debug_end(input, draw_buffer);
   
 #if 0
   bezier_curves(draw_buffer, input, game_state);
@@ -2312,4 +2305,12 @@ game_get_sound_samples(Game_memory *memory, Game_sound_buffer *sound_buffer) {
   output_playing_sounds(&game_state->audio_state, sound_buffer, tran_state->asset_list, &tran_state->arena);
 }
 
+#if INTERNAL
 #include "debug.cpp"
+#else
+void debug_start(Game_asset_list *asset_list, u32 width, u32 height) {};
+void debug_end(Game_input *input, Loaded_bmp *draw_buffer) {};
+extern "C"
+Debug_table*
+debug_game_frame_end(Game_memory* memory, Debug_frame_end_info *info) {return 0;}
+#endif

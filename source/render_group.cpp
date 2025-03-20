@@ -41,7 +41,7 @@ inline
 Entity_basis_result
 get_render_entity_basis_pos(Render_transform *transform, v3 original_pos) {
   
-  timed_block();
+  timed_function();
   
   Entity_basis_result result = {};
   
@@ -88,7 +88,7 @@ inline
 void*
 push_render_element_(Render_group* group, u32 size, Render_group_entry_type type) {
   
-  timed_block();
+  timed_function();
   
   void* result = 0;
   
@@ -111,7 +111,7 @@ inline
 void
 push_bitmap(Render_group* group, Loaded_bmp* bitmap, f32 height, v3 offset, v4 color = white_v4) {
   
-  timed_block();
+  timed_function();
   
   v2 size = { 
     height * bitmap->width_over_height, 
@@ -140,7 +140,7 @@ inline
 void
 push_bitmap(Render_group* group, Bitmap_id id, f32 height, v3 offset, v4 color = white_v4) {
   
-  timed_block();
+  timed_function();
   
   Loaded_bmp *bitmap = get_bitmap(group->asset_list, id, group->generation_id);
   
@@ -164,7 +164,7 @@ inline
 void
 push_rect(Render_group* group, v3 offset, v2 dim, v4 color = white_v4) {
   
-  timed_block();
+  timed_function();
   v3 pos = offset - v2_to_v3(0.5 * dim, 0);
   Entity_basis_result basis = get_render_entity_basis_pos(&group->transform, pos);
   
@@ -183,6 +183,12 @@ push_rect(Render_group* group, v3 offset, v2 dim, v4 color = white_v4) {
 
 inline
 void
+push_rect(Render_group *group, Rect2 rect, f32 z, v4 color = white_v4) {
+  push_rect(group, V3(get_center(rect), z), get_dim(rect), color);
+}
+
+inline
+void
 push_rect_outline(Render_group* group, v3 offset, v2 dim, v4 color = white_v4) {
   
   f32 thickness = 0.1f;
@@ -196,7 +202,7 @@ push_rect_outline(Render_group* group, v3 offset, v2 dim, v4 color = white_v4) {
 internal
 void
 draw_rect_old(Loaded_bmp* buffer, v2 start, v2 end, v4 color) {
-  timed_block();
+  timed_function();
   u32 color_hex = 0;
   
   color_hex = (round_f32_u32(color.a * 255.0f) << 24 | 
@@ -226,7 +232,7 @@ internal
 void
 draw_rect(Loaded_bmp* buffer, v2 v_min, v2 v_max, v4 color, Rect2i clip_rect, bool even) {
   
-  timed_block();
+  timed_function();
   
   u32 color_hex = (round_f32_u32(color.a * 255.0f) << 24 | 
                    round_f32_u32(color.r * 255.0f) << 16 | 
@@ -358,7 +364,7 @@ distance_from_map_z - how far the map is from sample point in z, in meters
 internal
 void
 draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Loaded_bmp* bitmap, Loaded_bmp* normal_map, Env_map* top, Env_map* middle, Env_map* bottom, f32 pixel_to_meter) {
-  timed_block();
+  timed_function();
   
   color.rgb *= color.a;
   
@@ -586,7 +592,7 @@ internal
 void
 change_saturation(Loaded_bmp* bitmap_buffer, f32 level) {
   
-  timed_block();
+  timed_function();
   
   u8* dest_row = (u8*)bitmap_buffer->memory;
   
@@ -630,7 +636,7 @@ internal
 void
 draw_bitmap(Loaded_bmp* bitmap_buffer, Loaded_bmp* bitmap, v2 start, f32 c_alpha = 1.0f) {
   
-  timed_block();
+  timed_function();
   
   i32 min_x = round_f32_i32(start.x);
   i32 min_y = round_f32_i32(start.y);
@@ -731,7 +737,7 @@ internal
 void
 render_group_to_output(Render_group* render_group, Loaded_bmp* output_target, Rect2i clip_rect, bool even) {
   
-  timed_block();
+  timed_function();
   
   f32 null_pixels_to_meters = 1.0f;
   
@@ -852,7 +858,7 @@ internal
 void
 render_group_to_output(Render_group *render_group, Loaded_bmp *output_target) {
   
-  timed_block();
+  timed_function();
   
   assert(((uintptr)output_target->memory & 15) == 0);
   
@@ -878,7 +884,7 @@ void
 tiled_render_group_to_output(Platform_work_queue *render_queue, 
                              Render_group *render_group, Loaded_bmp *output_target) {
   
-  timed_block();
+  timed_function();
   
   i32 const tile_count_x = 9;
   i32 const tile_count_y = 9;
@@ -931,7 +937,7 @@ internal
 Render_group*
 allocate_render_group(Game_asset_list *asset_list, Memory_arena* arena, u32 max_push_buffer_size, bool renders_in_background) {
   
-  timed_block();
+  timed_function();
   
   Render_group* result = mem_push_struct(arena, Render_group);
   
@@ -1095,7 +1101,7 @@ static
 void
 begin_render(Render_group *group) {
   
-  timed_block();
+  timed_function();
   
   if (group) {
     assert(!group->inside_render);
@@ -1109,7 +1115,7 @@ static
 void
 end_render(Render_group *group) {
   
-  timed_block();
+  timed_function();
   
   if (group) {
     assert(group->inside_render);
