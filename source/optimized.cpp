@@ -50,7 +50,7 @@ draw_rect_quak(Loaded_bmp *buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
   f32 inverse_x_axis_squared = 1.0f / length_squared(x_axis);
   f32 inverse_y_axis_squared = 1.0f / length_squared(y_axis);
   
-  Rect2i fill_rect = rect_inverted_infinity();
+  Rect2i fill_rect = rect2i_inverted_infinity();
   
   v2 p[4] = {
     origin,

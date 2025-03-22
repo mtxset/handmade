@@ -20,26 +20,20 @@ debug_get_state() {
 }
 
 static
-void
-debug_text_out_at(v2 pos, char *string) {
+Rect2
+debug_text_op(Debug_state *debug_state, Debug_text_op text_op, v2 pos, char* string, v4 color = white_v4) {
   
-  Debug_state *debug_state = debug_get_state();
+  Rect2 result = rect2_inverted_infinity();
   
-  if (!debug_state)
-    return;
+  if (!debug_state || !debug_state->debug_font)
+    goto end_of_function;
   
   Render_group *render_group = debug_state->render_group;
-  
-  Loaded_font *font = push_font(render_group, debug_state->font_id);
-  
-  if (!font)
-    return;
-  
-  Hha_font *info = get_font_info(render_group->asset_list, debug_state->font_id);
+  Loaded_font  *font = debug_state->debug_font;
+  Hha_font     *info = debug_state->debug_font_info;
   
   u32 prev_code_point = 0;
   f32 char_scale = debug_state->font_scale;
-  v4 color = white_v4;
   f32 at_y = pos.y;
   f32 at_x = pos.x;
   
@@ -89,18 +83,47 @@ debug_text_out_at(v2 pos, char *string) {
       
       if (code_point != ' ') {
         
-        Bitmap_id id = get_bitmap_for_glyph(render_group->asset_list, info, font, code_point);
-        Hha_bitmap *bitmap_info = get_bitmap_info(render_group->asset_list, id);
+        Bitmap_id bitmap_id = get_bitmap_for_glyph(render_group->asset_list, info, font, code_point);
+        Hha_bitmap *bitmap_info = get_bitmap_info(render_group->asset_list, bitmap_id);
         
-        f32 size = (f32)bitmap_info->dim[1];
+        f32 bitmap_scale = char_scale * (f32)bitmap_info->dim[1];
+        v3 bitmap_offset = {at_x, at_y, 0};
         
-        push_bitmap(render_group, id, char_scale * size, v3{at_x, at_y, 0}, color);
+        if (text_op == Debug_text_op_draw_text) {
+          push_bitmap(render_group, bitmap_id, bitmap_scale, v3{at_x, at_y, 0}, color);
+        }
+        else if (text_op == Debug_text_op_size_text) {
+          Loaded_bmp *bitmap = get_bitmap(render_group->asset_list, bitmap_id, render_group->generation_id);
+          
+          if (bitmap) {
+            Used_bitmap_dim dim = get_bitmap_dim(render_group, bitmap, bitmap_scale, bitmap_offset);
+            Rect2 glyph_dim = rect_min_dim(dim.pos.xy, dim.size);
+            result = rect2_union(result, glyph_dim);
+          }
+          
+        }
+        
       }
       
       prev_code_point = code_point;
       at++;
     }
   }
+  
+  end_of_function:
+  return result;
+}
+
+static 
+void
+debug_text_out_at(v2 pos, char* string, v4 color = white_v4) {
+  Debug_state *debug_state = debug_get_state();
+  
+  if (debug_state) {
+    Render_group *render_group = debug_state->render_group;
+    debug_text_op(debug_state, Debug_text_op_draw_text, pos, string, color);
+  }
+  
 }
 
 static
@@ -121,10 +144,9 @@ debug_text_line(char *string) {
   
   Hha_font *info = get_font_info(render_group->asset_list, debug_state->font_id);
   
-  debug_text_out_at(v2{debug_state->left_edge, debug_state->at_y}, string);
+  debug_text_out_at(V2(debug_state->left_edge, debug_state->at_y), string);
   debug_state->at_y -= get_line_advance_for(info) * debug_state->font_scale;
 }
-
 
 struct Debug_stats {
   f64 min;
@@ -188,6 +210,8 @@ static
 void
 debug_start(Game_asset_list *asset_list, u32 width, u32 height) {
   
+  timed_function();
+  
   Debug_state *debug_state = (Debug_state*)debug_global_memory->debug_storage;
   
   if (debug_state) { 
@@ -211,6 +235,8 @@ debug_start(Game_asset_list *asset_list, u32 width, u32 height) {
     }
     
     begin_render(debug_state->render_group);
+    debug_state->debug_font = push_font(debug_state->render_group, debug_state->font_id);
+    debug_state->debug_font_info = get_font_info(debug_state->render_group->asset_list, debug_state->font_id);
     
     debug_state->global_width  = (f32)width;
     debug_state->global_height = (f32)height;
@@ -233,8 +259,62 @@ debug_start(Game_asset_list *asset_list, u32 width, u32 height) {
 }
 
 static
+Rect2
+debug_get_text_size(Debug_state *debug_state, char *string) {
+  Rect2 result = debug_text_op(debug_state, Debug_text_op_size_text, v2_zero, string);
+  
+  return result;
+}
+
+static
+void
+debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mouse_pos) {
+  
+  char *menu_item_list[] = {
+    "profile graph",
+    "debug collation",
+    "frame rate counter",
+    "mark loop point",
+    "entity bounds",
+    "world chunk bounds"
+  };
+  u32 menu_item_count = array_count(menu_item_list);
+  
+  u32 new_hot_menu_index = menu_item_count;
+  f32 best_distance_sq = FLT_MAX;
+  
+  f32 menu_radius = 200.0f;
+  f32 angle_step = TAU / (f32)menu_item_count;
+  
+  for (u32 menu_item_index = 0; menu_item_index < menu_item_count; menu_item_index++) {
+    char *text = menu_item_list[menu_item_index];
+    
+    v4 item_color = white_v4;
+    if (menu_item_index == debug_state->hot_menu_index) {
+      item_color = yellow_v4;
+    }
+    
+    f32 angle = (f32)menu_item_index * angle_step;
+    v2 text_pos = debug_state->menu_pos + menu_radius * arm(angle);
+    
+    f32 this_distance_sq = length_squared(text_pos - mouse_pos);
+    if (best_distance_sq > this_distance_sq) {
+      new_hot_menu_index = menu_item_index;
+      best_distance_sq = this_distance_sq;
+    }
+    
+    Rect2 text_rect = debug_get_text_size(debug_state, text);
+    debug_text_out_at(text_pos - .5f * get_dim(text_rect), text, item_color);
+  }
+  
+  debug_state->hot_menu_index = new_hot_menu_index;
+}
+
+static
 void
 debug_end(Game_input *input, Loaded_bmp *draw_buffer) {
+  
+  timed_function();
   
   Debug_state *debug_state = debug_get_state();
   
@@ -245,13 +325,24 @@ debug_end(Game_input *input, Loaded_bmp *draw_buffer) {
   
   Debug_record *hot_record = 0;
   
-  v2 mouse_pos = v2{input->mouse_x, input->mouse_y};
+  v2 mouse_pos = V2(input->mouse_x, input->mouse_y);
   
-  if (was_pressed(input->mouse_buttons[Game_input_mouse_button_right])) {
-    debug_state->paused = !debug_state->paused;
+  if (input->mouse_buttons[Game_input_mouse_button_right].ended_down) {
+    if (input->mouse_buttons[Game_input_mouse_button_right].half_transition_count > 0) {
+      debug_state->menu_pos = mouse_pos;
+    }
+    debug_draw_main_menu(debug_state, render_group, mouse_pos);
+  }
+  else if (input->mouse_buttons[Game_input_mouse_button_right].half_transition_count > 0) {
+    debug_draw_main_menu(debug_state, render_group, mouse_pos);
+    
+    switch (debug_state->hot_menu_index) {
+      case 0: debug_state->profile_on = !debug_state->profile_on; break;
+      case 1: debug_state->paused = !debug_state->paused; break;
+    }
   }
   
-  Loaded_font *font = push_font(render_group, debug_state->font_id);
+  Loaded_font *font = debug_state->debug_font;
   if (!font)
     goto skip_debug_rendering;
   
@@ -340,79 +431,81 @@ debug_end(Game_input *input, Loaded_bmp *draw_buffer) {
     debug_text_line(text);
   }
   
-  ortographic(debug_state->render_group, (i32)debug_state->global_width, (i32)debug_state->global_height, 1.0f);
-  
-  debug_state->profile_rect = rect_min_max(v2{-500, -100}, v2{-300, 200});
-  push_rect(debug_state->render_group, debug_state->profile_rect, 0.0f, v4{0,0,0, .25f});
-  
-  f32 bar_spacing = 10.0f;
-  f32 lane_height = 0.0f;
-  u32 lane_count  = debug_state->frame_bar_lane_count;
-  
-  u32 max_frame = debug_state->frame_count;
-  if (max_frame > 10) max_frame = 10;
-  
-  if (lane_count > 0 && max_frame > 0) {
-    f32 pixels_per_frame_plus_spacing = get_dim(debug_state->profile_rect).y / (f32)max_frame;
-    f32 pixels_per_frame = pixels_per_frame_plus_spacing - bar_spacing;
-    lane_height = pixels_per_frame / (f32)lane_count;
-  }
-  
-  f32 bar_height = lane_height * lane_count;
-  f32 bar_plus_spacing = bar_height + bar_spacing;
-  f32 chart_left = debug_state->profile_rect.min.x;
-  f32 chart_height = bar_plus_spacing * (f32)max_frame;
-  f32 chart_width  = get_dim(debug_state->profile_rect).x;
-  f32 chart_top = debug_state->profile_rect.max.y;
-  f32 scale = chart_width * debug_state->frame_bar_scale;
-  
-  v3 color_list[] = {
-    {1, 0, 0},
-    {0, 1, 0},
-    {0, 0, 1},
-    {1, 1, 0},
-    {0, 1, 1},
-    {1, 0, 1},
-    {1, 0.5f, 0},
-    {1, 0, 0.5f},
-    {0.5f, 1, 0},
-    {0, 1, 0.5f},
-    {0.5f, 0, 1},
-    {0, 0.5f, 1},
-  };
-  
-  for (u32 frame_index = 0; frame_index < max_frame; frame_index += 1) {
-    Debug_frame *frame = debug_state->frame_list + debug_state->frame_count - (frame_index + 1);
+  if (debug_state->profile_on) {  
+    ortographic(debug_state->render_group, (i32)debug_state->global_width, (i32)debug_state->global_height, 1.0f);
     
-    f32 stack_x = chart_left;
-    f32 stack_y = chart_top - bar_plus_spacing * (f32)frame_index;
+    debug_state->profile_rect = rect_min_max(v2{-500, -100}, v2{-300, 200});
+    push_rect(debug_state->render_group, debug_state->profile_rect, 0.0f, v4{0,0,0, .25f});
     
-    for (u32 region_index = 0; region_index < frame->region_count; region_index += 1) {
-      Debug_frame_region *region = frame->region_list + region_index;
+    f32 bar_spacing = 10.0f;
+    f32 lane_height = 0.0f;
+    u32 lane_count  = debug_state->frame_bar_lane_count;
+    
+    u32 max_frame = debug_state->frame_count;
+    if (max_frame > 10) max_frame = 10;
+    
+    if (lane_count > 0 && max_frame > 0) {
+      f32 pixels_per_frame_plus_spacing = get_dim(debug_state->profile_rect).y / (f32)max_frame;
+      f32 pixels_per_frame = pixels_per_frame_plus_spacing - bar_spacing;
+      lane_height = pixels_per_frame / (f32)lane_count;
+    }
+    
+    f32 bar_height = lane_height * lane_count;
+    f32 bar_plus_spacing = bar_height + bar_spacing;
+    f32 chart_left = debug_state->profile_rect.min.x;
+    f32 chart_height = bar_plus_spacing * (f32)max_frame;
+    f32 chart_width  = get_dim(debug_state->profile_rect).x;
+    f32 chart_top = debug_state->profile_rect.max.y;
+    f32 scale = chart_width * debug_state->frame_bar_scale;
+    
+    v3 color_list[] = {
+      {1, 0, 0},
+      {0, 1, 0},
+      {0, 0, 1},
+      {1, 1, 0},
+      {0, 1, 1},
+      {1, 0, 1},
+      {1, 0.5f, 0},
+      {1, 0, 0.5f},
+      {0.5f, 1, 0},
+      {0, 1, 0.5f},
+      {0.5f, 0, 1},
+      {0, 0.5f, 1},
+    };
+    
+    for (u32 frame_index = 0; frame_index < max_frame; frame_index += 1) {
+      Debug_frame *frame = debug_state->frame_list + debug_state->frame_count - (frame_index + 1);
       
-      v3 color = color_list[region->color_index % array_count(color_list)];
-      f32 this_min_x = stack_x + scale * region->min_t;
-      f32 this_max_x = stack_x + scale * region->max_t;
+      f32 stack_x = chart_left;
+      f32 stack_y = chart_top - bar_plus_spacing * (f32)frame_index;
       
-      Rect2 rect = rect_min_max(v2{this_min_x, stack_y - lane_height * (region->lane_index + 1)},
-                                v2{this_max_x, stack_y - lane_height * region->lane_index});
-      
-      push_rect(render_group, rect, .0f, V4(color, 1));
-      
-      if (is_in_rect(rect, mouse_pos)) {
-        Debug_record *record = region->record;
-        char buffer[256];
-        _snprintf_s(buffer, sizeof(buffer), "%s: %10Iucy [%s(%d)]",
-                    record->block_name,
-                    region->cycle_count,
-                    record->file_name,
-                    record->line_number);
+      for (u32 region_index = 0; region_index < frame->region_count; region_index += 1) {
+        Debug_frame_region *region = frame->region_list + region_index;
         
-        debug_text_out_at(mouse_pos + v2{0, 10.0f}, buffer);
+        v3 color = color_list[region->color_index % array_count(color_list)];
+        f32 this_min_x = stack_x + scale * region->min_t;
+        f32 this_max_x = stack_x + scale * region->max_t;
         
-        hot_record = record;
+        Rect2 rect = rect_min_max(v2{this_min_x, stack_y - lane_height * (region->lane_index + 1)},
+                                  v2{this_max_x, stack_y - lane_height * region->lane_index});
+        
+        push_rect(render_group, rect, .0f, V4(color, 1));
+        
+        if (is_in_rect(rect, mouse_pos)) {
+          Debug_record *record = region->record;
+          char buffer[256];
+          _snprintf_s(buffer, sizeof(buffer), "%s: %10Iucy [%s(%d)]",
+                      record->block_name,
+                      region->cycle_count,
+                      record->file_name,
+                      record->line_number);
+          
+          debug_text_out_at(mouse_pos + v2{0, 10.0f}, buffer);
+          
+          hot_record = record;
+        }
+        
       }
-      
     }
   }
   
@@ -643,6 +736,8 @@ refresh_collation(Debug_state *debug_state) {
   restart_collation(debug_state, global_debug_table->current_event_array_index);
   collate_debug_records(debug_state, global_debug_table->current_event_array_index);
 }
+
+
 
 extern "C" // to prevent name mangle by compiler, so function can looked up by name exactly
 Debug_table*

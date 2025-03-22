@@ -13,6 +13,7 @@ union v2 {
 };
 
 const v2 v2_zero = {0, 0}, v2_one = {1, 1}, v2_x = {1, 0}, v2_y = {0, 1}, v2_half = {.5, .5};
+inline v2 V2(f32 x, f32 y) { return v2{x, y}; }
 
 union v2i32 {
   struct {
@@ -364,6 +365,13 @@ clamp01(v2 value) {
   return result;
 }
 
+inline
+v2
+arm(f32 angle) {
+  v2 result = v2 {cosf(angle), sinf(angle)};
+  
+  return result;
+}
 
 inline
 v3
@@ -943,8 +951,21 @@ rect_intersect(Rect2i a, Rect2i b) {
 }
 
 inline
+Rect2
+rect2_union(Rect2 a, Rect2 b) {
+  Rect2 result;
+  
+  result.min.x = (a.min.x < b.min.x) ? a.min.x : b.min.x;
+  result.min.y = (a.min.y < b.min.y) ? a.min.y : b.min.y;
+  result.max.x = (a.max.x > b.max.x) ? a.max.x : b.max.x;
+  result.max.y = (a.max.y > b.max.y) ? a.max.y : b.max.y;
+  
+  return result;
+}
+
+inline
 Rect2i
-rect_union(Rect2i a, Rect2i b) {
+rect2i_union(Rect2i a, Rect2i b) {
   Rect2i result;
   
   result.min_x = (a.min_x < b.min_x) ? a.min_x : b.min_x;
@@ -979,9 +1000,22 @@ rect_has_area(Rect2i a) {
   return result;
 }
 
+
+inline
+Rect2
+rect2_inverted_infinity() {
+  Rect2 result;
+  
+  result.min.x = result.min.y = FLT_MAX;
+  result.max.x = result.max.y = -FLT_MAX;;
+  
+  return result;
+}
+
+
 inline
 Rect2i
-rect_inverted_infinity() {
+rect2i_inverted_infinity() {
   Rect2i result;
   
   result.min_x = result.min_y = INT_MAX;

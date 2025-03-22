@@ -107,6 +107,21 @@ struct Render_group {
   bool inside_render;
 };
 
+
+struct Entity_basis_result {
+  v2 pos;
+  f32 scale;
+  bool valid;
+};
+
+struct Used_bitmap_dim {
+  Entity_basis_result basis;
+  v2 size;
+  v2 align;
+  v3 pos;
+};
+
+
 #endif //RENDER_GROUP_H
 void
 draw_rect_quak(Loaded_bmp *buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Loaded_bmp *bitmap, f32 pixel_to_meter, Rect2i clip_rect, bool even);

@@ -31,12 +31,6 @@ unscale_bias_normal(v4 normal) {
   return result;
 }
 
-struct Entity_basis_result {
-  v2 pos;
-  f32 scale;
-  bool valid;
-};
-
 inline
 Entity_basis_result
 get_render_entity_basis_pos(Render_transform *transform, v3 original_pos) {
@@ -108,21 +102,27 @@ push_render_element_(Render_group* group, u32 size, Render_group_entry_type type
 }
 
 inline
+Used_bitmap_dim
+get_bitmap_dim(Render_group *group, Loaded_bmp *bitmap, f32 height, v3 offset) {
+  Used_bitmap_dim dim;
+  
+  dim.size  = V2(height * bitmap->width_over_height, height);
+  dim.align = hadamard(bitmap->align_pcent, dim.size);
+  dim.pos   = offset - V3(dim.align, 0);
+  dim.basis = get_render_entity_basis_pos(&group->transform, dim.pos);
+  
+  return dim;
+}
+
+inline
 void
 push_bitmap(Render_group* group, Loaded_bmp* bitmap, f32 height, v3 offset, v4 color = white_v4) {
   
   timed_function();
   
-  v2 size = { 
-    height * bitmap->width_over_height, 
-    height
-  };
-  v2 align = hadamard(bitmap->align_pcent, size);
-  v3 pos = offset - v2_to_v3(align, 0);
+  Used_bitmap_dim dim = get_bitmap_dim(group, bitmap, height, offset);
   
-  Entity_basis_result basis = get_render_entity_basis_pos(&group->transform, pos);
-  
-  if (!basis.valid)
+  if (!dim.basis.valid)
     return;
   
   Render_entry_bitmap* entry = push_render_element(group, Render_entry_bitmap);
@@ -131,9 +131,9 @@ push_bitmap(Render_group* group, Loaded_bmp* bitmap, f32 height, v3 offset, v4 c
     return;
   
   entry->bitmap = bitmap;
-  entry->pos = basis.pos;
+  entry->pos = dim.basis.pos;
   entry->color = group->global_alpha * color;
-  entry->size = basis.scale * size;
+  entry->size = dim.basis.scale * dim.size;
 }
 
 inline
@@ -743,7 +743,7 @@ render_group_to_output(Render_group* render_group, Loaded_bmp* output_target, Re
   
   for (u32 base_addr = 0; base_addr < render_group->push_buffer_size;) {
     
-    Render_group_entry_header* header = (Render_group_entry_header*)(render_group->push_buffer_base + base_addr);
+    auto header = (Render_group_entry_header*)(render_group->push_buffer_base + base_addr);
     base_addr += sizeof(*header);
     
     void* data = (u8*)header + sizeof(*header);

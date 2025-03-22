@@ -3,6 +3,11 @@
 #ifndef DEBUG_H
 #define DEBUG_H
 
+enum Debug_text_op {
+  Debug_text_op_draw_text,
+  Debug_text_op_size_text,
+};
+
 struct Debug_counter_snapshot {
   u32 hit_count;
   u64 cycle_count;
@@ -58,6 +63,12 @@ struct Debug_state {
   
   Memory_arena debug_arena;
   Render_group *render_group;
+  Loaded_font *debug_font;
+  Hha_font *debug_font_info;
+  
+  v2 menu_pos;
+  bool menu_active;
+  u32 hot_menu_index;
   
   f32 left_edge;
   f32 at_y;
@@ -80,6 +91,7 @@ struct Debug_state {
   bool paused;
   
   Rect2 profile_rect;
+  bool profile_on;
   
   Debug_frame *frame_list;
   Debug_thread *first_thread;
