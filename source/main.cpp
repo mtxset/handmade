@@ -1,4 +1,4 @@
-// https://youtu.be/s_qSvBp6nFw?t=564
+// https://youtu.be/RQuVq1v2PkE?t=1081
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include "types.h"
@@ -113,7 +113,56 @@ debug_read_entire_file(char* file_name) {
   return result;
 }
 
-bool debug_write_entire_file(char* file_name, u32 memory_size, void* memory) {
+Debug_executing_process
+win32_debug_execute_cmd(char *path, char *cmd, char *cmd_line) {
+  Debug_executing_process result = {};
+  
+  STARTUPINFO startup_info = {};
+  startup_info.cb = sizeof(STARTUPINFO);
+  startup_info.dwFlags = STARTF_USESHOWWINDOW;
+  startup_info.wShowWindow = SW_HIDE;
+  
+  PROCESS_INFORMATION process_info = {};
+  if (CreateProcess(cmd, cmd_line, 0, 0, false, 0, 0, path, &startup_info, &process_info)) {
+    assert(sizeof(result.os_handle) >= sizeof(process_info.hProcess));
+    *(HANDLE*)&result.os_handle = process_info.hProcess;
+  }
+  else {
+    DWORD error_code = GetLastError();
+    *(HANDLE *)&result.os_handle = INVALID_HANDLE_VALUE;
+  }
+  
+  return result;
+}
+
+Debug_process_state
+win32_get_process_state(Debug_executing_process process) {
+  Debug_process_state result = {};
+  
+  HANDLE handle_process = *(HANDLE *)&process.os_handle;
+  
+  if (handle_process != INVALID_HANDLE_VALUE) {
+    
+    result.started_successfully = true;
+    
+    if (WaitForSingleObject(handle_process, 0) == WAIT_OBJECT_0) {
+      DWORD return_code = 0;
+      
+      GetExitCodeProcess(handle_process, &return_code);
+      result.return_code = return_code;
+      CloseHandle(handle_process);
+    }
+    else {
+      result.is_running = true;
+    }
+    
+  }
+  
+  return result;
+}
+
+bool 
+debug_write_entire_file(char* file_name, u32 memory_size, void* memory) {
   auto file_handle = CreateFileA(file_name, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
   
   if (file_handle == INVALID_HANDLE_VALUE)
@@ -1203,13 +1252,16 @@ Platform_allocate_memory(sz size);
 
 extern "C" u32 asm_get_thread_id();
 extern "C" u32 asm_get_core_id();
-
+extern "C" u32 asm_get_tick_count_64();
 
 static Debug_table global_debug_table_;
 Debug_table *global_debug_table = &global_debug_table_;
 
 i32
 main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
+  
+  u64 ticks = GetTickCount64();
+  u64 ticks_asm = asm_get_tick_count_64();
   
   auto thread_id = GetCurrentThreadId();
   auto thread_asm_id = asm_get_thread_id();
@@ -1369,6 +1421,9 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     memory.platform_api.debug_read_entire_file = debug_read_entire_file;
     memory.platform_api.debug_write_entire_file = debug_write_entire_file;
     
+    memory.platform_api.debug_execute_cmd = win32_debug_execute_cmd;
+    memory.platform_api.debug_get_process_state = win32_get_process_state;
+    
     memory.cpu_frequency = Global_perf_freq;
     
     // consider trying MEM_LARGE_PAGES which would enable larger virtual memory page sizes (2mb? compared to 4k pages).
@@ -1417,8 +1472,9 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
   
   while (Global_game_running) {
     
-    new_input->executable_reloaded = false;
     new_input->time_delta = target_seconds_per_frame;
+    
+    memory.executable_reloaded = false;
     
     // check if we need to reload game code
     timed_block_begin(game_dll_reload);
@@ -1437,7 +1493,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
                                          temp_game_code_full_path, 
                                          lock_file_full_path);
         
-        new_input->executable_reloaded = true;
+        memory.executable_reloaded = true;
       }
     }
     timed_block_end(game_dll_reload);

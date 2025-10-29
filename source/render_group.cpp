@@ -52,10 +52,12 @@ get_render_entity_basis_pos(Render_transform *transform, v3 original_pos) {
     
     f32 dist_above_target = transform->dist_above_target;
     
-    bool debug_camera = false;
+#if DEBUG_UI_use_debug_camera
+    bool debug_camera = true;
     if (debug_camera) {
       dist_above_target += 50.0f;
     }
+#endif
     
     f32 dist_to_p = dist_above_target - pos.z;
     f32 near_clip_plane = 0.2f;

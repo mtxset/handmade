@@ -23,6 +23,8 @@
 
 #endif //!COMPILER_MSVC && !COMPILER_LLVM
 
+#include "config.h"
+
 #include <stdint.h>
 #include <stddef.h>
 #include <limits.h>
@@ -168,8 +170,6 @@ struct Game_input {
   
   // 1 - keyboard, other gamepads
   Game_controller_input gamepad[5];
-  
-  bool executable_reloaded;
 };
 
 inline
@@ -203,6 +203,16 @@ typedef struct Debug_file_read_result {
   void* content;
 } Debug_file_read_result;
 
+typedef struct Debug_executing_process {
+  u64 os_handle;
+} Debug_executing_process;
+
+typedef struct Debug_process_state {
+  bool started_successfully;
+  bool is_running;
+  i32 return_code;
+} Debug_process_state;
+
 struct Platform_work_queue;
 #define PLATFORM_WORK_QUEUE_CALLBACK(name) void name(Platform_work_queue *queue, void *data)
 typedef PLATFORM_WORK_QUEUE_CALLBACK(Platform_work_queue_callback);
@@ -233,8 +243,19 @@ Debug_platform_free_file_memory(void *memory);
 typedef Debug_file_read_result
 Debug_platform_read_entire_file(char *filename);
 
-typedef bool
+typedef 
+bool
 Debug_platform_write_entire_file(char *filename, u32 memory_size, void *memory);
+
+typedef 
+Debug_executing_process
+Debug_platform_execute_cmd(char *path, char *cmd, char *cmd_line);
+
+typedef
+Debug_process_state
+Debug_platform_get_process_state(Debug_executing_process process);
+
+#define DEBUG_PLATFORM_GET_PROCESS_STATE(name) debug_process_state name(debug_executing_process Process)
 
 typedef void*
 Platform_allocate_memory(sz size);
@@ -261,6 +282,9 @@ typedef struct Platform_api {
   Debug_platform_read_entire_file  *debug_read_entire_file;
   Debug_platform_write_entire_file *debug_write_entire_file;
   
+  Debug_platform_execute_cmd *debug_execute_cmd;
+  Debug_platform_get_process_state *debug_get_process_state;
+  
 } Platform_api;
 
 typedef struct Game_memory {
@@ -276,6 +300,7 @@ typedef struct Game_memory {
   Platform_work_queue *high_priority_queue;
   Platform_work_queue *low_priority_queue;
   
+  bool executable_reloaded;
   Platform_api platform_api;
   
   u64 cpu_frequency;
@@ -374,8 +399,6 @@ struct Debug_event {
   u8 translation_unit_index;
   u8 type;
 };
-
-
 
 #define MAX_DEBUG_TRANSLATION_UNITS 3
 #define MAX_DEBUG_EVENT_ARRAY_COUNT 8 // max fps saved

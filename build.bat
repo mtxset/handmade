@@ -13,7 +13,12 @@ set common_linker_flags=-incremental:no -opt:ref user32.lib gdi32.lib winmm.lib
 
 if not exist build mkdir build
 pushd build
-:: call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
+
+:: this is required for recompilation process call while in a game for debug purposes
+where cl.exe >nul 2>&1
+if errorlevel 1 (
+ call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+)
 
 del *.pdb > NUL 2> NUL
 del *.rdi > NUL 2> NUL

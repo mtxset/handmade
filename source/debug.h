@@ -66,6 +66,9 @@ struct Debug_state {
   Loaded_font *debug_font;
   Hha_font *debug_font_info;
   
+  bool compiling;
+  Debug_executing_process compiler;
+  
   v2 menu_pos;
   bool menu_active;
   u32 hot_menu_index;

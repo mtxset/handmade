@@ -19,7 +19,6 @@ struct Load_asset_work {
   u32 final_state;
 };
 
-
 struct Asset_memory_size {
   u32 total;
   u32 data;
@@ -86,8 +85,7 @@ PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work) {
 
 inline 
 Platform_file_handle*
-get_file_handle_for(Game_asset_list *asset_list, u32 file_index)
-{
+get_file_handle_for(Game_asset_list *asset_list, u32 file_index) {
   assert(file_index < asset_list->file_count);
   
   Platform_file_handle *result = &asset_list->file_list[file_index].handle;

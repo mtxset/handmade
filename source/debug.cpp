@@ -259,6 +259,23 @@ debug_start(Game_asset_list *asset_list, u32 width, u32 height) {
 }
 
 static
+void
+write_handmade_config(Debug_state *debug_state, bool use_debug_camera) {
+  char temp[4096];
+  
+  i32 temp_size = _snprintf_s(temp, sizeof(temp), "#define DEBUG_UI_use_debug_camera %d // bool\n", use_debug_camera);
+  
+  platform.debug_write_entire_file("..\\source\\config.h", temp_size, temp);
+  
+  if (!debug_state->compiling) {
+    debug_state->compiling = true;
+    
+    debug_state->compiler = platform.debug_execute_cmd("..", "c:\\windows\\system32\\cmd.exe", "/C build.bat");
+  }
+  
+}
+
+static
 Rect2
 debug_get_text_size(Debug_state *debug_state, char *string) {
   Rect2 result = debug_text_op(debug_state, Debug_text_op_size_text, v2_zero, string);
@@ -339,6 +356,19 @@ debug_end(Game_input *input, Loaded_bmp *draw_buffer) {
     switch (debug_state->hot_menu_index) {
       case 0: debug_state->profile_on = !debug_state->profile_on; break;
       case 1: debug_state->paused = !debug_state->paused; break;
+    }
+    
+    write_handmade_config(debug_state, !DEBUG_UI_use_debug_camera);
+  }
+  
+  if (debug_state->compiling) {
+    Debug_process_state state = platform.debug_get_process_state(debug_state->compiler);
+    
+    if (state.is_running) {
+      debug_text_line("compiling");
+    }
+    else {
+      debug_state->compiling = false;
     }
   }
   
@@ -737,8 +767,6 @@ refresh_collation(Debug_state *debug_state) {
   collate_debug_records(debug_state, global_debug_table->current_event_array_index);
 }
 
-
-
 extern "C" // to prevent name mangle by compiler, so function can looked up by name exactly
 Debug_table*
 debug_game_frame_end(Game_memory* memory) {
@@ -759,6 +787,10 @@ debug_game_frame_end(Game_memory* memory) {
   
   Debug_state *debug_state = debug_get_state(memory);
   if (debug_state) {
+    
+    if (memory->executable_reloaded) {
+      restart_collation(debug_state, global_debug_table->current_event_array_index);
+    }
     
     if (!debug_state->paused) {
       
