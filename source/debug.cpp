@@ -268,11 +268,46 @@ write_debug_config(Debug_state *debug_state, bool use_debug_camera) {
   char *at = temp;
   char *end = temp + sizeof(temp);
   
-  for (u32 debug_var_index = 0; debug_var_index < array_count(debug_var_list); debug_var_index++) {
+  i32 depth = 0;
+  Debug_var *var = debug_state->root_group->group.first_child;
+  
+  while (var) {
     
-    Debug_var *var = debug_var_list + debug_var_index;
+    for (i32 ident = 0; ident < depth; ident++) {
+      *at++ = ' '; *at++ = ' '; *at++ = ' '; *at++ = ' ';
+    }
     
-    at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at), "#define %s %d\n", var->name, var->value);
+    switch (var->type) {
+      case Debug_var_type_bool: {
+        at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at), "#define DEBUG_UI_%s %d\n", var->name, var->bool_val);
+      } break;
+      
+      case Debug_var_type_group: {
+        at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at), "// %s\n", var->name);
+      } break;
+      
+    }
+    
+    if (var->type == Debug_var_type_group) {
+      var = var->group.first_child;
+      depth++;
+    }
+    else {
+      
+      while (var) {
+        
+        if (var->next) {
+          var = var->next;
+          break;
+        }
+        else {
+          var = var->parent;
+          depth--;
+        }
+        
+      }
+      
+    }
     
   }
   
@@ -297,7 +332,7 @@ debug_get_text_size(Debug_state *debug_state, char *string) {
 static
 void
 debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mouse_pos) {
-  
+#if 0
   u32 new_hot_menu_index = array_count(debug_var_list);
   f32 best_distance_sq = FLT_MAX;
   
@@ -332,7 +367,7 @@ debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mo
   else {
     debug_state->hot_menu_index = array_count(debug_var_list);
   }
-  
+#endif
 }
 
 static
@@ -352,6 +387,7 @@ debug_end(Game_input *input, Loaded_bmp *draw_buffer) {
   
   v2 mouse_pos = V2(input->mouse_x, input->mouse_y);
   
+#if 0
   if (input->mouse_buttons[Game_input_mouse_button_right].ended_down) {
     
     if (input->mouse_buttons[Game_input_mouse_button_right].half_transition_count > 0) {
@@ -369,6 +405,7 @@ debug_end(Game_input *input, Loaded_bmp *draw_buffer) {
     
     write_debug_config(debug_state, !DEBUG_UI_use_debug_camera);
   }
+#endif
   
   if (debug_state->compiling) {
     Debug_process_state state = platform.debug_get_process_state(debug_state->compiler);

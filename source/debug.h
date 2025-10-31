@@ -5,12 +5,28 @@
 
 enum Debug_var_type {
   Debug_var_type_bool,
+  Debug_var_type_group,
+};
+
+struct Debug_var;
+
+struct Debug_var_group {
+  bool expanded;
+  Debug_var *first_child;    
+  Debug_var *last_child;
 };
 
 struct Debug_var {
   Debug_var_type type;
   char *name;
-  bool value;
+  
+  Debug_var *next;
+  Debug_var *parent;;
+  
+  union {
+    bool bool_val;
+    Debug_var_group group;
+  };
 };
 
 enum Debug_text_op {
@@ -72,6 +88,7 @@ struct Debug_state {
   Platform_work_queue *high_priority_queue;
   
   Memory_arena debug_arena;
+  Debug_var *root_group;
   Render_group *render_group;
   Loaded_font *debug_font;
   Hha_font *debug_font_info;
