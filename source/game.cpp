@@ -795,7 +795,17 @@ PLATFORM_WORK_QUEUE_CALLBACK(fill_ground_chunk_work) {
         
         f32 splat_size = 2.0f;
         
-        push_bitmap(render_group, stamp, splat_size, v2_to_v3(pos, 0.0f));
+#if DEBUG_UI_ground_chunk_checker_board
+        v4 color = V4(1, 0, 0, 1);
+        
+        if ((chunk_x % 2) == (chunk_y % 2))
+          color = V4(0, 0, 1, 1);
+        
+#else
+        v4 color = white_v4;
+#endif
+        
+        push_bitmap(render_group, stamp, splat_size, v2_to_v3(pos, 0.0f), color);
       }
     }
   }
@@ -1485,7 +1495,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *b
       sub_arena(&task->arena, &tran_state->arena, megabytes(1));
     }
     
-    u32 size = megabytes(10);
+    u32 size = megabytes(16);
     tran_state->asset_list = allocate_game_asset_list(&tran_state->arena, size, tran_state);
     
 #define CB_MUSIC
@@ -1496,6 +1506,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *b
     tran_state->ground_buffer_list = mem_push_array(&tran_state->arena, tran_state->ground_buffer_count, Ground_buffer);
     
     for (u32 ground_buffer_index = 0; ground_buffer_index < tran_state->ground_buffer_count; ground_buffer_index++) {
+      
       Ground_buffer* ground_buffer = tran_state->ground_buffer_list + ground_buffer_index;
       ground_buffer->bitmap = make_empty_bitmap(&tran_state->arena,
                                                 ground_buffer_width,
@@ -1534,8 +1545,8 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *b
   
   debug_start(tran_state->asset_list, bitmap_buffer->width, bitmap_buffer->height);
   
-#if 0
-  if (input->executable_reloaded) {
+#if DEBUG_UI_ground_chunk_checker_board
+  if (memory->executable_reloaded) {
     for (u32 ground_buffer_index = 0; ground_buffer_index < tran_state->ground_buffer_count; ground_buffer_index++) {
       Ground_buffer* ground_buffer = tran_state->ground_buffer_list + ground_buffer_index;
       ground_buffer->position = null_position();
@@ -1705,14 +1716,16 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *b
     f32 ground_side_meters = world->chunk_dim_meters.x;
     push_bitmap(render_group, bitmap, ground_side_meters, delta);
     
-    bool show_chunk_outlines = false;
-    
+#if DEBUG_UI_ground_chunks_outlines
+    bool show_chunk_outlines = true;
     if (show_chunk_outlines) {
       push_rect_outline(render_group,
                         delta,
                         v2{ground_side_meters, ground_side_meters},
                         yellow_v4);
     }
+#endif
+    
   }
   
   // update ground chunks for sim region
@@ -1788,6 +1801,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *b
     push_rect_outline(render_group, v3{0,0,0}, get_dim(sim_region->bounds).xy, purple_v4);
   }
   
+  Hero_bitmap_ids hero_bitmaps = {};
   // move, group and push to drawing pipe
   {
     v3 camera_pos = subtract_pos(world, &game_state->camera_pos, &game_state->camera_pos);
@@ -1827,7 +1841,6 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *b
       }
       
       // pre physics
-      Hero_bitmap_ids hero_bitmaps = {};
       {
         Asset_vector match_vector = {};
         match_vector.e[Tag_facing_dir] = entity->facing_direction;
@@ -1893,8 +1906,9 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *b
           Sim_entity* closest_hero = 0;
           // distance we want it start to follow
           f32 closest_hero_delta_squared = square(10.0f);
-          bool follow_player = false;
           
+#if DEBUG_UI_familiar_follows_hero
+          bool follow_player = true;
           if (follow_player) {
             Sim_entity* test_entity = sim_region->entity_list;
             for (u32 test_entity_index = 0; test_entity_index < sim_region->entity_count; test_entity_index++, test_entity++) {
@@ -1909,6 +1923,8 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *b
               }
             }
           }
+          
+#endif
           
           f32 distance_to_stop = 2.5f;
           bool move_closer = closest_hero_delta_squared > square(distance_to_stop);
@@ -1982,8 +1998,9 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *b
         } break;
         
         case Entity_type_space: {
-          bool show_level_outlines = true;
           
+#if DEBUG_UI_use_space_outlines
+          bool show_level_outlines = true;
           if (!show_level_outlines)
             break;
           
@@ -1992,6 +2009,8 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *b
             
             push_rect_outline(render_group, volume->offset_pos - v3{0,0,0.5f*volume->dim.z}, volume->dim.xy, red_v4);
           }
+#endif
+          
         } break;
         
         default: {
@@ -2107,10 +2126,13 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *b
 #endif 
   
 #define CB_PARTICLES
-  bool particle_test = false;
+#if DEBUG_UI_particle_test
+  
+  bool particle_test = true;
   if (particle_test) {
     render_group->global_alpha = 1.0f;
     render_group->transform.offset_pos = v3_zero;
+    
     u32 particle_count = array_count(game_state->particle_list);
     mem_zero_struct(game_state->particle_cell_list);
     
@@ -2135,9 +2157,10 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *b
       cell->velocity_times_density += density * particle->velocity;
     }
     
-    bool render_grid = false;
+#if DEBUG_UI_particle_grid
+    
+    bool render_grid = true;
     if (render_grid) {
-      
       for (u32 y = 0; y < PARTICLE_CELL_DIM; y += 1) {
         for (u32 x = 0; x < PARTICLE_CELL_DIM; x += 1) {
           Particle_cell *cell = &game_state->particle_cell_list[y][x];
@@ -2151,6 +2174,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *b
       }
       
     }
+#endif
     
     Random_series *random = &game_state->general_entropy;
     u32 new_particles = 1;
@@ -2182,7 +2206,9 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *b
       match_vector.e[Tag_unicode_codepoint] = (f32)text[random_index];
       weight_vector.e[Tag_unicode_codepoint] = 1.0f;
       
-      particle->bitmap_id = get_best_match_bitmap_from(tran_state->asset_list, Asset_font, &match_vector, &weight_vector);
+      particle->bitmap_id = hero_bitmaps.head;
+      
+      //particle->bitmap_id = get_best_match_bitmap_from(tran_state->asset_list, Asset_font, &match_vector, &weight_vector);
     }
     
     f32 delta_time = input->time_delta;
@@ -2250,6 +2276,7 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *b
       //push_bitmap(render_group, id, particle->size, particle->pos, particle->color);
     }
   }
+#endif
   
   timed_block_begin(tiled_render);
   // output buffers to bitmap

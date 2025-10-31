@@ -30,7 +30,7 @@ for /F "tokens=1-4 delims=:.," %%a in ("%time%") do (
 :: 32-bit
 :: cl.exe %common_compiler_flags% "..\source\main.cpp" /link -subsystem:windows,5.1  %common_linker_flags%
 
-cl.exe %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=0 "..\source\asset_builder.cpp" /link %common_linker_flags%
+:: cl.exe %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=0 "..\source\asset_builder.cpp" /link %common_linker_flags%
 
 :: 64-bit
 :: /O2 /Oi /fp:fast - optimizations

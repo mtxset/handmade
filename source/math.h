@@ -96,8 +96,10 @@ union v4 {
 
 const v3 v3_zero = {0, 0, 0}, v3_one = {1, 1, 1}, v3_x = {1, 0, 0}, v3_y = {0, 1, 0}, v3_half = {.5, .5, .5};
 inline v3 V3(v2 vec2, f32 z) {return v3{vec2.x, vec2.y, z}; };
+inline v3 V3(f32 x, f32 y, f32 z) {return v3{x, y, z}; };
 
 inline v4 V4(v3 vec3, f32 w) {return v4{vec3.x, vec3.y, vec3.z, w}; }
+inline v4 V4(f32 a, f32 b, f32 c, f32 d) {return v4{a, b, c, d}; }
 
 inline
 f32

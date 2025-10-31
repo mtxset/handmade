@@ -1,4 +1,4 @@
-// https://youtu.be/RQuVq1v2PkE?t=4296
+// https://youtu.be/9ND-2a_hP0g?t=4188
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include "types.h"
@@ -1345,7 +1345,7 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
   initial_window_height = 1080; // 1080 
 #endif
   
-#if 0
+#if DEBUG_UI_test_weird_draw_buffer_size
   // win does not support pitch
   initial_window_width  = 1279;
   initial_window_height = 719;
@@ -1638,8 +1638,19 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       if (win_state.recording_input_index)
         win32_record_input(&win_state, new_input);
       
-      if (win_state.playing_input_index)
+      if (win_state.playing_input_index) {
+        Game_input temp = *new_input;
+        
         win32_playback_input(&win_state, new_input);
+        
+        for (u32 mouse_btn_index = 0; mouse_btn_index < Game_input_mouse_button_count; mouse_btn_index++) {
+          new_input->mouse_buttons[mouse_btn_index] = temp.mouse_buttons[mouse_btn_index];
+        }
+        
+        new_input->mouse_x = temp.mouse_x;
+        new_input->mouse_y = temp.mouse_y;
+        new_input->mouse_z = temp.mouse_z;
+      }
       
       if (game_code.update_and_render) {
         game_code.update_and_render(&memory, new_input, &game_buffer);

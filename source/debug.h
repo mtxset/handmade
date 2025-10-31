@@ -3,6 +3,16 @@
 #ifndef DEBUG_H
 #define DEBUG_H
 
+enum Debug_var_type {
+  Debug_var_type_bool,
+};
+
+struct Debug_var {
+  Debug_var_type type;
+  char *name;
+  bool value;
+};
+
 enum Debug_text_op {
   Debug_text_op_draw_text,
   Debug_text_op_size_text,

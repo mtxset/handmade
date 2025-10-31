@@ -233,18 +233,19 @@ end_sim(Sim_region* region, Game_state* game_state) {
       
       World_position new_camera_pos = game_state->camera_pos;
       new_camera_pos.chunk_z = stored->position.chunk_z;
-#if 0
-      if (camera_follow_entity.high->position.x > 8.5 * world->tile_side_meters)
-        new_camera_pos.absolute_tile_x += 17;
       
-      if (camera_follow_entity.high->position.x < -(8.5f * world->tile_side_meters))
-        new_camera_pos.absolute_tile_x -= 17;
+#if DEBUG_UI_use_room_based_camera
+      if (entity->position.x > 8.5f)
+        new_camera_pos = map_into_chunk_space(game_state->world, new_camera_pos, V3(17,0,0));
       
-      if (camera_follow_entity.high->position.y > 4.5f * world->tile_side_meters)
-        new_camera_pos.absolute_tile_y += 9;
+      if (entity->position.x < -8.5f)
+        new_camera_pos = map_into_chunk_space(game_state->world, new_camera_pos, V3(-17,0,0));
       
-      if (camera_follow_entity.high->position.y < -(5.0f * world->tile_side_meters))
-        new_camera_pos.absolute_tile_y -= 9;
+      if (entity->position.y > 4.5f)
+        new_camera_pos = map_into_chunk_space(game_state->world, new_camera_pos, V3(0,9,0));
+      
+      if (entity->position.y < -4.5f)
+        new_camera_pos = map_into_chunk_space(game_state->world, new_camera_pos, V3(0,-9,0));
 #else
       // smooth follow
       //f32 cam_z_offset = new_camera_pos._offset.z;

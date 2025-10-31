@@ -350,8 +350,7 @@ distance_from_map_z - how far the map is from sample point in z, in meters
   assert(x >= 0 && x < lod->width);
   assert(y >= 0 && y < lod->height);
   
-  bool show_where_sampling_is_coming_from = false;
-  
+  bool show_where_sampling_is_coming_from = true;
   if (show_where_sampling_is_coming_from) {
     u8* texel_ptr = ((u8*)lod->memory) + y * lod->pitch + x * sizeof(u32);
     *(u32*)texel_ptr = 0xffffffff;

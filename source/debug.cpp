@@ -2,6 +2,8 @@
 Game_memory *debug_global_memory = 0;
 #endif
 
+#include "debug_variables.h"
+
 inline
 Debug_state*
 debug_get_state(Game_memory *memory) {
@@ -248,7 +250,7 @@ debug_start(Game_asset_list *asset_list, u32 width, u32 height) {
     
     debug_state->font_id = get_best_match_font_from(asset_list, Asset_font, &match_vector, &weight_vector);
     
-    debug_state->font_scale = 1.0f;
+    debug_state->font_scale = 2.0f;
     ortographic(debug_state->render_group, width, height, 1.0f);
     debug_state->left_edge = -.5f * width;
     
@@ -260,12 +262,21 @@ debug_start(Game_asset_list *asset_list, u32 width, u32 height) {
 
 static
 void
-write_handmade_config(Debug_state *debug_state, bool use_debug_camera) {
+write_debug_config(Debug_state *debug_state, bool use_debug_camera) {
+  
   char temp[4096];
+  char *at = temp;
+  char *end = temp + sizeof(temp);
   
-  i32 temp_size = _snprintf_s(temp, sizeof(temp), "#define DEBUG_UI_use_debug_camera %d // bool\n", use_debug_camera);
+  for (u32 debug_var_index = 0; debug_var_index < array_count(debug_var_list); debug_var_index++) {
+    
+    Debug_var *var = debug_var_list + debug_var_index;
+    
+    at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at), "#define %s %d\n", var->name, var->value);
+    
+  }
   
-  platform.debug_write_entire_file("..\\source\\config.h", temp_size, temp);
+  platform.debug_write_entire_file("..\\source\\config.h", (u32)(at - temp), temp);
   
   if (!debug_state->compiling) {
     debug_state->compiling = true;
@@ -287,26 +298,17 @@ static
 void
 debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mouse_pos) {
   
-  char *menu_item_list[] = {
-    "profile graph",
-    "debug collation",
-    "frame rate counter",
-    "mark loop point",
-    "entity bounds",
-    "world chunk bounds"
-  };
-  u32 menu_item_count = array_count(menu_item_list);
-  
-  u32 new_hot_menu_index = menu_item_count;
+  u32 new_hot_menu_index = array_count(debug_var_list);
   f32 best_distance_sq = FLT_MAX;
   
-  f32 menu_radius = 200.0f;
-  f32 angle_step = TAU / (f32)menu_item_count;
+  f32 menu_radius = 300.0f;
+  f32 angle_step = TAU / (f32)array_count(debug_var_list);
   
-  for (u32 menu_item_index = 0; menu_item_index < menu_item_count; menu_item_index++) {
-    char *text = menu_item_list[menu_item_index];
+  for (u32 menu_item_index = 0; menu_item_index < array_count(debug_var_list); menu_item_index++) {
+    Debug_var *var = debug_var_list + menu_item_index;
+    char *text = var->name;
     
-    v4 item_color = white_v4;
+    v4 item_color = var->value ? white_v4 : V4(0.5f, 0.5f, 0.5f, 1.0f);
     if (menu_item_index == debug_state->hot_menu_index) {
       item_color = yellow_v4;
     }
@@ -324,7 +326,13 @@ debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mo
     debug_text_out_at(text_pos - .5f * get_dim(text_rect), text, item_color);
   }
   
-  debug_state->hot_menu_index = new_hot_menu_index;
+  if (length_squared(mouse_pos - debug_state->menu_pos) > square(menu_radius)) {
+    debug_state->hot_menu_index = new_hot_menu_index;
+  }
+  else {
+    debug_state->hot_menu_index = array_count(debug_var_list);
+  }
+  
 }
 
 static
@@ -345,20 +353,21 @@ debug_end(Game_input *input, Loaded_bmp *draw_buffer) {
   v2 mouse_pos = V2(input->mouse_x, input->mouse_y);
   
   if (input->mouse_buttons[Game_input_mouse_button_right].ended_down) {
+    
     if (input->mouse_buttons[Game_input_mouse_button_right].half_transition_count > 0) {
       debug_state->menu_pos = mouse_pos;
     }
     debug_draw_main_menu(debug_state, render_group, mouse_pos);
+    
   }
   else if (input->mouse_buttons[Game_input_mouse_button_right].half_transition_count > 0) {
     debug_draw_main_menu(debug_state, render_group, mouse_pos);
     
-    switch (debug_state->hot_menu_index) {
-      case 0: debug_state->profile_on = !debug_state->profile_on; break;
-      case 1: debug_state->paused = !debug_state->paused; break;
+    if (debug_state->hot_menu_index < array_count(debug_var_list)) {
+      debug_var_list[debug_state->hot_menu_index].value = !debug_var_list[debug_state->hot_menu_index].value;
     }
     
-    write_handmade_config(debug_state, !DEBUG_UI_use_debug_camera);
+    write_debug_config(debug_state, !DEBUG_UI_use_debug_camera);
   }
   
   if (debug_state->compiling) {
