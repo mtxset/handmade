@@ -3,8 +3,26 @@
 #ifndef DEBUG_H
 #define DEBUG_H
 
+
+enum Debug_var_to_text_flag {
+  Debug_var_to_text_add_debug_ui = 0x1,
+  Debug_var_to_text_add_name = 0x2,
+  Debug_var_to_text_float_suffix = 0x4,
+  Debug_var_to_text_line_end = 0x8,
+  Debug_var_to_text_null_terminator = 0x10,
+  Debug_var_to_text_colon = 0x20,
+  Debug_var_to_text_pretty_bools = 0x40,
+};
+
 enum Debug_var_type {
   Debug_var_type_bool,
+  Debug_var_type_i32,
+  Debug_var_type_u32,
+  Debug_var_type_f32,
+  Debug_var_type_v2,
+  Debug_var_type_v3,
+  Debug_var_type_v4,
+  
   Debug_var_type_group,
 };
 
@@ -25,6 +43,12 @@ struct Debug_var {
   
   union {
     bool bool_val;
+    i32 int32;
+    u32 uint32;
+    f32 float32;
+    v2 vec2;
+    v3 vec3;
+    v4 vec4;
     Debug_var_group group;
   };
 };
@@ -89,6 +113,7 @@ struct Debug_state {
   
   Memory_arena debug_arena;
   Debug_var *root_group;
+  
   Render_group *render_group;
   Loaded_font *debug_font;
   Hha_font *debug_font_info;
@@ -99,6 +124,8 @@ struct Debug_state {
   v2 menu_pos;
   bool menu_active;
   u32 hot_menu_index;
+  
+  Debug_var *hot_var;
   
   f32 left_edge;
   f32 at_y;

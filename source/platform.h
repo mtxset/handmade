@@ -62,6 +62,20 @@ global_var const float TAU = 6.28318530717958647692f;;
 #define align_08(value) ((value +  7) &  ~7)
 #define align_16(value) ((value + 15) & ~15)
 
+inline
+i32 
+string_len(char* string) {
+  i32 result = 0;
+  
+  // *string dereference value
+  // string++ advances poi32er
+  // search for null terminator
+  while (*string++ != 0) {
+    result++;
+  }
+  
+  return result;
+}
 
 inline
 i16
@@ -150,7 +164,6 @@ struct Game_controller_input {
     };
   };
 };
-
 
 enum Game_input_mouse_button {
   

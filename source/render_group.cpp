@@ -55,7 +55,7 @@ get_render_entity_basis_pos(Render_transform *transform, v3 original_pos) {
 #if DEBUG_UI_use_debug_camera
     bool debug_camera = true;
     if (debug_camera) {
-      dist_above_target += 50.0f;
+      dist_above_target += DEBUG_UI_debug_camera_distance;
     }
 #endif
     

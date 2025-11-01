@@ -98,8 +98,10 @@ debug_text_op(Debug_state *debug_state, Debug_text_op text_op, v2 pos, char* str
           Loaded_bmp *bitmap = get_bitmap(render_group->asset_list, bitmap_id, render_group->generation_id);
           
           if (bitmap) {
+            
             Used_bitmap_dim dim = get_bitmap_dim(render_group, bitmap, bitmap_scale, bitmap_offset);
             Rect2 glyph_dim = rect_min_dim(dim.pos.xy, dim.size);
+            
             result = rect2_union(result, glyph_dim);
           }
           
@@ -224,6 +226,8 @@ debug_start(Game_asset_list *asset_list, u32 width, u32 height) {
       
       initialize_arena(&debug_state->debug_arena, debug_global_memory->debug_storage_size - sizeof(Debug_state), debug_state + 1);
       
+      debug_create_vars(debug_state);
+      
       debug_state->render_group = allocate_render_group(asset_list, &debug_state->debug_arena, megabytes(16), false);
       
       debug_state->paused = false;
@@ -250,7 +254,7 @@ debug_start(Game_asset_list *asset_list, u32 width, u32 height) {
     
     debug_state->font_id = get_best_match_font_from(asset_list, Asset_font, &match_vector, &weight_vector);
     
-    debug_state->font_scale = 2.0f;
+    debug_state->font_scale = 1.0f;
     ortographic(debug_state->render_group, width, height, 1.0f);
     debug_state->left_edge = -.5f * width;
     
@@ -261,8 +265,98 @@ debug_start(Game_asset_list *asset_list, u32 width, u32 height) {
 }
 
 static
+Rect2
+debug_get_text_size(Debug_state *debug_state, char *string) {
+  Rect2 result = debug_text_op(debug_state, Debug_text_op_size_text, v2_zero, string);
+  
+  return result;
+}
+
+static
+size_t
+debug_var_to_text(char *buffer, char *end, Debug_var *var, u32 flags) {
+  
+  char *at = buffer;
+  
+  if (flags & Debug_var_to_text_add_debug_ui) {
+    at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at), "#define DEBUG_UI_");
+  }
+  
+  if (flags & Debug_var_to_text_add_name) {
+    at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at), 
+                      "%s%s ", var->name, (flags & Debug_var_to_text_colon) ? ":" : "");
+  }
+  
+  switch (var->type) {
+    
+    case Debug_var_type_bool: {
+      
+      if (flags & Debug_var_to_text_pretty_bools) {
+        at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                          "%s",
+                          var->bool_val ? "true" : "false");
+      }
+      else {
+        at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                          "%d", var->bool_val);
+      }
+    } break;
+    
+    case Debug_var_type_i32: {
+      at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                        "%d", var->int32);
+    } break;
+    
+    case Debug_var_type_u32: {
+      at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                        "%u", var->uint32);
+    } break;
+    
+    case Debug_var_type_v2: {
+      at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                        "V2(%f, %f)", var->vec2.x, var->vec2.y);
+    } break;
+    
+    case Debug_var_type_v3: {
+      at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                        "V3(%f, %f, %f)", var->vec3.x, var->vec3.y, var->vec3.z);
+    } break;
+    
+    case Debug_var_type_v4: {
+      at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                        "V4(%f, %f, %f, %f)", var->vec4.x, var->vec4.y, var->vec4.z, var->vec4.w);
+    } break;
+    
+    case Debug_var_type_f32: {
+      at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at),
+                        "%f", var->float32);
+      
+      if(flags & Debug_var_to_text_float_suffix) {
+        *at++ = 'f';
+      }
+    } break;
+    
+    case Debug_var_type_group: {
+    } break;
+    
+    default: assert(!"qe?");
+  }
+  
+  if (flags & Debug_var_to_text_line_end) {
+    *at++ = '\n';
+  }
+  
+  if (flags & Debug_var_to_text_null_terminator) {
+    *at++ = 0;
+  }
+  
+  return (at - buffer);
+}
+
+
+static
 void
-write_debug_config(Debug_state *debug_state, bool use_debug_camera) {
+write_debug_config(Debug_state *debug_state) {
   
   char temp[4096];
   char *at = temp;
@@ -272,23 +366,94 @@ write_debug_config(Debug_state *debug_state, bool use_debug_camera) {
   Debug_var *var = debug_state->root_group->group.first_child;
   
   while (var) {
-    
     for (i32 ident = 0; ident < depth; ident++) {
       *at++ = ' '; *at++ = ' '; *at++ = ' '; *at++ = ' ';
     }
     
-    switch (var->type) {
-      case Debug_var_type_bool: {
-        at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at), "#define DEBUG_UI_%s %d\n", var->name, var->bool_val);
-      } break;
-      
-      case Debug_var_type_group: {
-        at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at), "// %s\n", var->name);
-      } break;
-      
+    if (var->type == Debug_var_type_group) {
+      at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at), "// ");
     }
     
+    at += debug_var_to_text(at, end, var,
+                            Debug_var_to_text_add_debug_ui |
+                            Debug_var_to_text_add_name |
+                            Debug_var_to_text_line_end |
+                            Debug_var_to_text_float_suffix |
+                            Debug_var_to_text_pretty_bools);
+    
     if (var->type == Debug_var_type_group) {
+      var = var->group.first_child;
+      depth++;
+    }
+    else {
+      
+      
+      while (var) {
+        
+        if (var->next) {
+          var = var->next;
+          break;
+        }
+        else {
+          var = var->parent;
+          depth--;
+        }
+        
+      }
+      
+      
+    }
+  }
+  
+  platform.debug_write_entire_file("..\\source\\config.h", (u32)(at - temp), temp);
+  
+  if (!debug_state->compiling) {
+    debug_state->compiling = true;
+    
+    debug_state->compiler = platform.debug_execute_cmd("..", "c:\\windows\\system32\\cmd.exe", "/C build.bat");
+  }
+  
+}
+
+
+static
+void
+debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mouse_pos) {
+  
+  f32 at_x = debug_state->left_edge;
+  f32 at_y = debug_state->at_y;
+  f32 line_advance = get_line_advance_for(debug_state->debug_font_info);
+  
+  debug_state->hot_var = 0;
+  
+  i32 depth = 0;
+  Debug_var *var = debug_state->root_group->group.first_child;
+  
+  while (var) {
+    
+    v4 item_color = white_v4;
+    char text[256];
+    
+    debug_var_to_text(text, text + sizeof(text), var,
+                      Debug_var_to_text_add_name |
+                      Debug_var_to_text_null_terminator |
+                      Debug_var_to_text_colon |
+                      Debug_var_to_text_pretty_bools);
+    
+    v2 text_pos = V2(at_x + depth * 2.0f * line_advance, at_y);
+    
+    Rect2 text_bounds = debug_get_text_size(debug_state, text);
+    
+    if (is_in_rect(offset(text_bounds, text_pos), mouse_pos)) {
+      //push_rect(debug_state->render_group, offset(text_bounds, text_pos), 4.0f, blue_v4);
+      item_color = yellow_v4;
+      debug_state->hot_var = var;
+    }
+    
+    debug_text_out_at(text_pos, text, item_color);
+    at_y -= line_advance * debug_state->font_scale;
+    
+    if (var->type == Debug_var_type_group && var->group.expanded) {
       var = var->group.first_child;
       depth++;
     }
@@ -311,28 +476,24 @@ write_debug_config(Debug_state *debug_state, bool use_debug_camera) {
     
   }
   
-  platform.debug_write_entire_file("..\\source\\config.h", (u32)(at - temp), temp);
+  debug_state->at_y = at_y;
   
-  if (!debug_state->compiling) {
-    debug_state->compiling = true;
+  
+#if 0
+  
+  
+  switch (var->type) {
+    case Debug_var_type_bool: {
+      at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at), "#define DEBUG_UI_%s %d\n", var->name, var->bool_val);
+    } break;
     
-    debug_state->compiler = platform.debug_execute_cmd("..", "c:\\windows\\system32\\cmd.exe", "/C build.bat");
+    case Debug_var_type_group: {
+      at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at), "// %s\n", var->name);
+    } break;
+    
   }
   
-}
-
-static
-Rect2
-debug_get_text_size(Debug_state *debug_state, char *string) {
-  Rect2 result = debug_text_op(debug_state, Debug_text_op_size_text, v2_zero, string);
   
-  return result;
-}
-
-static
-void
-debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mouse_pos) {
-#if 0
   u32 new_hot_menu_index = array_count(debug_var_list);
   f32 best_distance_sq = FLT_MAX;
   
@@ -387,6 +548,8 @@ debug_end(Game_input *input, Loaded_bmp *draw_buffer) {
   
   v2 mouse_pos = V2(input->mouse_x, input->mouse_y);
   
+  debug_draw_main_menu(debug_state, render_group, mouse_pos);
+  
 #if 0
   if (input->mouse_buttons[Game_input_mouse_button_right].ended_down) {
     
@@ -394,16 +557,25 @@ debug_end(Game_input *input, Loaded_bmp *draw_buffer) {
       debug_state->menu_pos = mouse_pos;
     }
     debug_draw_main_menu(debug_state, render_group, mouse_pos);
-    
   }
-  else if (input->mouse_buttons[Game_input_mouse_button_right].half_transition_count > 0) {
-    debug_draw_main_menu(debug_state, render_group, mouse_pos);
+  else if (input->mouse_buttons[Game_input_mouse_button_right].half_transition_count > 0) 
+#else
+  if (was_pressed(input->mouse_buttons[Game_input_mouse_button_left])) {
     
-    if (debug_state->hot_menu_index < array_count(debug_var_list)) {
-      debug_var_list[debug_state->hot_menu_index].value = !debug_var_list[debug_state->hot_menu_index].value;
+    if (debug_state->hot_var) {
+      Debug_var *var = debug_state->hot_var;
+      
+      switch (var->type) {
+        default: assert(!"qe???");
+        
+        case Debug_var_type_bool: var->bool_val = !var->bool_val; break;
+        case Debug_var_type_group: var->group.expanded = !var->group.expanded; break;
+        
+      }
+      
+      write_debug_config(debug_state);
     }
     
-    write_debug_config(debug_state, !DEBUG_UI_use_debug_camera);
   }
 #endif
   

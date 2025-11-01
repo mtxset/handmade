@@ -62,20 +62,6 @@ void debug_free_file_memory(void* handle) {
   }
 }
 
-i32 
-string_len(char* string) {
-  i32 result = 0;
-  
-  // *string dereference value
-  // string++ advances poi32er
-  // search for null terminator
-  while (*string++ != 0) {
-    result++;
-  }
-  
-  return result;
-}
-
 static
 Debug_file_read_result 
 debug_read_entire_file(char* file_name) {

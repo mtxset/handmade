@@ -955,10 +955,12 @@ rect_intersect(Rect2i a, Rect2i b) {
 inline
 Rect2
 rect2_union(Rect2 a, Rect2 b) {
+  
   Rect2 result;
   
   result.min.x = (a.min.x < b.min.x) ? a.min.x : b.min.x;
   result.min.y = (a.min.y < b.min.y) ? a.min.y : b.min.y;
+  
   result.max.x = (a.max.x > b.max.x) ? a.max.x : b.max.x;
   result.max.y = (a.max.y > b.max.y) ? a.max.y : b.max.y;
   
@@ -1009,7 +1011,7 @@ rect2_inverted_infinity() {
   Rect2 result;
   
   result.min.x = result.min.y = FLT_MAX;
-  result.max.x = result.max.y = -FLT_MAX;;
+  result.max.x = result.max.y = -FLT_MAX;
   
   return result;
 }
@@ -1272,6 +1274,17 @@ add_radius_to(Rect3 rect, v3 radius) {
   
   result.min = rect.min - radius;
   result.max = rect.max + radius;
+  
+  return result;
+}
+
+inline
+Rect2
+offset(Rect2 rect, v2 offset) {
+  Rect2 result;
+  
+  result.min = rect.min + offset;
+  result.max = rect.max + offset;
   
   return result;
 }

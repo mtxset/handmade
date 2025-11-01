@@ -34,6 +34,9 @@ void initialize_arena(Memory_arena* arena, size_t size, void* base) {
 #define mem_push_size(arena,size, ...) \
 mem_push_size_(arena, size, ## __VA_ARGS__)
 
+#define mem_push_copy(arena, size, source, ...) \
+mem_copy(size, source, mem_push_size_(arena, size, ## __VA_ARGS__))
+
 #define mem_zero_struct(instance) mem_zero_size_(sizeof(instance), &(instance))
 
 inline
@@ -54,6 +57,19 @@ get_alignment_offset(Memory_arena *arena, size_t alignment = 4) {
   size_t alignment_offset = (alignment - current_alignment) & (alignment - 1);
   
   return alignment_offset;
+}
+
+inline
+void*
+mem_copy(size_t size, void *source, void *destination) {
+  u8 *src = (u8*)source;
+  u8 *dst = (u8*)destination;
+  
+  while (size--) {
+    *dst++ = *src++;
+  }
+  
+  return destination;
 }
 
 inline
