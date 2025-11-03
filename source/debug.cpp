@@ -148,7 +148,11 @@ debug_text_line(char *string) {
   
   Hha_font *info = get_font_info(render_group->asset_list, debug_state->font_id);
   
-  debug_text_out_at(V2(debug_state->left_edge, debug_state->at_y), string);
+  v2 text_pos = v2{
+    debug_state->left_edge,
+    debug_state->at_y - debug_state->font_scale * get_starting_baseline_y(debug_state->debug_font_info)
+  };
+  debug_text_out_at(text_pos, string);
   debug_state->at_y -= get_line_advance_for(info) * debug_state->font_scale;
 }
 
@@ -226,7 +230,37 @@ debug_start(Game_asset_list *asset_list, u32 width, u32 height) {
       
       initialize_arena(&debug_state->debug_arena, debug_global_memory->debug_storage_size - sizeof(Debug_state), debug_state + 1);
       
-      debug_create_vars(debug_state);
+      {
+        Debug_var_defintion_context debug_ctx = {};
+        debug_ctx.state = debug_state;
+        debug_ctx.arena = &debug_state->debug_arena;
+        debug_ctx.group = debug_begin_variable_group(&debug_ctx, "root");
+        
+        debug_begin_variable_group(&debug_ctx, "debugging");
+        debug_create_vars(&debug_ctx);
+        
+        debug_begin_variable_group(&debug_ctx, "profile");
+        {
+          {
+            debug_begin_variable_group(&debug_ctx, "by thread");
+            Debug_var *thread_list = debug_add_var(&debug_ctx, Debug_var_type_counter_thread_list, "");
+            thread_list->profile.dimension = V2(1024, 100);
+            debug_end_variable_group(&debug_ctx);
+          }
+          
+          {
+            debug_begin_variable_group(&debug_ctx, "by function");
+            Debug_var *function_list = debug_add_var(&debug_ctx, Debug_var_type_counter_thread_list, "");
+            function_list->profile.dimension = V2(1024, 200);
+            debug_end_variable_group(&debug_ctx);
+          }
+          debug_end_variable_group(&debug_ctx);
+        }
+        
+        debug_end_variable_group(&debug_ctx);
+        
+        debug_state->root_group = debug_ctx.group;
+      }
       
       debug_state->render_group = allocate_render_group(asset_list, &debug_state->debug_arena, megabytes(16), false);
       
@@ -238,6 +272,7 @@ debug_start(Game_asset_list *asset_list, u32 width, u32 height) {
       debug_state->collate_temp = begin_temp_memory(&debug_state->collate_arena);
       
       restart_collation(debug_state, 0);
+      
     }
     
     begin_render(debug_state->render_group);
@@ -259,8 +294,7 @@ debug_start(Game_asset_list *asset_list, u32 width, u32 height) {
     debug_state->left_edge = -.5f * width;
     
     Hha_font *info = get_font_info(asset_list, debug_state->font_id);
-    debug_state->at_y = 0.5f * height - debug_state->font_scale * get_starting_baseline_y(info);
-    
+    debug_state->at_y = 0.5f * height;
   }
   
   debug_state->hierarchy.group = debug_state->root_group;
@@ -356,6 +390,13 @@ debug_var_to_text(char *buffer, char *end, Debug_var *var, u32 flags) {
   return (at - buffer);
 }
 
+inline
+bool
+debug_should_be_written(Debug_var_type type) {
+  bool result = (type != Debug_var_type_counter_thread_list);
+  
+  return result;
+}
 
 static
 void
@@ -369,20 +410,27 @@ write_debug_config(Debug_state *debug_state) {
   Debug_var *var = debug_state->root_group->group.first_child;
   
   while (var) {
-    for (i32 ident = 0; ident < depth; ident++) {
-      *at++ = ' '; *at++ = ' '; *at++ = ' '; *at++ = ' ';
-    }
     
-    if (var->type == Debug_var_type_group) {
-      at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at), "// ");
+    if (debug_should_be_written(var->type)) {
+      
+      for (i32 ident = 0; ident < depth; ident++) {
+        *at++ = ' '; *at++ = ' '; *at++ = ' '; *at++ = ' ';
+      }
+      
+      
+      if (var->type == Debug_var_type_group) {
+        at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at), "// ");
+      }
+      
+      
+      at += debug_var_to_text(at, end, var,
+                              Debug_var_to_text_add_debug_ui |
+                              Debug_var_to_text_add_name |
+                              Debug_var_to_text_line_end |
+                              Debug_var_to_text_float_suffix |
+                              Debug_var_to_text_pretty_bools);
+      
     }
-    
-    at += debug_var_to_text(at, end, var,
-                            Debug_var_to_text_add_debug_ui |
-                            Debug_var_to_text_add_name |
-                            Debug_var_to_text_line_end |
-                            Debug_var_to_text_float_suffix |
-                            Debug_var_to_text_pretty_bools);
     
     if (var->type == Debug_var_type_group) {
       var = var->group.first_child;
@@ -420,41 +468,164 @@ write_debug_config(Debug_state *debug_state) {
 
 static
 void
+draw_profile_in(Debug_state *debug_state, Rect2 profile_rect, v2 mouse_pos) {
+  
+  push_rect(debug_state->render_group, profile_rect, 0.0f, v4{0,0,0, .25f});
+  
+  f32 bar_spacing = 10.0f;
+  f32 lane_height = 0.0f;
+  u32 lane_count  = debug_state->frame_bar_lane_count;
+  
+  u32 max_frame = debug_state->frame_count;
+  if (max_frame > 10) max_frame = 10;
+  
+  if (lane_count > 0 && max_frame > 0) {
+    f32 pixels_per_frame_plus_spacing = get_dim(profile_rect).y / (f32)max_frame;
+    f32 pixels_per_frame = pixels_per_frame_plus_spacing - bar_spacing;
+    lane_height = pixels_per_frame / (f32)lane_count;
+  }
+  
+  f32 bar_height = lane_height * lane_count;
+  f32 bar_plus_spacing = bar_height + bar_spacing;
+  f32 chart_left = profile_rect.min.x;
+  f32 chart_height = bar_plus_spacing * (f32)max_frame;
+  f32 chart_width  = get_dim(profile_rect).x;
+  f32 chart_top = profile_rect.max.y;
+  f32 scale = chart_width * debug_state->frame_bar_scale;
+  
+  v3 color_list[] = {
+    {1, 0, 0},
+    {0, 1, 0},
+    {0, 0, 1},
+    {1, 1, 0},
+    {0, 1, 1},
+    {1, 0, 1},
+    {1, 0.5f, 0},
+    {1, 0, 0.5f},
+    {0.5f, 1, 0},
+    {0, 1, 0.5f},
+    {0.5f, 0, 1},
+    {0, 0.5f, 1},
+  };
+  
+  Render_group *render_group = debug_state->render_group;
+  
+  for (u32 frame_index = 0; frame_index < max_frame; frame_index += 1) {
+    Debug_frame *frame = debug_state->frame_list + debug_state->frame_count - (frame_index + 1);
+    
+    f32 stack_x = chart_left;
+    f32 stack_y = chart_top - bar_plus_spacing * (f32)frame_index;
+    
+    for (u32 region_index = 0; region_index < frame->region_count; region_index += 1) {
+      Debug_frame_region *region = frame->region_list + region_index;
+      
+      v3 color = color_list[region->color_index % array_count(color_list)];
+      f32 this_min_x = stack_x + scale * region->min_t;
+      f32 this_max_x = stack_x + scale * region->max_t;
+      
+      Rect2 rect = rect_min_max(v2{this_min_x, stack_y - lane_height * (region->lane_index + 1)},
+                                v2{this_max_x, stack_y - lane_height * region->lane_index});
+      
+      push_rect(render_group, rect, .0f, V4(color, 1));
+      
+      if (is_in_rect(rect, mouse_pos)) {
+        Debug_record *record = region->record;
+        char buffer[256];
+        _snprintf_s(buffer, sizeof(buffer), "%s: %10Iucy [%s(%d)]",
+                    record->block_name,
+                    region->cycle_count,
+                    record->file_name,
+                    record->line_number);
+        
+        debug_text_out_at(mouse_pos + v2{0, 10.0f}, buffer);
+      }
+      
+    }
+  }
+}
+
+static
+void
 debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mouse_pos) {
   
   f32 at_x = debug_state->hierarchy.initial_pos.x;
   f32 at_y = debug_state->hierarchy.initial_pos.y;
   f32 line_advance = get_line_advance_for(debug_state->debug_font_info);
   
+  f32 spacing_y = 4.0f;
   i32 depth = 0;
   Debug_var *var = debug_state->hierarchy.group->group.first_child;
   
   while (var) {
     
-    v4 item_color = white_v4;
-    char text[256];
+    bool is_hot = (debug_state->hot == var);
+    v4 item_color = (is_hot && debug_state->hot_interaction == 0) ? yellow_v4 : white_v4;
     
-    debug_var_to_text(text, text + sizeof(text), var,
-                      Debug_var_to_text_add_name |
-                      Debug_var_to_text_null_terminator |
-                      Debug_var_to_text_colon |
-                      Debug_var_to_text_pretty_bools);
+    Rect2 bounds = {};
     
-    v2 text_pos = V2(at_x + depth * 2.0f * line_advance, at_y);
-    
-    Rect2 text_bounds = debug_get_text_size(debug_state, text);
-    
-    if (is_in_rect(offset(text_bounds, text_pos), mouse_pos)) {
-      //push_rect(debug_state->render_group, offset(text_bounds, text_pos), 1.0f);
-      debug_state->next_hot = var;
+    switch (var->type) {
+      
+      case (Debug_var_type_counter_thread_list): {
+        
+        v2 min_corner = v2{
+          at_x + depth * 2.0f * line_advance, 
+          at_y - var->profile.dimension.y
+        };
+        
+        v2 max_corner = v2{
+          min_corner.x + var->profile.dimension.x,
+          at_y
+        };
+        v2 size = V2(max_corner.x, min_corner.y);
+        bounds = rect_min_max(min_corner, max_corner);
+        draw_profile_in(debug_state, bounds, mouse_pos);
+        
+        Rect2 size_box = rect_center_half_dim(size, V2(4, 4));
+        v4 color = (is_hot && debug_state->hot_interaction == Debug_interaction_resize_profile) ? yellow_v4 : white_v4;
+        push_rect(debug_state->render_group, size_box, 0, color);
+        
+        if (is_in_rect(size_box, mouse_pos)) {
+          debug_state->next_hot_interaction = Debug_interaction_resize_profile;
+          debug_state->next_hot = var;
+        }
+        else if (is_in_rect(bounds, mouse_pos)) {
+          debug_state->next_hot_interaction = Debug_interaction_none;
+          debug_state->next_hot = var;
+        }
+        
+      } break;
+      
+      default: {
+        
+        char text[256];
+        
+        debug_var_to_text(text, text + sizeof(text), var,
+                          Debug_var_to_text_add_name |
+                          Debug_var_to_text_null_terminator |
+                          Debug_var_to_text_colon |
+                          Debug_var_to_text_pretty_bools);
+        
+        f32 left_px = at_x + depth * 2.0f * line_advance;
+        f32 top_pos_y = at_y;
+        
+        bounds = debug_get_text_size(debug_state, text);
+        bounds = offset(bounds, V2(left_px, top_pos_y - get_dim(bounds).y));
+        v2 text_pos = {
+          left_px,
+          top_pos_y - debug_state->font_scale * get_starting_baseline_y(debug_state->debug_font_info)
+        };
+        debug_text_out_at(text_pos, text, item_color);
+        
+        if (is_in_rect(bounds, mouse_pos)) {
+          debug_state->next_hot_interaction = Debug_interaction_none;
+          debug_state->next_hot = var;
+        }
+        
+      } break;
+      
     }
     
-    if (debug_state->hot == var) {
-      item_color = yellow_v4;
-    }
-    
-    debug_text_out_at(text_pos, text, item_color);
-    at_y -= line_advance * debug_state->font_scale;
+    at_y = get_min_corner(bounds).y - spacing_y;
     
     if (var->type == Debug_var_type_group && var->group.expanded) {
       var = var->group.first_child;
@@ -482,9 +653,7 @@ debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mo
   
   debug_state->at_y = at_y;
   
-  
 #if 0
-  
   
   switch (var->type) {
     case Debug_var_type_bool: {
@@ -534,19 +703,24 @@ debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mo
 #endif
 }
 
-
 static
 void
 debug_begin_interact(Debug_state *debug_state, Game_input *input, v2 mouse_pos) {
   
   if (debug_state->hot) {
     
-    switch (debug_state->hot->type) {
+    if (debug_state->hot_interaction) {
+      debug_state->interaction = debug_state->hot_interaction;
+    }
+    else {
       
-      case Debug_var_type_bool: debug_state->interaction = Debug_interaction_toggle; break;
-      case Debug_var_type_f32: debug_state->interaction = Debug_interaction_drag; break;
-      case Debug_var_type_group: debug_state->interaction = Debug_interaction_toggle; break;
-      
+      switch (debug_state->hot->type) {
+        
+        case Debug_var_type_bool: debug_state->interaction = Debug_interaction_toggle; break;
+        case Debug_var_type_f32: debug_state->interaction = Debug_interaction_drag; break;
+        case Debug_var_type_group: debug_state->interaction = Debug_interaction_toggle; break;
+        
+      }
     }
     
     if (debug_state->interaction) {
@@ -607,11 +781,15 @@ debug_interact(Debug_state *debug_state, Game_input *input, v2 mouse_pos) {
       case Debug_interaction_drag: {
         
         switch (var->type) {
-          
           case Debug_var_type_f32: var->float32 += 0.1f * mouse_delta.y; break;
-          
         }
         
+      } break;
+      
+      case Debug_interaction_resize_profile: { 
+        var->profile.dimension += V2(mouse_delta.x, -mouse_delta.y);
+        var->profile.dimension.x = max(var->profile.dimension.x, 10);
+        var->profile.dimension.y = max(var->profile.dimension.y, 10);
       } break;
       
     }
@@ -630,6 +808,7 @@ debug_interact(Debug_state *debug_state, Game_input *input, v2 mouse_pos) {
   else {
     
     debug_state->hot = debug_state->next_hot;
+    debug_state->hot_interaction = debug_state->next_hot_interaction;
     
     for (u32 transition_index = input->mouse_buttons[Game_input_mouse_button_left].half_transition_count;
          transition_index > 1; transition_index--) {
@@ -660,6 +839,7 @@ debug_end(Game_input *input, Loaded_bmp *draw_buffer) {
   Render_group *render_group = debug_state->render_group;
   
   debug_state->next_hot = 0;
+  debug_state->next_hot_interaction = Debug_interaction_none;
   Debug_record *hot_record = 0;
   
   v2 mouse_pos = V2(input->mouse_x, input->mouse_y);
@@ -766,84 +946,6 @@ debug_end(Game_input *input, Loaded_bmp *draw_buffer) {
     debug_text_line(text);
   }
   
-  if (debug_state->profile_on) {  
-    ortographic(debug_state->render_group, (i32)debug_state->global_width, (i32)debug_state->global_height, 1.0f);
-    
-    debug_state->profile_rect = rect_min_max(v2{-500, -100}, v2{-300, 200});
-    push_rect(debug_state->render_group, debug_state->profile_rect, 0.0f, v4{0,0,0, .25f});
-    
-    f32 bar_spacing = 10.0f;
-    f32 lane_height = 0.0f;
-    u32 lane_count  = debug_state->frame_bar_lane_count;
-    
-    u32 max_frame = debug_state->frame_count;
-    if (max_frame > 10) max_frame = 10;
-    
-    if (lane_count > 0 && max_frame > 0) {
-      f32 pixels_per_frame_plus_spacing = get_dim(debug_state->profile_rect).y / (f32)max_frame;
-      f32 pixels_per_frame = pixels_per_frame_plus_spacing - bar_spacing;
-      lane_height = pixels_per_frame / (f32)lane_count;
-    }
-    
-    f32 bar_height = lane_height * lane_count;
-    f32 bar_plus_spacing = bar_height + bar_spacing;
-    f32 chart_left = debug_state->profile_rect.min.x;
-    f32 chart_height = bar_plus_spacing * (f32)max_frame;
-    f32 chart_width  = get_dim(debug_state->profile_rect).x;
-    f32 chart_top = debug_state->profile_rect.max.y;
-    f32 scale = chart_width * debug_state->frame_bar_scale;
-    
-    v3 color_list[] = {
-      {1, 0, 0},
-      {0, 1, 0},
-      {0, 0, 1},
-      {1, 1, 0},
-      {0, 1, 1},
-      {1, 0, 1},
-      {1, 0.5f, 0},
-      {1, 0, 0.5f},
-      {0.5f, 1, 0},
-      {0, 1, 0.5f},
-      {0.5f, 0, 1},
-      {0, 0.5f, 1},
-    };
-    
-    for (u32 frame_index = 0; frame_index < max_frame; frame_index += 1) {
-      Debug_frame *frame = debug_state->frame_list + debug_state->frame_count - (frame_index + 1);
-      
-      f32 stack_x = chart_left;
-      f32 stack_y = chart_top - bar_plus_spacing * (f32)frame_index;
-      
-      for (u32 region_index = 0; region_index < frame->region_count; region_index += 1) {
-        Debug_frame_region *region = frame->region_list + region_index;
-        
-        v3 color = color_list[region->color_index % array_count(color_list)];
-        f32 this_min_x = stack_x + scale * region->min_t;
-        f32 this_max_x = stack_x + scale * region->max_t;
-        
-        Rect2 rect = rect_min_max(v2{this_min_x, stack_y - lane_height * (region->lane_index + 1)},
-                                  v2{this_max_x, stack_y - lane_height * region->lane_index});
-        
-        push_rect(render_group, rect, .0f, V4(color, 1));
-        
-        if (is_in_rect(rect, mouse_pos)) {
-          Debug_record *record = region->record;
-          char buffer[256];
-          _snprintf_s(buffer, sizeof(buffer), "%s: %10Iucy [%s(%d)]",
-                      record->block_name,
-                      region->cycle_count,
-                      record->file_name,
-                      record->line_number);
-          
-          debug_text_out_at(mouse_pos + v2{0, 10.0f}, buffer);
-          
-          hot_record = record;
-        }
-        
-      }
-    }
-  }
-  
   if (was_pressed(input->mouse_buttons[Game_input_mouse_button_left])) {
     if (hot_record) 
       debug_state->scope_to_record = hot_record;
@@ -853,17 +955,18 @@ debug_end(Game_input *input, Loaded_bmp *draw_buffer) {
     refresh_collation(debug_state);
   }
   
-#if 0
-  debug_text_line("The quick brown fox jumps over the lazy dog");
-  debug_text_line("\\#900DEBUG \\#090CYCLE \\#990\\^5COUNTS:");
-  debug_text_line("AVA Wa Ta");
-  debug_text_line("\\5C0F\\8033\\6728\\514E");
-#endif
   
   skip_debug_rendering:
   tiled_render_group_to_output(debug_state->high_priority_queue, debug_state->render_group, draw_buffer);
   end_render(debug_state->render_group);
 }
+
+/*
+debug_text_line("The quick brown fox jumps over the lazy dog");
+debug_text_line("\\#900DEBUG \\#090CYCLE \\#990\\^5COUNTS:");
+debug_text_line("AVA Wa Ta");
+debug_text_line("\\5C0F\\8033\\6728\\514E");
+*/
 
 #define debug_record_list_main_count __COUNTER__
 extern u32 debug_record_list_optimized_count;

@@ -23,6 +23,8 @@ enum Debug_var_type {
   Debug_var_type_v3,
   Debug_var_type_v4,
   
+  Debug_var_type_counter_thread_list,
+  
   Debug_var_type_group,
 };
 
@@ -37,6 +39,10 @@ struct Debug_var_group {
 struct Debug_var_hierarchy {
   v2 initial_pos;
   Debug_var *group;
+};
+
+struct Debug_profile_settings {
+  v2 dimension;
 };
 
 struct Debug_var {
@@ -55,6 +61,7 @@ struct Debug_var {
     v3 vec3;
     v4 vec4;
     Debug_var_group group;
+    Debug_profile_settings profile;
   };
 };
 
@@ -118,6 +125,7 @@ enum Debug_interaction {
   Debug_interaction_toggle,
   Debug_interaction_drag,
   Debug_interaction_tear,
+  Debug_interaction_resize_profile
 };
 
 struct Debug_state {
@@ -142,8 +150,10 @@ struct Debug_state {
   Debug_var *root_group;
   Debug_var_hierarchy hierarchy;
   
-  Debug_interaction interaction;
   v2 last_mouse_pos;
+  Debug_interaction interaction;
+  Debug_interaction hot_interaction;
+  Debug_interaction next_hot_interaction;
   Debug_var *interacting_with;
   Debug_var *hot;
   Debug_var *next_hot;
