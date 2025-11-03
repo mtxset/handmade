@@ -1,4 +1,4 @@
-// https://youtu.be/9ND-2a_hP0g?t=4188
+// https://youtu.be/FvWcZ9Tti2k?t=3022
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include "types.h"
@@ -110,7 +110,7 @@ win32_debug_execute_cmd(char *path, char *cmd, char *cmd_line) {
   
   PROCESS_INFORMATION process_info = {};
   if (CreateProcess(cmd, cmd_line, 0, 0, false, 0, 0, path, &startup_info, &process_info)) {
-    assert(sizeof(result.os_handle) >= sizeof(process_info.hProcess));
+    static_assert(sizeof(result.os_handle) >= sizeof(process_info.hProcess));
     *(HANDLE*)&result.os_handle = process_info.hProcess;
   }
   else {

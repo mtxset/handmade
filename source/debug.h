@@ -34,6 +34,11 @@ struct Debug_var_group {
   Debug_var *last_child;
 };
 
+struct Debug_var_hierarchy {
+  v2 initial_pos;
+  Debug_var *group;
+};
+
 struct Debug_var {
   Debug_var_type type;
   char *name;
@@ -105,6 +110,16 @@ struct Debug_thread {
   Debug_thread *next;
 };
 
+enum Debug_interaction {
+  Debug_interaction_none,
+  
+  Debug_interaction_nop,
+  
+  Debug_interaction_toggle,
+  Debug_interaction_drag,
+  Debug_interaction_tear,
+};
+
 struct Debug_state {
   
   bool init;
@@ -112,7 +127,6 @@ struct Debug_state {
   Platform_work_queue *high_priority_queue;
   
   Memory_arena debug_arena;
-  Debug_var *root_group;
   
   Render_group *render_group;
   Loaded_font *debug_font;
@@ -125,7 +139,14 @@ struct Debug_state {
   bool menu_active;
   u32 hot_menu_index;
   
-  Debug_var *hot_var;
+  Debug_var *root_group;
+  Debug_var_hierarchy hierarchy;
+  
+  Debug_interaction interaction;
+  v2 last_mouse_pos;
+  Debug_var *interacting_with;
+  Debug_var *hot;
+  Debug_var *next_hot;
   
   f32 left_edge;
   f32 at_y;

@@ -262,6 +262,9 @@ debug_start(Game_asset_list *asset_list, u32 width, u32 height) {
     debug_state->at_y = 0.5f * height - debug_state->font_scale * get_starting_baseline_y(info);
     
   }
+  
+  debug_state->hierarchy.group = debug_state->root_group;
+  debug_state->hierarchy.initial_pos = V2(debug_state->left_edge, debug_state->at_y);
 }
 
 static
@@ -415,19 +418,16 @@ write_debug_config(Debug_state *debug_state) {
   
 }
 
-
 static
 void
 debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mouse_pos) {
   
-  f32 at_x = debug_state->left_edge;
-  f32 at_y = debug_state->at_y;
+  f32 at_x = debug_state->hierarchy.initial_pos.x;
+  f32 at_y = debug_state->hierarchy.initial_pos.y;
   f32 line_advance = get_line_advance_for(debug_state->debug_font_info);
   
-  debug_state->hot_var = 0;
-  
   i32 depth = 0;
-  Debug_var *var = debug_state->root_group->group.first_child;
+  Debug_var *var = debug_state->hierarchy.group->group.first_child;
   
   while (var) {
     
@@ -445,9 +445,12 @@ debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mo
     Rect2 text_bounds = debug_get_text_size(debug_state, text);
     
     if (is_in_rect(offset(text_bounds, text_pos), mouse_pos)) {
-      //push_rect(debug_state->render_group, offset(text_bounds, text_pos), 4.0f, blue_v4);
+      //push_rect(debug_state->render_group, offset(text_bounds, text_pos), 1.0f);
+      debug_state->next_hot = var;
+    }
+    
+    if (debug_state->hot == var) {
       item_color = yellow_v4;
-      debug_state->hot_var = var;
     }
     
     debug_text_out_at(text_pos, text, item_color);
@@ -474,6 +477,7 @@ debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mo
       
     }
     
+    
   }
   
   debug_state->at_y = at_y;
@@ -492,7 +496,6 @@ debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mo
     } break;
     
   }
-  
   
   u32 new_hot_menu_index = array_count(debug_var_list);
   f32 best_distance_sq = FLT_MAX;
@@ -531,6 +534,118 @@ debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mo
 #endif
 }
 
+
+static
+void
+debug_begin_interact(Debug_state *debug_state, Game_input *input, v2 mouse_pos) {
+  
+  if (debug_state->hot) {
+    
+    switch (debug_state->hot->type) {
+      
+      case Debug_var_type_bool: debug_state->interaction = Debug_interaction_toggle; break;
+      case Debug_var_type_f32: debug_state->interaction = Debug_interaction_drag; break;
+      case Debug_var_type_group: debug_state->interaction = Debug_interaction_toggle; break;
+      
+    }
+    
+    if (debug_state->interaction) {
+      debug_state->interacting_with = debug_state->hot;
+    }
+    
+  }
+  else {
+    debug_state->interaction = Debug_interaction_nop;
+  }
+  
+  
+}
+
+static
+void
+debug_end_interact(Debug_state *debug_state, Game_input *input, v2 mouse_pos) {
+  
+  if (debug_state->interaction != Debug_interaction_nop) {
+    
+    Debug_var *var = debug_state->interacting_with;
+    
+    assert(var);
+    
+    switch (debug_state->interaction) {
+      case Debug_interaction_toggle: {
+        
+        switch (var->type) {
+          case Debug_var_type_bool: var->bool_val = !var->bool_val; break;
+          case Debug_var_type_group: var->group.expanded = !var->group.expanded; break;
+        }
+        
+      } break;
+      
+      case Debug_interaction_tear: {
+        
+      } break;
+    }
+    
+    write_debug_config(debug_state);
+  }
+  
+  debug_state->interaction = Debug_interaction_none;
+  debug_state->interacting_with = 0;
+}
+
+static
+void
+debug_interact(Debug_state *debug_state, Game_input *input, v2 mouse_pos) {
+  
+  v2 mouse_delta = mouse_pos - debug_state->last_mouse_pos;
+  
+  if (debug_state->interaction) {
+    Debug_var *var = debug_state->interacting_with;
+    
+    switch (debug_state->interaction) {
+      
+      case Debug_interaction_drag: {
+        
+        switch (var->type) {
+          
+          case Debug_var_type_f32: var->float32 += 0.1f * mouse_delta.y; break;
+          
+        }
+        
+      } break;
+      
+    }
+    
+    for (u32 transition_index = input->mouse_buttons[Game_input_mouse_button_left].half_transition_count;
+         transition_index > 1; transition_index--) {
+      
+      debug_end_interact(debug_state, input, mouse_pos);
+      debug_begin_interact(debug_state, input, mouse_pos);
+    }
+    
+    if (!input->mouse_buttons[Game_input_mouse_button_left].ended_down) {
+      debug_end_interact(debug_state, input, mouse_pos);
+    }
+  }
+  else {
+    
+    debug_state->hot = debug_state->next_hot;
+    
+    for (u32 transition_index = input->mouse_buttons[Game_input_mouse_button_left].half_transition_count;
+         transition_index > 1; transition_index--) {
+      
+      debug_begin_interact(debug_state, input, mouse_pos);
+      debug_end_interact(debug_state, input, mouse_pos);
+    }
+    
+    if (input->mouse_buttons[Game_input_mouse_button_left].ended_down) {
+      debug_begin_interact(debug_state, input, mouse_pos);
+    }
+  }
+  
+  debug_state->last_mouse_pos = mouse_pos;
+}
+
 static
 void
 debug_end(Game_input *input, Loaded_bmp *draw_buffer) {
@@ -544,40 +659,12 @@ debug_end(Game_input *input, Loaded_bmp *draw_buffer) {
   
   Render_group *render_group = debug_state->render_group;
   
+  debug_state->next_hot = 0;
   Debug_record *hot_record = 0;
   
   v2 mouse_pos = V2(input->mouse_x, input->mouse_y);
-  
   debug_draw_main_menu(debug_state, render_group, mouse_pos);
-  
-#if 0
-  if (input->mouse_buttons[Game_input_mouse_button_right].ended_down) {
-    
-    if (input->mouse_buttons[Game_input_mouse_button_right].half_transition_count > 0) {
-      debug_state->menu_pos = mouse_pos;
-    }
-    debug_draw_main_menu(debug_state, render_group, mouse_pos);
-  }
-  else if (input->mouse_buttons[Game_input_mouse_button_right].half_transition_count > 0) 
-#else
-  if (was_pressed(input->mouse_buttons[Game_input_mouse_button_left])) {
-    
-    if (debug_state->hot_var) {
-      Debug_var *var = debug_state->hot_var;
-      
-      switch (var->type) {
-        default: assert(!"qe???");
-        
-        case Debug_var_type_bool: var->bool_val = !var->bool_val; break;
-        case Debug_var_type_group: var->group.expanded = !var->group.expanded; break;
-        
-      }
-      
-      write_debug_config(debug_state);
-    }
-    
-  }
-#endif
+  debug_interact(debug_state, input, mouse_pos);
   
   if (debug_state->compiling) {
     Debug_process_state state = platform.debug_get_process_state(debug_state->compiler);
