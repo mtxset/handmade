@@ -3,7 +3,6 @@
 #ifndef DEBUG_H
 #define DEBUG_H
 
-
 enum Debug_var_to_text_flag {
   Debug_var_to_text_add_debug_ui = 0x1,
   Debug_var_to_text_add_name = 0x2,
@@ -30,15 +29,25 @@ enum Debug_var_type {
 
 struct Debug_var;
 
+struct Debug_var_reference {
+  Debug_var *var;
+  Debug_var_reference *next;
+  Debug_var_reference *parent;
+};
+
 struct Debug_var_group {
   bool expanded;
-  Debug_var *first_child;    
-  Debug_var *last_child;
+  Debug_var_reference *first_child;    
+  Debug_var_reference *last_child;
 };
 
 struct Debug_var_hierarchy {
   v2 initial_pos;
-  Debug_var *group;
+  
+  Debug_var_reference *group;
+  
+  Debug_var_hierarchy *next;
+  Debug_var_hierarchy *prev;
 };
 
 struct Debug_profile_settings {
@@ -48,9 +57,6 @@ struct Debug_profile_settings {
 struct Debug_var {
   Debug_var_type type;
   char *name;
-  
-  Debug_var *next;
-  Debug_var *parent;;
   
   union {
     bool bool_val;
@@ -125,7 +131,8 @@ enum Debug_interaction {
   Debug_interaction_toggle,
   Debug_interaction_drag,
   Debug_interaction_tear,
-  Debug_interaction_resize_profile
+  Debug_interaction_resize_profile,
+  Debug_interaction_move_hierarchy
 };
 
 struct Debug_state {
@@ -145,20 +152,23 @@ struct Debug_state {
   
   v2 menu_pos;
   bool menu_active;
-  u32 hot_menu_index;
   
-  Debug_var *root_group;
-  Debug_var_hierarchy hierarchy;
+  Debug_var_reference *root_group;
+  Debug_var_hierarchy hierarchy_sentinel;
   
   v2 last_mouse_pos;
   Debug_interaction interaction;
   Debug_interaction hot_interaction;
   Debug_interaction next_hot_interaction;
-  Debug_var *interacting_with;
   Debug_var *hot;
+  Debug_var *interacting_with;
   Debug_var *next_hot;
   
+  Debug_var_hierarchy *next_hot_hierarchy;
+  Debug_var_hierarchy *dragging_hierarchy;
+  
   f32 left_edge;
+  f32 right_edge;
   f32 at_y;
   f32 font_scale;
   Font_id font_id;
@@ -169,7 +179,6 @@ struct Debug_state {
   
   Memory_arena collate_arena;
   Temp_memory  collate_temp;
-  
   
   u32 collation_array_index;
   Debug_frame *collation_frame;
