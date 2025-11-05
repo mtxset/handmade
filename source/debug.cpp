@@ -172,7 +172,6 @@ begin_debug_stat(Debug_stats *stat) {
   stat->count = 0;
 }
 
-
 inline
 void
 close_debug_stat(Debug_stats *stat) {
@@ -585,21 +584,122 @@ is_interaction_hot(Debug_state *debug_state, Debug_interaction interaction) {
   return result;
 }
 
+struct Layout {
+  Debug_state *debug_state;
+  v2 mouse_pos;
+  v2 at;
+  int depth;
+  
+  f32 line_advance;
+  f32 spacing_y;
+};
+
+struct Layout_element {
+  Layout *layout;
+  v2 *dim;
+  v2 *size;
+  Debug_interaction interaction;
+  
+  Rect2 bounds;
+};
+
+inline
+Layout_element
+begin_element_rect(Layout *layout, v2 *dim) {
+  Layout_element element = {};
+  
+  element.layout = layout;
+  element.dim = dim;
+  
+  return element;
+}
+
+inline
+void
+make_element_sizable(Layout_element *element) {
+  element->size = element->dim;
+}
+
+
+inline
+void
+default_interaction(Layout_element *element, Debug_interaction interaction) {
+  element->interaction = interaction;
+}
+
+inline
+void
+end_element(Layout_element *element) {
+  Layout *layout = element->layout;
+  Debug_state *debug_state = layout->debug_state;
+  Render_group *render_group = debug_state->render_group;
+  
+  f32 size_handle_pixels = 4.0f;
+  
+  v2 frame = v2_zero;
+  if (element->size) {
+    frame = { size_handle_pixels, size_handle_pixels };
+  };
+  
+  v2 total_dim = *element->dim + 2.0f * frame;
+  
+  v2 total_min_corner = v2{
+    layout->at.x + layout->depth * 2.0f * layout->line_advance, 
+    layout->at.y - total_dim.y
+  };
+  v2 total_max_corner = total_min_corner + total_dim;
+  
+  v2 interior_min_corner = total_min_corner + frame;
+  v2 interior_max_corner = interior_min_corner + *element->dim;
+  
+  Rect2 total_bounds = rect_min_max(total_min_corner, total_max_corner);
+  element->bounds = rect_min_max(interior_min_corner, interior_max_corner);
+  
+  if (element->interaction.type && is_in_rect(element->bounds, layout->mouse_pos)) {
+    debug_state->next_hot_interaction = element->interaction;
+  }
+  
+  if (element->size) {
+    
+    push_rect(render_group, rect_min_max(V2(total_min_corner.x, interior_min_corner.y), V2(interior_min_corner.x, interior_max_corner.y)), 0, black_v4);
+    
+    push_rect(render_group, rect_min_max(V2(interior_max_corner.x, interior_min_corner.y), V2(total_max_corner.x, interior_max_corner.y)), 0, black_v4);
+    
+    push_rect(render_group, rect_min_max(V2(interior_min_corner.x, total_min_corner.y), V2(interior_max_corner.x, interior_min_corner.y)), 0, black_v4);
+    
+    push_rect(render_group, rect_min_max(V2(interior_min_corner.x, interior_max_corner.y), V2(interior_max_corner.x, total_max_corner.y)), 0, black_v4);
+    
+    Debug_interaction size_interaction = {};
+    size_interaction.type = Debug_interaction_resize;
+    size_interaction.pos = element->size;
+    
+    Rect2 size_box = rect_min_max(V2(interior_max_corner.x, total_min_corner.y),
+                                  V2(total_max_corner.x, interior_min_corner.y));
+    
+    v4 color = is_interaction_hot(debug_state, size_interaction) ? yellow_v4 : white_v4;
+    push_rect(render_group, size_box, 0, color);
+    if (is_in_rect(size_box, layout->mouse_pos)) {
+      debug_state->next_hot_interaction = size_interaction;
+    }
+  }
+  
+  layout->at.y = get_min_corner(total_bounds).y - layout->spacing_y;
+}
+
 static
 void
 debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mouse_pos) {
   
   for (Debug_var_hierarchy *hierarchy = debug_state->hierarchy_sentinel.next; hierarchy != &debug_state->hierarchy_sentinel; hierarchy = hierarchy->next) {
     
-    f32 at_x = hierarchy->initial_pos.x;
-    f32 at_y = hierarchy->initial_pos.y;
-    f32 line_advance = get_line_advance_for(debug_state->debug_font_info);
-    
-    f32 spacing_y = 4.0f;
-    i32 depth = 0;
+    Layout layout = {};
+    layout.debug_state = debug_state;
+    layout.mouse_pos = mouse_pos;
+    layout.at = hierarchy->initial_pos;
+    layout.line_advance = debug_state->font_scale * get_line_advance_for(debug_state->debug_font_info);
+    layout.spacing_y = 4.0;
     
     Debug_var_reference *ref = hierarchy->group->var->group.first_child;
-    
     while (ref) {
       
       Debug_var *var = ref->var;
@@ -611,80 +711,40 @@ debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mo
       bool is_hot = is_interaction_hot(debug_state, item_interaction);
       v4 item_color = (is_hot) ? yellow_v4 : white_v4;
       
-      Rect2 bounds = {};
-      
       switch (var->type) {
         
         case Debug_var_type_counter_thread_list: {
           
-          v2 min_corner = v2{
-            at_x + depth * 2.0f * line_advance, 
-            at_y - var->profile.dimension.y
-          };
+          Layout_element element = begin_element_rect(&layout, &var->profile.dimension);
+          make_element_sizable(&element);
+          default_interaction(&element, item_interaction);
+          end_element(&element);
           
-          v2 max_corner = v2{
-            min_corner.x + var->profile.dimension.x,
-            at_y
-          };
-          v2 size = V2(max_corner.x, min_corner.y);
-          bounds = rect_min_max(min_corner, max_corner);
-          draw_profile_in(debug_state, bounds, mouse_pos);
-          
-          Debug_interaction size_interaction = {};
-          size_interaction.type = Debug_interaction_resize;
-          size_interaction.pos = &var->profile.dimension;
-          
-          Rect2 size_box = rect_center_half_dim(size, V2(4, 4));
-          v4 color = (is_interaction_hot(debug_state, size_interaction)) ? yellow_v4 : white_v4;
-          push_rect(debug_state->render_group, size_box, 0, color);
-          
-          if (is_in_rect(size_box, mouse_pos)) {
-            debug_state->next_hot_interaction = size_interaction;
-          }
-          else if (is_in_rect(bounds, mouse_pos)) {
-            debug_state->next_hot_interaction = item_interaction;
-          }
-          
-          bounds.min.y -= spacing_y;
+          draw_profile_in(debug_state, element.bounds, mouse_pos);
         } break;
         
         case Debug_var_type_bitmap_display: {
           Loaded_bmp *bitmap = get_bitmap(render_group->asset_list, var->bitmap_display.id, render_group->generation_id);
           
           f32 bitmap_scale = var->bitmap_display.dim.y;
-          v2 min_corner = V2(at_x + depth * 2.0f * line_advance, at_y - var->bitmap_display.dim.y);
           
           if (bitmap) {
-            Used_bitmap_dim dim = get_bitmap_dim(render_group, bitmap, bitmap_scale, V3(min_corner, 0), 1.0f);
+            Used_bitmap_dim dim = get_bitmap_dim(render_group, bitmap, bitmap_scale, v3_zero, 1.0f);
             var->bitmap_display.dim.x = dim.size.x;
           }
           
-          v2 max_corner = V2(min_corner.x + var->bitmap_display.dim.x, at_y);
-          v2 size_pos = V2(max_corner.x, min_corner.y);
-          bounds = rect_min_max(min_corner, max_corner);
+          Debug_interaction tear_interaction = {};
+          tear_interaction.type = Debug_interaction_tear;
+          tear_interaction.var = var;
           
-          push_rect(debug_state->render_group, bounds, 0, black_v4);
-          push_bitmap(debug_state->render_group, var->bitmap_display.id, bitmap_scale, V3(min_corner, 0), white_v4, 0.0f);
+          Layout_element element = begin_element_rect(&layout, &var->bitmap_display.dim);
+          make_element_sizable(&element);
+          default_interaction(&element, tear_interaction);
+          end_element(&element);
           
-          Debug_interaction size_interaction = {};
-          size_interaction.type = Debug_interaction_resize;
-          size_interaction.pos = &var->bitmap_display.dim;
+          push_rect(debug_state->render_group, element.bounds, 0, black_v4);
+          push_bitmap(debug_state->render_group, var->bitmap_display.id, bitmap_scale, V3(get_min_corner(element.bounds), 0), white_v4, 0.0f);
           
-          Rect2 size_box = rect_center_half_dim(size_pos, V2(4, 4));
-          v4 color = is_interaction_hot(debug_state, size_interaction) ? yellow_v4 : white_v4;
-          push_rect(debug_state->render_group, size_box, 0, color);
-          
-          if (is_in_rect(size_box, mouse_pos)) {
-            debug_state->next_hot_interaction = size_interaction;
-          }
-          else if (is_in_rect(bounds, mouse_pos)) {
-            Debug_interaction tear_interaction = {};
-            tear_interaction.type = Debug_interaction_tear;
-            tear_interaction.var = var;
-            debug_state->next_hot_interaction = tear_interaction;
-          }
-          
-          bounds.min.y -= spacing_y;
         } break;
         
         default: {
@@ -697,32 +757,21 @@ debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mo
                             Debug_var_to_text_colon |
                             Debug_var_to_text_pretty_bools);
           
-          f32 left_px = at_x + depth * 2.0f * line_advance;
-          f32 top_pos_y = at_y;
           Rect2 text_bounds = debug_get_text_size(debug_state, text);
+          v2 dim = v2 { get_dim(text_bounds).x, layout.line_advance };
           
-          bounds = rect_min_max(V2(left_px + text_bounds.min.x, top_pos_y - line_advance),
-                                V2(left_px + text_bounds.max.x, top_pos_y));
+          Layout_element element = begin_element_rect(&layout, &dim);
+          default_interaction(&element, item_interaction);
+          end_element(&element);
           
-          v2 text_pos = {
-            left_px,
-            top_pos_y - debug_state->font_scale * get_starting_baseline_y(debug_state->debug_font_info)
-          };
-          debug_text_out_at(text_pos, text, item_color);
-          
-          if (is_in_rect(bounds, mouse_pos)) {
-            debug_state->next_hot_interaction = item_interaction;
-          }
-          
+          debug_text_out_at(V2(get_min_corner(element.bounds).x, get_max_corner(element.bounds).y - debug_state->font_scale * get_starting_baseline_y(debug_state->debug_font_info)), text, item_color);
         } break;
         
       }
       
-      at_y = get_min_corner(bounds).y;
-      
       if (var->type == Debug_var_type_group && var->group.expanded) {
         ref = var->group.first_child;
-        depth++;
+        layout.depth++;
       }
       else {
         
@@ -734,7 +783,7 @@ debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mo
           }
           else {
             ref = ref->parent;
-            depth--;
+            layout.depth--;
           }
           
         }
@@ -744,7 +793,7 @@ debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mo
       
     }
     
-    debug_state->at_y = at_y;
+    debug_state->at_y = layout.at.y;
     
     // hierarchy move box
     {
@@ -818,14 +867,15 @@ debug_begin_interact(Debug_state *debug_state, Game_input *input, v2 mouse_pos, 
   if (debug_state->hot_interaction.type) {
     if (debug_state->hot_interaction.type == Debug_interaction_auto_modify_var) {
       
-      switch (debug_state->hot_interaction.var->type)
-      {
+      switch (debug_state->hot_interaction.var->type) {
+        
         case Debug_var_type_bool: debug_state->hot_interaction.type = Debug_interaction_toggle; break;
         
         case Debug_var_type_f32: debug_state->hot_interaction.type = Debug_interaction_drag; break;
         
         case Debug_var_type_group:
         debug_state->hot_interaction.type = Debug_interaction_toggle; break;
+        
       }
       
       if (alt_ui) {
