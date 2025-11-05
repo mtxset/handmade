@@ -13,7 +13,7 @@
             #define DEBUG_UI_use_debug_camera false
             #define DEBUG_UI_debug_camera_distance 48.600002f
             #define DEBUG_UI_use_room_based_camera true
-    #define DEBUG_UI_familiar_follows_hero false
+    #define DEBUG_UI_familiar_follows_hero true
     #define DEBUG_UI_use_space_outlines false
     #define DEBUG_UI_faux_v4 V4(1.000000, 2.000000, 3.000000, 4.000000)
     #define DEBUG_UI_use_debug_camera false

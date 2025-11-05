@@ -99,7 +99,7 @@ debug_text_op(Debug_state *debug_state, Debug_text_op text_op, v2 pos, char* str
           
           if (bitmap) {
             
-            Used_bitmap_dim dim = get_bitmap_dim(render_group, bitmap, bitmap_scale, bitmap_offset);
+            Used_bitmap_dim dim = get_bitmap_dim(render_group, bitmap, bitmap_scale, bitmap_offset, 1.0f);
             Rect2 glyph_dim = rect_min_dim(dim.pos.xy, dim.size);
             
             result = rect2_union(result, glyph_dim);
@@ -250,7 +250,7 @@ debug_start(Game_asset_list *asset_list, u32 width, u32 height) {
       initialize_arena(&debug_state->debug_arena, debug_global_memory->debug_storage_size - sizeof(Debug_state), debug_state + 1);
       
       {
-        Debug_var_defintion_context debug_ctx = {};
+        Debug_var_definition_context debug_ctx = {};
         debug_ctx.state = debug_state;
         debug_ctx.arena = &debug_state->debug_arena;
         debug_ctx.group = debug_begin_variable_group(&debug_ctx, "root");
@@ -276,6 +276,13 @@ debug_start(Game_asset_list *asset_list, u32 width, u32 height) {
             debug_end_variable_group(&debug_ctx);
           }
           debug_end_variable_group(&debug_ctx);
+          
+          Asset_vector match_vector = {};
+          match_vector.e[Tag_facing_dir] = 0.0f;
+          Asset_vector weight_vector = {};
+          weight_vector.e[Tag_facing_dir] = 1.0f;
+          Bitmap_id id = get_best_match_bitmap_from(asset_list, Asset_head, &match_vector, &weight_vector);
+          debug_add_var(&debug_ctx, "bitmap", id);
         }
         debug_end_variable_group(&debug_ctx);
         
@@ -411,7 +418,8 @@ debug_var_to_text(char *buffer, char *end, Debug_var *var, u32 flags) {
 inline
 bool
 debug_should_be_written(Debug_var_type type) {
-  bool result = (type != Debug_var_type_counter_thread_list);
+  bool result = (type != Debug_var_type_counter_thread_list &&
+                 type != Debug_var_type_bitmap_display);
   
   return result;
 }
@@ -560,6 +568,23 @@ draw_profile_in(Debug_state *debug_state, Rect2 profile_rect, v2 mouse_pos) {
   }
 }
 
+
+inline 
+bool
+interactions_are_equal(Debug_interaction a, Debug_interaction b) {
+  bool result = (a.type == b.type && a.generic == b.generic);
+  
+  return result;
+}
+
+inline
+bool
+is_interaction_hot(Debug_state *debug_state, Debug_interaction interaction) {
+  bool result = interactions_are_equal(debug_state->hot_interaction, interaction);
+  
+  return result;
+}
+
 static
 void
 debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mouse_pos) {
@@ -579,8 +604,12 @@ debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mo
       
       Debug_var *var = ref->var;
       
-      bool is_hot = (debug_state->hot == var);
-      v4 item_color = (is_hot && debug_state->hot_interaction == 0) ? yellow_v4 : white_v4;
+      Debug_interaction item_interaction = {};
+      item_interaction.type = Debug_interaction_auto_modify_var;
+      item_interaction.var = var;
+      
+      bool is_hot = is_interaction_hot(debug_state, item_interaction);
+      v4 item_color = (is_hot) ? yellow_v4 : white_v4;
       
       Rect2 bounds = {};
       
@@ -601,17 +630,58 @@ debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mo
           bounds = rect_min_max(min_corner, max_corner);
           draw_profile_in(debug_state, bounds, mouse_pos);
           
+          Debug_interaction size_interaction = {};
+          size_interaction.type = Debug_interaction_resize;
+          size_interaction.pos = &var->profile.dimension;
+          
           Rect2 size_box = rect_center_half_dim(size, V2(4, 4));
-          v4 color = (is_hot && debug_state->hot_interaction == Debug_interaction_resize_profile) ? yellow_v4 : white_v4;
+          v4 color = (is_interaction_hot(debug_state, size_interaction)) ? yellow_v4 : white_v4;
           push_rect(debug_state->render_group, size_box, 0, color);
           
           if (is_in_rect(size_box, mouse_pos)) {
-            debug_state->next_hot_interaction = Debug_interaction_resize_profile;
-            debug_state->next_hot = var;
+            debug_state->next_hot_interaction = size_interaction;
           }
           else if (is_in_rect(bounds, mouse_pos)) {
-            debug_state->next_hot_interaction = Debug_interaction_none;
-            debug_state->next_hot = var;
+            debug_state->next_hot_interaction = item_interaction;
+          }
+          
+          bounds.min.y -= spacing_y;
+        } break;
+        
+        case Debug_var_type_bitmap_display: {
+          Loaded_bmp *bitmap = get_bitmap(render_group->asset_list, var->bitmap_display.id, render_group->generation_id);
+          
+          f32 bitmap_scale = var->bitmap_display.dim.y;
+          v2 min_corner = V2(at_x + depth * 2.0f * line_advance, at_y - var->bitmap_display.dim.y);
+          
+          if (bitmap) {
+            Used_bitmap_dim dim = get_bitmap_dim(render_group, bitmap, bitmap_scale, V3(min_corner, 0), 1.0f);
+            var->bitmap_display.dim.x = dim.size.x;
+          }
+          
+          v2 max_corner = V2(min_corner.x + var->bitmap_display.dim.x, at_y);
+          v2 size_pos = V2(max_corner.x, min_corner.y);
+          bounds = rect_min_max(min_corner, max_corner);
+          
+          push_rect(debug_state->render_group, bounds, 0, black_v4);
+          push_bitmap(debug_state->render_group, var->bitmap_display.id, bitmap_scale, V3(min_corner, 0), white_v4, 0.0f);
+          
+          Debug_interaction size_interaction = {};
+          size_interaction.type = Debug_interaction_resize;
+          size_interaction.pos = &var->bitmap_display.dim;
+          
+          Rect2 size_box = rect_center_half_dim(size_pos, V2(4, 4));
+          v4 color = is_interaction_hot(debug_state, size_interaction) ? yellow_v4 : white_v4;
+          push_rect(debug_state->render_group, size_box, 0, color);
+          
+          if (is_in_rect(size_box, mouse_pos)) {
+            debug_state->next_hot_interaction = size_interaction;
+          }
+          else if (is_in_rect(bounds, mouse_pos)) {
+            Debug_interaction tear_interaction = {};
+            tear_interaction.type = Debug_interaction_tear;
+            tear_interaction.var = var;
+            debug_state->next_hot_interaction = tear_interaction;
           }
           
           bounds.min.y -= spacing_y;
@@ -641,8 +711,7 @@ debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mo
           debug_text_out_at(text_pos, text, item_color);
           
           if (is_in_rect(bounds, mouse_pos)) {
-            debug_state->next_hot_interaction = Debug_interaction_none;
-            debug_state->next_hot = var;
+            debug_state->next_hot_interaction = item_interaction;
           }
           
         } break;
@@ -679,13 +748,16 @@ debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mo
     
     // hierarchy move box
     {
+      Debug_interaction move_interaction = {};
+      move_interaction.type = Debug_interaction_move;
+      move_interaction.pos = &hierarchy->initial_pos;
+      
       Rect2 move_box = rect_center_half_dim(hierarchy->initial_pos + V2(4, 4), V2(4, 4));
       
       push_rect(debug_state->render_group, move_box, 0, white_v4);
       
       if (is_in_rect(move_box, mouse_pos)) {
-        debug_state->next_hot_interaction = Debug_interaction_move_hierarchy;
-        debug_state->next_hot_hierarchy = hierarchy;
+        debug_state->next_hot_interaction = move_interaction;
       }
     }
   }
@@ -743,65 +815,69 @@ static
 void
 debug_begin_interact(Debug_state *debug_state, Game_input *input, v2 mouse_pos, bool alt_ui) {
   
-  if (debug_state->hot_interaction) {
+  if (debug_state->hot_interaction.type) {
+    if (debug_state->hot_interaction.type == Debug_interaction_auto_modify_var) {
+      
+      switch (debug_state->hot_interaction.var->type)
+      {
+        case Debug_var_type_bool: debug_state->hot_interaction.type = Debug_interaction_toggle; break;
+        
+        case Debug_var_type_f32: debug_state->hot_interaction.type = Debug_interaction_drag; break;
+        
+        case Debug_var_type_group:
+        debug_state->hot_interaction.type = Debug_interaction_toggle; break;
+      }
+      
+      if (alt_ui) {
+        debug_state->hot_interaction.type = Debug_interaction_tear;
+      }
+    }
+    
+    switch (debug_state->hot_interaction.type) {
+      case Debug_interaction_tear: {
+        
+        Debug_var_reference *root_group = debug_add_root_group(debug_state, "new group");
+        debug_add_var_reference(debug_state, root_group, debug_state->hot_interaction.var);
+        
+        Debug_var_hierarchy *hierarchy = add_hierarchy(debug_state, root_group, v2_zero);
+        
+        hierarchy->initial_pos = mouse_pos;
+        debug_state->hot_interaction.type = Debug_interaction_move;
+        debug_state->hot_interaction.pos = &hierarchy->initial_pos;
+        
+      } break;
+      
+    }
+    
     debug_state->interaction = debug_state->hot_interaction;
   }
   else {
-    if (debug_state->hot) {
-      
-      if (alt_ui) {
-        debug_state->interaction = Debug_interaction_tear;
-      }
-      else {
-        
-        switch (debug_state->hot->type) {
-          
-          case Debug_var_type_bool: debug_state->interaction = Debug_interaction_toggle; break;
-          case Debug_var_type_f32: debug_state->interaction = Debug_interaction_drag; break;
-          case Debug_var_type_group: debug_state->interaction = Debug_interaction_toggle; break;
-          
-        }
-      }
-      
-    }
-    else {
-      debug_state->interaction = Debug_interaction_nop;
-    }
+    debug_state->interaction.type = Debug_interaction_nop;
   }
-  
-  
-  if (debug_state->interaction) {
-    debug_state->interacting_with = debug_state->hot;
-  }
-  
 }
 
 static
 void
 debug_end_interact(Debug_state *debug_state, Game_input *input, v2 mouse_pos) {
   
-  if (debug_state->interaction != Debug_interaction_nop) {
-    
-    Debug_var *var = debug_state->interacting_with;
-    
-    switch (debug_state->interaction) {
-      case Debug_interaction_toggle: {
-        assert(var);
-        switch (var->type) {
-          case Debug_var_type_bool: var->bool_val = !var->bool_val; break;
-          case Debug_var_type_group: var->group.expanded = !var->group.expanded; break;
-        }
-        
-      } break;
+  switch (debug_state->interaction.type) {
+    case Debug_interaction_toggle: {
+      Debug_var *var = debug_state->interaction.var;
+      assert(var);
       
-    }
+      switch (var->type) {
+        case Debug_var_type_bool: var->bool_val = !var->bool_val; break;
+        case Debug_var_type_group: var->group.expanded = !var->group.expanded; break;
+      }
+      
+    } break;
     
-    write_debug_config(debug_state);
   }
   
-  debug_state->interaction = Debug_interaction_none;
-  debug_state->interacting_with = 0;
-  debug_state->dragging_hierarchy = 0;
+  write_debug_config(debug_state);
+  
+  debug_state->interaction.type = Debug_interaction_none;
+  debug_state->interaction.generic = 0;
 }
 
 static
@@ -810,15 +886,12 @@ debug_interact(Debug_state *debug_state, Game_input *input, v2 mouse_pos) {
   
   v2 mouse_delta = mouse_pos - debug_state->last_mouse_pos;
   
-  Debug_var *temp = debug_state->interacting_with;
-  if (temp) {
-    debug_text_line("interacting with");
-  }
-  
-  if (debug_state->interaction) {
-    Debug_var *var = debug_state->interacting_with;
+  if (debug_state->interaction.type) {
+    Debug_var *var = debug_state->interaction.var;
+    Debug_var_hierarchy *hierarchy = debug_state->interaction.hierarchy;
+    v2 *pos = debug_state->interaction.pos;
     
-    switch (debug_state->interaction) {
+    switch (debug_state->interaction.type) {
       
       case Debug_interaction_drag: {
         
@@ -828,26 +901,14 @@ debug_interact(Debug_state *debug_state, Game_input *input, v2 mouse_pos) {
         
       } break;
       
-      case Debug_interaction_resize_profile: { 
-        var->profile.dimension += V2(mouse_delta.x, -mouse_delta.y);
-        var->profile.dimension.x = max(var->profile.dimension.x, 10);
-        var->profile.dimension.y = max(var->profile.dimension.y, 10);
+      case Debug_interaction_resize: { 
+        *pos += V2(mouse_delta.x, -mouse_delta.y);
+        pos->x = max(pos->x, 10);
+        pos->y = max(pos->y, 10);
       } break;
       
-      case Debug_interaction_move_hierarchy: {
-        debug_state->dragging_hierarchy->initial_pos += mouse_delta;
-      } break;
-      
-      case Debug_interaction_tear: {
-        
-        if (!debug_state->dragging_hierarchy) {
-          Debug_var_reference *root_group = debug_add_root_group(debug_state, "new user group");
-          debug_add_var_reference(debug_state, root_group, debug_state->interacting_with);
-          debug_state->dragging_hierarchy = add_hierarchy(debug_state, root_group, v2_zero);
-        }
-        
-        debug_state->dragging_hierarchy->initial_pos = mouse_pos;
-        
+      case Debug_interaction_move: {
+        *pos += mouse_delta;
       } break;
       
     }
@@ -865,9 +926,7 @@ debug_interact(Debug_state *debug_state, Game_input *input, v2 mouse_pos) {
   }
   else {
     
-    debug_state->hot = debug_state->next_hot;
     debug_state->hot_interaction = debug_state->next_hot_interaction;
-    debug_state->dragging_hierarchy = debug_state->next_hot_hierarchy;
     
     bool alt_ui = input->mouse_buttons[Game_input_mouse_button_right].ended_down;
     for (u32 transition_index = input->mouse_buttons[Game_input_mouse_button_left].half_transition_count;
@@ -897,9 +956,7 @@ debug_end(Game_input *input, Loaded_bmp *draw_buffer) {
   
   Render_group *render_group = debug_state->render_group;
   
-  debug_state->next_hot = 0;
-  debug_state->next_hot_hierarchy = 0;
-  debug_state->next_hot_interaction = Debug_interaction_none;
+  mem_zero_struct(debug_state->next_hot_interaction);
   Debug_record *hot_record = 0;
   
   v2 mouse_pos = V2(input->mouse_x, input->mouse_y);

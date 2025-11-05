@@ -105,11 +105,11 @@ push_render_element_(Render_group* group, u32 size, Render_group_entry_type type
 
 inline
 Used_bitmap_dim
-get_bitmap_dim(Render_group *group, Loaded_bmp *bitmap, f32 height, v3 offset) {
+get_bitmap_dim(Render_group *group, Loaded_bmp *bitmap, f32 height, v3 offset, f32 align) {
   Used_bitmap_dim dim;
   
   dim.size  = V2(height * bitmap->width_over_height, height);
-  dim.align = hadamard(bitmap->align_pcent, dim.size);
+  dim.align = align * hadamard(bitmap->align_pcent, dim.size);
   dim.pos   = offset - V3(dim.align, 0);
   dim.basis = get_render_entity_basis_pos(&group->transform, dim.pos);
   
@@ -118,11 +118,11 @@ get_bitmap_dim(Render_group *group, Loaded_bmp *bitmap, f32 height, v3 offset) {
 
 inline
 void
-push_bitmap(Render_group* group, Loaded_bmp* bitmap, f32 height, v3 offset, v4 color = white_v4) {
+push_bitmap(Render_group* group, Loaded_bmp* bitmap, f32 height, v3 offset, v4 color = white_v4, f32 align = 1.0f) {
   
   timed_function();
   
-  Used_bitmap_dim dim = get_bitmap_dim(group, bitmap, height, offset);
+  Used_bitmap_dim dim = get_bitmap_dim(group, bitmap, height, offset, align);
   
   if (!dim.basis.valid)
     return;
@@ -140,7 +140,7 @@ push_bitmap(Render_group* group, Loaded_bmp* bitmap, f32 height, v3 offset, v4 c
 
 inline
 void
-push_bitmap(Render_group* group, Bitmap_id id, f32 height, v3 offset, v4 color = white_v4) {
+push_bitmap(Render_group* group, Bitmap_id id, f32 height, v3 offset, v4 color = white_v4, f32 align = 1.0f) {
   
   timed_function();
   
@@ -152,7 +152,7 @@ push_bitmap(Render_group* group, Bitmap_id id, f32 height, v3 offset, v4 color =
   }
   
   if (bitmap) {
-    push_bitmap(group, bitmap, height, offset, color);
+    push_bitmap(group, bitmap, height, offset, color, align);
   }
   else {
     assert(!group->renders_in_background);

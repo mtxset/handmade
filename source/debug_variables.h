@@ -3,7 +3,7 @@
 #ifndef DEBUG_VARIABLES_H
 #define DEBUG_VARIABLES_H
 
-struct Debug_var_defintion_context {
+struct Debug_var_definition_context {
   Debug_state *state;
   Memory_arena *arena;
   
@@ -50,7 +50,7 @@ debug_add_var_reference(Debug_state *debug_state, Debug_var_reference *group_ref
 
 static
 Debug_var_reference*
-debug_add_var_reference(Debug_var_defintion_context *ctx, Debug_var *var) {
+debug_add_var_reference(Debug_var_definition_context *ctx, Debug_var *var) {
   Debug_var_reference *ref = debug_add_var_reference(ctx->state, ctx->group, var);
   
   return ref;
@@ -58,12 +58,24 @@ debug_add_var_reference(Debug_var_defintion_context *ctx, Debug_var *var) {
 
 static
 Debug_var_reference*
-debug_add_var(Debug_var_defintion_context *ctx, Debug_var_type type, char *name) {
+debug_add_var(Debug_var_definition_context *ctx, Debug_var_type type, char *name) {
   
   Debug_var *var = debug_add_unrefrenced_var(ctx->state, type, name);
   Debug_var_reference *var_ref = debug_add_var_reference(ctx, var);
   
   return var_ref;
+}
+
+static 
+Debug_var_reference*
+debug_add_var(Debug_var_definition_context *ctx, char *name, Bitmap_id value) {
+  Debug_var_reference *ref = debug_add_var(ctx, Debug_var_type_bitmap_display, name);
+  
+  ref->var->bitmap_display.id = value;
+  ref->var->bitmap_display.dim = V2(25.0f, 25.0f);
+  ref->var->bitmap_display.alpha = true;
+  
+  return ref;
 }
 
 static 
@@ -87,7 +99,7 @@ debug_add_root_group(Debug_state *state, char *name) {
 
 static
 Debug_var_reference*
-debug_begin_variable_group(Debug_var_defintion_context *ctx, char *name) {
+debug_begin_variable_group(Debug_var_definition_context *ctx, char *name) {
   Debug_var_reference *group = debug_add_var_reference(ctx, debug_add_root_group_internal(ctx->state, name));
   group->var->group.expanded = false;
   
@@ -98,7 +110,7 @@ debug_begin_variable_group(Debug_var_defintion_context *ctx, char *name) {
 
 static
 Debug_var_reference*
-debug_add_var(Debug_var_defintion_context* ctx, char *name, bool value) {
+debug_add_var(Debug_var_definition_context* ctx, char *name, bool value) {
   Debug_var_reference *ref = debug_add_var(ctx, Debug_var_type_bool, name);
   ref->var->bool_val = value;
   
@@ -107,7 +119,7 @@ debug_add_var(Debug_var_defintion_context* ctx, char *name, bool value) {
 
 static
 Debug_var_reference*
-debug_add_var(Debug_var_defintion_context* ctx, char *name, i32 value) {
+debug_add_var(Debug_var_definition_context* ctx, char *name, i32 value) {
   Debug_var_reference *ref = debug_add_var(ctx, Debug_var_type_i32, name);
   ref->var->int32 = value;
   
@@ -116,7 +128,7 @@ debug_add_var(Debug_var_defintion_context* ctx, char *name, i32 value) {
 
 static
 Debug_var_reference*
-debug_add_var(Debug_var_defintion_context* ctx, char *name, f32 value) {
+debug_add_var(Debug_var_definition_context* ctx, char *name, f32 value) {
   Debug_var_reference *ref = debug_add_var(ctx, Debug_var_type_f32, name);
   ref->var->float32 = value;
   
@@ -125,7 +137,7 @@ debug_add_var(Debug_var_defintion_context* ctx, char *name, f32 value) {
 
 static
 Debug_var_reference*
-debug_add_var(Debug_var_defintion_context* ctx, char *name, v4 value) {
+debug_add_var(Debug_var_definition_context* ctx, char *name, v4 value) {
   Debug_var_reference *ref = debug_add_var(ctx, Debug_var_type_v4, name);
   ref->var->vec4 = value;
   
@@ -134,7 +146,7 @@ debug_add_var(Debug_var_defintion_context* ctx, char *name, v4 value) {
 
 static
 void
-debug_end_variable_group(Debug_var_defintion_context *ctx) {
+debug_end_variable_group(Debug_var_definition_context *ctx) {
   assert(ctx->group);
   
   ctx->group = ctx->group->parent;
@@ -142,7 +154,7 @@ debug_end_variable_group(Debug_var_defintion_context *ctx) {
 
 static
 void
-debug_create_vars(Debug_var_defintion_context *ctx) {
+debug_create_vars(Debug_var_definition_context *ctx) {
   
   Debug_var_reference *use_debug_cam_ref = 0;
   

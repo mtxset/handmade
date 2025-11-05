@@ -23,6 +23,7 @@ enum Debug_var_type {
   Debug_var_type_v4,
   
   Debug_var_type_counter_thread_list,
+  Debug_var_type_bitmap_display,
   
   Debug_var_type_group,
 };
@@ -54,6 +55,12 @@ struct Debug_profile_settings {
   v2 dimension;
 };
 
+struct Debug_bitmap_display {
+  Bitmap_id id;
+  v2 dim;
+  bool alpha;
+};
+
 struct Debug_var {
   Debug_var_type type;
   char *name;
@@ -68,6 +75,7 @@ struct Debug_var {
     v4 vec4;
     Debug_var_group group;
     Debug_profile_settings profile;
+    Debug_bitmap_display bitmap_display;
   };
 };
 
@@ -123,16 +131,30 @@ struct Debug_thread {
   Debug_thread *next;
 };
 
-enum Debug_interaction {
+enum Debug_interaction_type {
   Debug_interaction_none,
   
   Debug_interaction_nop,
   
+  Debug_interaction_auto_modify_var,
+  
   Debug_interaction_toggle,
   Debug_interaction_drag,
   Debug_interaction_tear,
-  Debug_interaction_resize_profile,
-  Debug_interaction_move_hierarchy
+  
+  Debug_interaction_resize,
+  Debug_interaction_move
+};
+
+struct Debug_interaction {
+  Debug_interaction_type type;
+  
+  union {
+    void *generic;
+    Debug_var *var;
+    Debug_var_hierarchy *hierarchy;
+    v2 *pos;
+  };
 };
 
 struct Debug_state {
@@ -160,12 +182,6 @@ struct Debug_state {
   Debug_interaction interaction;
   Debug_interaction hot_interaction;
   Debug_interaction next_hot_interaction;
-  Debug_var *hot;
-  Debug_var *interacting_with;
-  Debug_var *next_hot;
-  
-  Debug_var_hierarchy *next_hot_hierarchy;
-  Debug_var_hierarchy *dragging_hierarchy;
   
   f32 left_edge;
   f32 right_edge;
