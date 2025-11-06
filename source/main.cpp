@@ -397,7 +397,7 @@ win32_load_game_code(char* source_dll_filepath, char* source_temp_filepath, char
   
   result.get_sound_samples = (game_get_sound_samples_signature*)GetProcAddress(result.game_code_dll, "game_get_sound_samples");
   
-  result.debug_frame_end = (debug_game_frame_end_signature*)GetProcAddress(result.game_code_dll, "debug_game_frame_end");
+  result.debug_frame_end = (Debug_game_frame_end_signature*)GetProcAddress(result.game_code_dll, "debug_game_frame_end");
   
   result.valid = (result.update_and_render && result.get_sound_samples && result.debug_frame_end);
   
@@ -1612,8 +1612,8 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     
     timed_block_begin(game_update);
     // record, playback, update and render
+    Game_bitmap_buffer game_buffer = {};
     {
-      Game_bitmap_buffer game_buffer = {};
       game_buffer.memory = Global_backbuffer.memory;
       game_buffer.width = Global_backbuffer.width;
       game_buffer.height = Global_backbuffer.height;
@@ -1748,6 +1748,15 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       win32_fill_sound_buffer(&sound_output, bytes_to_lock, bytes_to_write, &sound_buffer);
     }
     
+#if INTERNAL
+    timed_block_begin(debug_collation);
+    if (game_code.debug_frame_end) {
+      global_debug_table = game_code.debug_frame_end(&memory, new_input, &game_buffer);
+    }
+    global_debug_table_.event_array_index__event_index = 0;
+    timed_block_end(debug_collation);
+#endif
+    
     // ensuring stable fps
     if (1)
     {
@@ -1794,13 +1803,6 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
     ReleaseDC(window_handle, device_context);
     
     flip_wall_clock = win32_get_wall_clock();
-    
-#if INTERNAL
-    if (game_code.debug_frame_end) {
-      global_debug_table = game_code.debug_frame_end(&memory);
-    }
-    global_debug_table_.event_array_index__event_index = 0;
-#endif
     
     LARGE_INTEGER end_counter = win32_get_wall_clock();
     frame_marker(win32_get_seconds_elapsed(last_counter, end_counter));

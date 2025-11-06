@@ -25,27 +25,27 @@ enum Debug_var_type {
   Debug_var_type_counter_thread_list,
   Debug_var_type_bitmap_display,
   
-  Debug_var_type_group,
+  Debug_var_type_var_group,
 };
 
 struct Debug_var;
 
-struct Debug_var_reference {
+struct Debug_var_link {
   Debug_var *var;
-  Debug_var_reference *next;
-  Debug_var_reference *parent;
+  Debug_var_link *next;
+  Debug_var_link *prev;
 };
 
 struct Debug_var_group {
   bool expanded;
-  Debug_var_reference *first_child;    
-  Debug_var_reference *last_child;
+  Debug_var_link *first_child;    
+  Debug_var_link *last_child;
 };
 
 struct Debug_var_hierarchy {
   v2 initial_pos;
   
-  Debug_var_reference *group;
+  Debug_var_link *group;
   
   Debug_var_hierarchy *next;
   Debug_var_hierarchy *prev;
@@ -57,8 +57,6 @@ struct Debug_profile_settings {
 
 struct Debug_bitmap_display {
   Bitmap_id id;
-  v2 dim;
-  bool alpha;
 };
 
 struct Debug_var {
@@ -73,9 +71,9 @@ struct Debug_var {
     v2 vec2;
     v3 vec3;
     v4 vec4;
-    Debug_var_group group;
     Debug_profile_settings profile;
     Debug_bitmap_display bitmap_display;
+    Debug_var_link var_group;
   };
 };
 
@@ -146,14 +144,58 @@ enum Debug_interaction_type {
   Debug_interaction_move
 };
 
+struct Debug_tree;
+
+struct Debug_id {
+  void *value[2];
+};
+
 struct Debug_interaction {
+  Debug_id id;
   Debug_interaction_type type;
   
   union {
     void *generic;
     Debug_var *var;
-    Debug_var_hierarchy *hierarchy;
+    Debug_tree *tree;
     v2 *pos;
+  };
+};
+
+struct Debug_view_inline_block {
+  v2 dim;
+};
+
+struct Debug_view_collapsible {
+  bool expanded_always;
+  bool expanded_alt_view;
+};
+
+enum Debug_view_type {
+  Debug_view_type_unknown,
+  
+  Debug_view_type_basic,
+  Debug_view_type_inline_block,
+  Debug_view_type_collapsible,
+};
+
+struct Debug_tree {
+  v2 init_pos;
+  Debug_var *group;
+  
+  Debug_tree *next;
+  Debug_tree *prev;
+};
+
+struct Debug_view {
+  Debug_id id;
+  Debug_view *next_in_hash;
+  
+  Debug_view_type type;
+  
+  union {
+    Debug_view_inline_block inline_block;
+    Debug_view_collapsible collapsible;
   };
 };
 
@@ -175,19 +217,20 @@ struct Debug_state {
   v2 menu_pos;
   bool menu_active;
   
-  Debug_var_reference *root_group;
-  Debug_var_hierarchy hierarchy_sentinel;
+  Debug_var *root_group;
+  Debug_view *view_hash[4096];
+  Debug_tree tree_sentinel;
   
   v2 last_mouse_pos;
   Debug_interaction interaction;
   Debug_interaction hot_interaction;
   Debug_interaction next_hot_interaction;
   
+  Font_id font_id;
+  f32 font_scale;
   f32 left_edge;
   f32 right_edge;
   f32 at_y;
-  f32 font_scale;
-  Font_id font_id;
   f32 global_width;
   f32 global_height;
   
@@ -212,8 +255,8 @@ struct Debug_state {
 };
 
 
-static void debug_start(Game_asset_list *asset_list, u32 width, u32 height);
-static void debug_end(Game_input *input, Loaded_bmp *draw_buffer);
+static void debug_start(Debug_state *debug_state, Game_asset_list *asset_list, u32 width, u32 height);
+static void debug_end(Debug_state *debug_state, Game_input *input, Loaded_bmp *draw_buffer);
 
 static void refresh_collation(Debug_state *debug_state);
 

@@ -431,8 +431,9 @@ struct Debug_table {
 
 extern Debug_table *global_debug_table;
 
-typedef
-Debug_table *(debug_game_frame_end_signature) (Game_memory* memory);
+typedef 
+Debug_table*
+(Debug_game_frame_end_signature) (Game_memory* memory, Game_input *input, Game_bitmap_buffer *bitmap_buffer);
 
 inline
 Debug_event*

@@ -47,7 +47,7 @@ struct Win32_game_code {
   // because we don't have stubs we need to check for 0 before calling
   game_update_render_signature*     update_and_render;
   game_get_sound_samples_signature* get_sound_samples;
-  debug_game_frame_end_signature*   debug_frame_end;
+  Debug_game_frame_end_signature*   debug_frame_end;
   
   bool valid;
 };

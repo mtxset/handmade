@@ -1543,8 +1543,6 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *b
     tran_state->is_initialized = true;
   }
   
-  debug_start(tran_state->asset_list, bitmap_buffer->width, bitmap_buffer->height);
-  
 #if DEBUG_UI_ground_chunk_checker_board
   if (memory->executable_reloaded) {
     for (u32 ground_buffer_index = 0; ground_buffer_index < tran_state->ground_buffer_count; ground_buffer_index++) {
@@ -2293,8 +2291,6 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *b
   check_arena(&game_state->world_arena);
   check_arena(&tran_state->arena);
   
-  debug_end(input, draw_buffer);
-  
 #if 0
   bezier_curves(draw_buffer, input, game_state);
 #endif
@@ -2333,11 +2329,16 @@ game_get_sound_samples(Game_memory *memory, Game_sound_buffer *sound_buffer) {
 }
 
 #if INTERNAL
+
 #include "debug.cpp"
+
 #else
 void debug_start(Game_asset_list *asset_list, u32 width, u32 height) {};
 void debug_end(Game_input *input, Loaded_bmp *draw_buffer) {};
 extern "C"
+
 Debug_table*
-debug_game_frame_end(Game_memory* memory, Debug_frame_end_info *info) {return 0;}
+debug_game_frame_end(Game_memory* memory, Game_input *input, Game_bitmap_buffer *bitmap_buffer) {return 0;}
+static Debug_game_frame_end_signature *signature_check = debug_game_frame_end;
+
 #endif

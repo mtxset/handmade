@@ -214,115 +214,109 @@ restart_collation(Debug_state *debug_state, u32 invalid_event_array_index) {
 }
 
 static
-Debug_var_hierarchy*
-add_hierarchy(Debug_state *debug_state, Debug_var_reference *group, v2 at_pos) {
-  Debug_var_hierarchy* hierarchy = mem_push_struct(&debug_state->debug_arena, Debug_var_hierarchy);
+Debug_tree*
+add_tree(Debug_state *debug_state, Debug_var *group, v2 at_pos) {
+  Debug_tree* tree = mem_push_struct(&debug_state->debug_arena, Debug_tree);
   
-  hierarchy->initial_pos = at_pos;
-  hierarchy->group = group;
-  hierarchy->next = debug_state->hierarchy_sentinel.next;
-  hierarchy->prev = &debug_state->hierarchy_sentinel;
+  tree->init_pos = at_pos;
+  tree->group = group;
   
-  hierarchy->next->prev = hierarchy;
-  hierarchy->prev->next = hierarchy;
+  debug_list_insert(&debug_state->tree_sentinel, tree);
   
-  return hierarchy;
+  return tree;
 }
 
 static
 void
-debug_start(Game_asset_list *asset_list, u32 width, u32 height) {
+debug_start(Debug_state *debug_state, Game_asset_list *asset_list, u32 width, u32 height) {
   
   timed_function();
   
-  Debug_state *debug_state = (Debug_state*)debug_global_memory->debug_storage;
-  
-  if (debug_state) { 
+  if (!debug_state->init) {
     
-    if (!debug_state->init) {
+    debug_state->high_priority_queue = debug_global_memory->high_priority_queue;
+    debug_state->tree_sentinel.next = &debug_state->tree_sentinel;
+    debug_state->tree_sentinel.prev = &debug_state->tree_sentinel;
+    debug_state->tree_sentinel.group = 0;
+    
+    initialize_arena(&debug_state->debug_arena, debug_global_memory->debug_storage_size - sizeof(Debug_state), debug_state + 1);
+    
+    {
+      Debug_var_definition_context debug_ctx = {};
+      debug_ctx.state = debug_state;
+      debug_ctx.arena = &debug_state->debug_arena;
+      debug_ctx.group_stack[0] = 0;
       
-      debug_state->high_priority_queue = debug_global_memory->high_priority_queue;
-      debug_state->hierarchy_sentinel.next = &debug_state->hierarchy_sentinel;
-      debug_state->hierarchy_sentinel.prev = &debug_state->hierarchy_sentinel;
-      debug_state->hierarchy_sentinel.group = 0;
+      debug_state->root_group = debug_begin_variable_group(&debug_ctx, "root");
       
-      initialize_arena(&debug_state->debug_arena, debug_global_memory->debug_storage_size - sizeof(Debug_state), debug_state + 1);
-      
+      debug_begin_variable_group(&debug_ctx, "debugging");
+      debug_create_vars(&debug_ctx);
       {
-        Debug_var_definition_context debug_ctx = {};
-        debug_ctx.state = debug_state;
-        debug_ctx.arena = &debug_state->debug_arena;
-        debug_ctx.group = debug_begin_variable_group(&debug_ctx, "root");
-        
-        debug_begin_variable_group(&debug_ctx, "debugging");
-        debug_create_vars(&debug_ctx);
-        
         debug_begin_variable_group(&debug_ctx, "profile");
         {
+          debug_begin_variable_group(&debug_ctx, "by thread");
           {
-            debug_begin_variable_group(&debug_ctx, "by thread");
-            Debug_var_reference *thread_list = debug_add_var(&debug_ctx, Debug_var_type_counter_thread_list, "");
-            thread_list->var->profile.dimension = V2(1024, 100);
-            
-            debug_end_variable_group(&debug_ctx);
-          }
-          
-          {
-            debug_begin_variable_group(&debug_ctx, "by function");
-            Debug_var_reference *function_list = debug_add_var(&debug_ctx, Debug_var_type_counter_thread_list, "");
-            function_list->var->profile.dimension = V2(1024, 200);
-            
-            debug_end_variable_group(&debug_ctx);
+            debug_add_var(&debug_ctx, Debug_var_type_counter_thread_list, "");
           }
           debug_end_variable_group(&debug_ctx);
           
-          Asset_vector match_vector = {};
-          match_vector.e[Tag_facing_dir] = 0.0f;
-          Asset_vector weight_vector = {};
-          weight_vector.e[Tag_facing_dir] = 1.0f;
-          Bitmap_id id = get_best_match_bitmap_from(asset_list, Asset_head, &match_vector, &weight_vector);
-          debug_add_var(&debug_ctx, "bitmap", id);
+          debug_begin_variable_group(&debug_ctx, "by function");
+          {
+            debug_add_var(&debug_ctx, Debug_var_type_counter_thread_list, "");
+          }
+          debug_end_variable_group(&debug_ctx);
+          
         }
-        debug_end_variable_group(&debug_ctx);
+        debug_end_variable_group(&debug_ctx); 
         
-        debug_state->root_group = debug_ctx.group;
+        Asset_vector match_vector = {};
+        match_vector.e[Tag_facing_dir] = 0.0f;
+        Asset_vector weight_vector = {};
+        weight_vector.e[Tag_facing_dir] = 1.0f;
+        Bitmap_id id = get_best_match_bitmap_from(asset_list, Asset_head, &match_vector, &weight_vector);
+        debug_add_var(&debug_ctx, "bitmap", id);
+        debug_end_variable_group(&debug_ctx);
       }
+      debug_end_variable_group(&debug_ctx);
       
-      debug_state->render_group = allocate_render_group(asset_list, &debug_state->debug_arena, megabytes(16), false);
-      
-      debug_state->paused = false;
-      debug_state->scope_to_record = 0;
-      debug_state->init = true;
-      
-      sub_arena(&debug_state->collate_arena, &debug_state->debug_arena, megabytes(32), 4);
-      debug_state->collate_temp = begin_temp_memory(&debug_state->collate_arena);
-      
-      restart_collation(debug_state, 0);
-      
-      add_hierarchy(debug_state, debug_state->root_group, V2(-.5f * width, .5f * height));
+      assert(debug_ctx.group_depth == 0);
     }
     
-    begin_render(debug_state->render_group);
-    debug_state->debug_font = push_font(debug_state->render_group, debug_state->font_id);
-    debug_state->debug_font_info = get_font_info(debug_state->render_group->asset_list, debug_state->font_id);
+    debug_state->render_group = allocate_render_group(asset_list, &debug_state->debug_arena, megabytes(16), false);
     
-    debug_state->global_width  = (f32)width;
-    debug_state->global_height = (f32)height;
+    debug_state->paused = false;
+    debug_state->scope_to_record = 0;
+    debug_state->init = true;
     
-    Asset_vector match_vector = {};
-    Asset_vector weight_vector = {};
-    match_vector.e[Tag_font_type] = (f32)Font_type_debug;
-    weight_vector.e[Tag_font_type] = 1.0f;
+    sub_arena(&debug_state->collate_arena, &debug_state->debug_arena, megabytes(32), 4);
+    debug_state->collate_temp = begin_temp_memory(&debug_state->collate_arena);
     
-    debug_state->font_id = get_best_match_font_from(asset_list, Asset_font, &match_vector, &weight_vector);
+    restart_collation(debug_state, 0);
     
-    debug_state->font_scale = 1.0f;
-    ortographic(debug_state->render_group, width, height, 1.0f);
-    debug_state->left_edge = -.5f * width;
-    debug_state->right_edge = .5f * width;
-    
-    debug_state->at_y = 0.5f * height;
+    add_tree(debug_state, debug_state->root_group, V2(-.5f * width, .5f * height));
   }
+  
+  begin_render(debug_state->render_group);
+  debug_state->debug_font = push_font(debug_state->render_group, debug_state->font_id);
+  debug_state->debug_font_info = get_font_info(debug_state->render_group->asset_list, debug_state->font_id);
+  
+  debug_state->global_width  = (f32)width;
+  debug_state->global_height = (f32)height;
+  
+  Asset_vector match_vector = {};
+  Asset_vector weight_vector = {};
+  match_vector.e[Tag_font_type] = (f32)Font_type_debug;
+  weight_vector.e[Tag_font_type] = 1.0f;
+  
+  debug_state->font_id = get_best_match_font_from(asset_list, Asset_font, &match_vector, &weight_vector);
+  
+  debug_state->font_scale = 1.0f;
+  ortographic(debug_state->render_group, width, height, 1.0f);
+  debug_state->left_edge = -.5f * width;
+  debug_state->right_edge = .5f * width;
+  
+  debug_state->at_y = 0.5f * height;
+  
 }
 
 static
@@ -397,7 +391,9 @@ debug_var_to_text(char *buffer, char *end, Debug_var *var, u32 flags) {
       }
     } break;
     
-    case Debug_var_type_group: {
+    case Debug_var_type_counter_thread_list:
+    case Debug_var_type_bitmap_display:
+    case Debug_var_type_var_group: {
     } break;
     
     default: assert(!"qe?");
@@ -423,6 +419,11 @@ debug_should_be_written(Debug_var_type type) {
   return result;
 }
 
+struct Debug_var_iterator {
+  Debug_var_link *link;
+  Debug_var_link *sentinel;
+};
+
 static
 void
 write_debug_config(Debug_state *debug_state) {
@@ -432,51 +433,50 @@ write_debug_config(Debug_state *debug_state) {
   char *end = temp + sizeof(temp);
   
   i32 depth = 0;
-  Debug_var_reference *ref = debug_state->root_group->var->group.first_child;
+  Debug_var_iterator stack[Debug_max_var_stack_depth];
   
-  while (ref) {
+  stack[depth].link = debug_state->root_group->var_group.next;
+  stack[depth].sentinel = &debug_state->root_group->var_group;
+  depth++;
+  
+  while (depth > 0) {
     
-    Debug_var *var = ref->var;
-    if (debug_should_be_written(var->type)) {
-      
-      for (i32 ident = 0; ident < depth; ident++) {
-        *at++ = ' '; *at++ = ' '; *at++ = ' '; *at++ = ' ';
-      }
-      
-      if (var->type == Debug_var_type_group) {
-        at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at), "// ");
-      }
-      
-      at += debug_var_to_text(at, end, var,
-                              Debug_var_to_text_add_debug_ui |
-                              Debug_var_to_text_add_name |
-                              Debug_var_to_text_line_end |
-                              Debug_var_to_text_float_suffix |
-                              Debug_var_to_text_pretty_bools);
-      
-    }
+    Debug_var_iterator *iter = stack + (depth - 1);
     
-    if (var->type == Debug_var_type_group) {
-      ref = var->group.first_child;
-      depth++;
+    if (iter->link == iter->sentinel) {
+      depth--;
     }
     else {
       
-      while (ref) {
+      Debug_var *var = iter->link->var;
+      iter->link = iter->link->next;
+      
+      if (debug_should_be_written(var->type))  {
+        for (i32 ident = 0; ident < depth; ident++) {
+          *at++ = ' '; *at++ = ' '; *at++ = ' '; *at++ = ' ';
+        }
         
-        if (ref->next) {
-          ref = ref->next;
-          break;
+        if (var->type == Debug_var_type_var_group) {
+          at += _snprintf_s(at, (size_t)(end - at), (size_t)(end - at), "// ");
         }
-        else {
-          ref = ref->parent;
-          depth--;
-        }
+        
+        at += debug_var_to_text(at, end, var,
+                                Debug_var_to_text_add_debug_ui |
+                                Debug_var_to_text_add_name |
+                                Debug_var_to_text_line_end |
+                                Debug_var_to_text_float_suffix |
+                                Debug_var_to_text_pretty_bools);
         
       }
       
-      
+      if (var->type == Debug_var_type_var_group) {
+        iter = stack + depth;
+        iter->link = var->var_group.next;
+        iter->sentinel = &var->var_group;
+        depth++;
+      }
     }
+    
   }
   
   platform.debug_write_entire_file("..\\source\\config.h", (u32)(at - temp), temp);
@@ -634,7 +634,7 @@ end_element(Layout_element *element) {
   Debug_state *debug_state = layout->debug_state;
   Render_group *render_group = debug_state->render_group;
   
-  f32 size_handle_pixels = 4.0f;
+  f32 size_handle_pixels = 10.0f;
   
   v2 frame = v2_zero;
   if (element->size) {
@@ -686,124 +686,186 @@ end_element(Layout_element *element) {
   layout->at.y = get_min_corner(total_bounds).y - layout->spacing_y;
 }
 
+inline
+bool
+debug_ids_are_equal(Debug_id a, Debug_id b) {
+  
+  bool result = (a.value[0] == b.value[0]) && (a.value[1] == b.value[1]);
+  
+  return result;
+}
+
+static
+Debug_view*
+get_or_create_debug_view(Debug_state *debug_state, Debug_id id) {
+  Debug_view *result = 0;
+  
+  u32 hash_index = (((u32)(size_t)id.value[0] >> 2) + 
+                    ((u32)(size_t)id.value[1] >> 2)) % array_count(debug_state->view_hash);
+  
+  Debug_view **hash_slot = debug_state->view_hash + hash_index;
+  
+  for (Debug_view *search = *hash_slot; search; search = search->next_in_hash) {
+    
+    if (debug_ids_are_equal(search->id, id)) {
+      result = search;
+      break;
+    }
+    
+  }
+  
+  if (!result) {
+    result = mem_push_struct(&debug_state->debug_arena, Debug_view);
+    result->id = id;
+    result->type = Debug_view_type_unknown;
+    result->next_in_hash = *hash_slot;
+    *hash_slot = result;
+  }
+  
+  return result;
+}
+
+inline
+Debug_id
+debug_id_from_link(Debug_tree *tree, Debug_var_link *link) {
+  Debug_id result = {};
+  
+  result.value[0] = tree;
+  result.value[1] = link;
+  
+  return result;
+}
+
+inline
+Debug_interaction
+var_link_interaction(Debug_interaction_type type, Debug_tree *tree, Debug_var_link *link) {
+  Debug_interaction interaction = {};
+  interaction.id = debug_id_from_link(tree, link);
+  interaction.type = type;
+  interaction.var = link->var;
+  
+  return interaction;
+}
+
 static
 void
 debug_draw_main_menu(Debug_state *debug_state, Render_group *render_group, v2 mouse_pos) {
   
-  for (Debug_var_hierarchy *hierarchy = debug_state->hierarchy_sentinel.next; hierarchy != &debug_state->hierarchy_sentinel; hierarchy = hierarchy->next) {
+  for (Debug_tree *tree = debug_state->tree_sentinel.next; tree != &debug_state->tree_sentinel; tree = tree->next) {
     
     Layout layout = {};
     layout.debug_state = debug_state;
     layout.mouse_pos = mouse_pos;
-    layout.at = hierarchy->initial_pos;
+    layout.at = tree->init_pos;
     layout.line_advance = debug_state->font_scale * get_line_advance_for(debug_state->debug_font_info);
     layout.spacing_y = 4.0;
     
-    Debug_var_reference *ref = hierarchy->group->var->group.first_child;
-    while (ref) {
+    i32 depth = 0;
+    Debug_var_iterator stack[Debug_max_var_stack_depth];
+    
+    stack[depth].link = tree->group->var_group.next;
+    stack[depth].sentinel = &tree->group->var_group;
+    depth++;
+    
+    while (depth > 0) {
       
-      Debug_var *var = ref->var;
+      Debug_var_iterator *iter = stack + (depth - 1);
       
-      Debug_interaction item_interaction = {};
-      item_interaction.type = Debug_interaction_auto_modify_var;
-      item_interaction.var = var;
-      
-      bool is_hot = is_interaction_hot(debug_state, item_interaction);
-      v4 item_color = (is_hot) ? yellow_v4 : white_v4;
-      
-      switch (var->type) {
-        
-        case Debug_var_type_counter_thread_list: {
-          
-          Layout_element element = begin_element_rect(&layout, &var->profile.dimension);
-          make_element_sizable(&element);
-          default_interaction(&element, item_interaction);
-          end_element(&element);
-          
-          draw_profile_in(debug_state, element.bounds, mouse_pos);
-        } break;
-        
-        case Debug_var_type_bitmap_display: {
-          Loaded_bmp *bitmap = get_bitmap(render_group->asset_list, var->bitmap_display.id, render_group->generation_id);
-          
-          f32 bitmap_scale = var->bitmap_display.dim.y;
-          
-          if (bitmap) {
-            Used_bitmap_dim dim = get_bitmap_dim(render_group, bitmap, bitmap_scale, v3_zero, 1.0f);
-            var->bitmap_display.dim.x = dim.size.x;
-          }
-          
-          Debug_interaction tear_interaction = {};
-          tear_interaction.type = Debug_interaction_tear;
-          tear_interaction.var = var;
-          
-          Layout_element element = begin_element_rect(&layout, &var->bitmap_display.dim);
-          make_element_sizable(&element);
-          default_interaction(&element, tear_interaction);
-          end_element(&element);
-          
-          push_rect(debug_state->render_group, element.bounds, 0, black_v4);
-          push_bitmap(debug_state->render_group, var->bitmap_display.id, bitmap_scale, V3(get_min_corner(element.bounds), 0), white_v4, 0.0f);
-          
-        } break;
-        
-        default: {
-          
-          char text[256];
-          
-          debug_var_to_text(text, text + sizeof(text), var,
-                            Debug_var_to_text_add_name |
-                            Debug_var_to_text_null_terminator |
-                            Debug_var_to_text_colon |
-                            Debug_var_to_text_pretty_bools);
-          
-          Rect2 text_bounds = debug_get_text_size(debug_state, text);
-          v2 dim = v2 { get_dim(text_bounds).x, layout.line_advance };
-          
-          Layout_element element = begin_element_rect(&layout, &dim);
-          default_interaction(&element, item_interaction);
-          end_element(&element);
-          
-          debug_text_out_at(V2(get_min_corner(element.bounds).x, get_max_corner(element.bounds).y - debug_state->font_scale * get_starting_baseline_y(debug_state->debug_font_info)), text, item_color);
-        } break;
-        
-      }
-      
-      if (var->type == Debug_var_type_group && var->group.expanded) {
-        ref = var->group.first_child;
-        layout.depth++;
+      if (iter->link == iter->sentinel) {
+        depth--;
       }
       else {
         
-        while (ref) {
+        layout.depth = depth;
+        
+        Debug_var_link *link = iter->link;
+        Debug_var *var = iter->link->var;
+        iter->link = iter->link->next;
+        
+        Debug_interaction item_interaction = var_link_interaction(Debug_interaction_auto_modify_var, tree, link);
+        
+        bool is_hot = is_interaction_hot(debug_state, item_interaction);
+        v4 item_color = (is_hot) ? yellow_v4 : white_v4;
+        
+        Debug_view *view = get_or_create_debug_view(debug_state, debug_id_from_link(tree, link));
+        switch (var->type) {
           
-          if (ref->next) {
-            ref = ref->next;
-            break;
-          }
-          else {
-            ref = ref->parent;
-            layout.depth--;
-          }
+          case Debug_var_type_counter_thread_list: {
+            
+            Layout_element element = begin_element_rect(&layout, &var->profile.dimension);
+            make_element_sizable(&element);
+            default_interaction(&element, item_interaction);
+            end_element(&element);
+            
+            draw_profile_in(debug_state, element.bounds, mouse_pos);
+          } break;
+          
+          case Debug_var_type_bitmap_display: {
+            Loaded_bmp *bitmap = get_bitmap(render_group->asset_list, var->bitmap_display.id, render_group->generation_id);
+            
+            f32 bitmap_scale = view->inline_block.dim.y;
+            
+            if (bitmap) {
+              Used_bitmap_dim dim = get_bitmap_dim(render_group, bitmap, bitmap_scale, v3_zero, 1.0f);
+              view->inline_block.dim.x = dim.size.x;
+            }
+            
+            Debug_interaction tear_interaction = var_link_interaction(Debug_interaction_tear, tree, link);
+            
+            Layout_element element = begin_element_rect(&layout, &view->inline_block.dim);
+            make_element_sizable(&element);
+            default_interaction(&element, tear_interaction);
+            end_element(&element);
+            
+            push_rect(debug_state->render_group, element.bounds, 0, black_v4);
+            push_bitmap(debug_state->render_group, var->bitmap_display.id, bitmap_scale, V3(get_min_corner(element.bounds), 0), white_v4, 0.0f);
+            
+          } break;
+          
+          default: {
+            
+            char text[256];
+            
+            debug_var_to_text(text, text + sizeof(text), var,
+                              Debug_var_to_text_add_name |
+                              Debug_var_to_text_null_terminator |
+                              Debug_var_to_text_colon |
+                              Debug_var_to_text_pretty_bools);
+            
+            Rect2 text_bounds = debug_get_text_size(debug_state, text);
+            v2 dim = v2 { get_dim(text_bounds).x, layout.line_advance };
+            
+            Layout_element element = begin_element_rect(&layout, &dim);
+            default_interaction(&element, item_interaction);
+            end_element(&element);
+            
+            debug_text_out_at(V2(get_min_corner(element.bounds).x, get_max_corner(element.bounds).y - debug_state->font_scale * get_starting_baseline_y(debug_state->debug_font_info)), text, item_color);
+          } break;
           
         }
         
+        if (var->type == Debug_var_type_var_group && view->collapsible.expanded_always) {
+          iter = stack + depth;
+          iter->link = var->var_group.next;
+          iter->sentinel = &var->var_group;
+          depth++;
+        }
       }
-      
-      
     }
     
     debug_state->at_y = layout.at.y;
     
-    // hierarchy move box
+    // tree move box
     {
       Debug_interaction move_interaction = {};
       move_interaction.type = Debug_interaction_move;
-      move_interaction.pos = &hierarchy->initial_pos;
+      move_interaction.pos = &tree->init_pos;
       
-      Rect2 move_box = rect_center_half_dim(hierarchy->initial_pos + V2(4, 4), V2(4, 4));
+      Rect2 move_box = rect_center_half_dim(tree->init_pos + V2(4, 4), V2(4, 4));
       
-      push_rect(debug_state->render_group, move_box, 0, white_v4);
+      bool is_hot = is_interaction_hot(debug_state, move_interaction);
+      v4 item_color = (is_hot) ? yellow_v4 : white_v4;
+      push_rect(debug_state->render_group, move_box, 0, item_color);
       
       if (is_in_rect(move_box, mouse_pos)) {
         debug_state->next_hot_interaction = move_interaction;
@@ -873,7 +935,7 @@ debug_begin_interact(Debug_state *debug_state, Game_input *input, v2 mouse_pos, 
         
         case Debug_var_type_f32: debug_state->hot_interaction.type = Debug_interaction_drag; break;
         
-        case Debug_var_type_group:
+        case Debug_var_type_var_group:
         debug_state->hot_interaction.type = Debug_interaction_toggle; break;
         
       }
@@ -886,14 +948,14 @@ debug_begin_interact(Debug_state *debug_state, Game_input *input, v2 mouse_pos, 
     switch (debug_state->hot_interaction.type) {
       case Debug_interaction_tear: {
         
-        Debug_var_reference *root_group = debug_add_root_group(debug_state, "new group");
-        debug_add_var_reference(debug_state, root_group, debug_state->hot_interaction.var);
+        Debug_var *root_group = debug_add_root_group(debug_state, "new group");
+        debug_add_var_to_group(debug_state, root_group, debug_state->hot_interaction.var);
         
-        Debug_var_hierarchy *hierarchy = add_hierarchy(debug_state, root_group, v2_zero);
+        Debug_tree *tree = add_tree(debug_state, root_group, v2_zero);
+        tree->init_pos = mouse_pos;
         
-        hierarchy->initial_pos = mouse_pos;
         debug_state->hot_interaction.type = Debug_interaction_move;
-        debug_state->hot_interaction.pos = &hierarchy->initial_pos;
+        debug_state->hot_interaction.pos = &tree->init_pos;
         
       } break;
       
@@ -917,7 +979,10 @@ debug_end_interact(Debug_state *debug_state, Game_input *input, v2 mouse_pos) {
       
       switch (var->type) {
         case Debug_var_type_bool: var->bool_val = !var->bool_val; break;
-        case Debug_var_type_group: var->group.expanded = !var->group.expanded; break;
+        case Debug_var_type_var_group: {
+          Debug_view *view = get_or_create_debug_view(debug_state, debug_state->interaction.id);
+          view->collapsible.expanded_always = !view->collapsible.expanded_always;
+        } break;
       }
       
     } break;
@@ -938,7 +1003,7 @@ debug_interact(Debug_state *debug_state, Game_input *input, v2 mouse_pos) {
   
   if (debug_state->interaction.type) {
     Debug_var *var = debug_state->interaction.var;
-    Debug_var_hierarchy *hierarchy = debug_state->interaction.hierarchy;
+    Debug_tree *tree = debug_state->interaction.tree;
     v2 *pos = debug_state->interaction.pos;
     
     switch (debug_state->interaction.type) {
@@ -995,14 +1060,9 @@ debug_interact(Debug_state *debug_state, Game_input *input, v2 mouse_pos) {
 
 static
 void
-debug_end(Game_input *input, Loaded_bmp *draw_buffer) {
+debug_end(Debug_state *debug_state, Game_input *input, Loaded_bmp *draw_buffer) {
   
   timed_function();
-  
-  Debug_state *debug_state = debug_get_state();
-  
-  if (!debug_state)
-    return;
   
   Render_group *render_group = debug_state->render_group;
   
@@ -1121,7 +1181,6 @@ debug_end(Game_input *input, Loaded_bmp *draw_buffer) {
     
     refresh_collation(debug_state);
   }
-  
   
   skip_debug_rendering:
   tiled_render_group_to_output(debug_state->high_priority_queue, debug_state->render_group, draw_buffer);
@@ -1334,7 +1393,6 @@ collate_debug_records(Debug_state *debug_state, u32 invalid_event_array_index) {
   
 }
 
-
 static 
 void
 refresh_collation(Debug_state *debug_state) {
@@ -1342,9 +1400,23 @@ refresh_collation(Debug_state *debug_state) {
   collate_debug_records(debug_state, global_debug_table->current_event_array_index);
 }
 
+static 
+Game_asset_list*
+debug_get_game_asset_list(Game_memory *memory) {
+  Game_asset_list *result = 0;
+  
+  Transient_state *tran_state = (Transient_state*)memory->transient_storage;
+  
+  if (tran_state->is_initialized) {
+    result = tran_state->asset_list;
+  }
+  
+  return result;
+}
+
 extern "C" // to prevent name mangle by compiler, so function can looked up by name exactly
 Debug_table*
-debug_game_frame_end(Game_memory* memory) {
+debug_game_frame_end(Game_memory* memory, Game_input *input, Game_bitmap_buffer *bitmap_buffer) {
   
   global_debug_table->record_count[0] = debug_record_list_main_count;
   global_debug_table->record_count[1] = debug_record_list_optimized_count;
@@ -1360,8 +1432,12 @@ debug_game_frame_end(Game_memory* memory) {
   u32 event_count = array_index__event_index & 0xffffffff;
   global_debug_table->event_count[event_array_index] = event_count;
   
-  Debug_state *debug_state = debug_get_state(memory);
+  Debug_state *debug_state = (Debug_state*)memory->debug_storage;
   if (debug_state) {
+    
+    Game_asset_list *asset_list = debug_get_game_asset_list(memory);
+    
+    debug_start(debug_state, asset_list, bitmap_buffer->width, bitmap_buffer->height);
     
     if (memory->executable_reloaded) {
       restart_collation(debug_state, global_debug_table->current_event_array_index);
@@ -1375,7 +1451,15 @@ debug_game_frame_end(Game_memory* memory) {
       collate_debug_records(debug_state, global_debug_table->current_event_array_index);
       
     }
+    
+    Loaded_bmp draw_buffer = {};
+    draw_buffer.width = bitmap_buffer->width;
+    draw_buffer.height = bitmap_buffer->height;
+    draw_buffer.pitch = bitmap_buffer->pitch;
+    draw_buffer.memory = bitmap_buffer->memory;
+    debug_end(debug_state, input, &draw_buffer);
   }
   
   return global_debug_table;
-}
+} 
+static Debug_game_frame_end_signature *signature_check = debug_game_frame_end;
