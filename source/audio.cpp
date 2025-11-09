@@ -1,5 +1,5 @@
 
-internal
+static
 void
 output_test_sine_wave(Game_state* state, Game_sound_buffer* sound_buffer, i32 tone_hz) {
   i16 tone_volume = 1000;
@@ -48,7 +48,7 @@ change_pitch(Audio_state *audio_state, Playing_sound *sound, f32 d_sample) {
   sound->d_sample = d_sample;
 }
 
-internal
+static
 Playing_sound*
 play_sound(Audio_state *audio_state, Sound_id sound_id, v2 volume = v2_one) {
   

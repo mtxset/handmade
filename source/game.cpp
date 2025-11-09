@@ -13,7 +13,7 @@
 #define RUN_RAY
 #endif
 
-internal
+static
 void
 clear_screen(Loaded_bmp* bitmap_buffer, u32 color) {
   // 8 bit pointer to the beginning of the memory
@@ -29,10 +29,10 @@ clear_screen(Loaded_bmp* bitmap_buffer, u32 color) {
   }
 }
 
-internal
+static
 void
 render_255_gradient(Loaded_bmp* bitmap_buffer, i32 blue_offset, i32 green_offset) {
-  local_persist i32 offset = 1;
+  static i32 offset = 1;
   auto row = (u8*)bitmap_buffer->memory;
   
   clear_screen(bitmap_buffer, color_gray_byte);
@@ -59,7 +59,7 @@ render_255_gradient(Loaded_bmp* bitmap_buffer, i32 blue_offset, i32 green_offset
     row += bitmap_buffer->pitch;
   }
   
-  local_persist bool go_up = true;
+  static bool go_up = true;
   i32 step = 1;
   
   if (go_up)
@@ -74,7 +74,7 @@ render_255_gradient(Loaded_bmp* bitmap_buffer, i32 blue_offset, i32 green_offset
     go_up = true;
 }
 
-internal
+static
 void
 debug_read_and_write_random_file() {
   auto bitmap_read = platform.debug_read_entire_file(__FILE__);
@@ -84,7 +84,7 @@ debug_read_and_write_random_file() {
   }
 }
 
-internal
+static
 void
 draw_pixel(Loaded_bmp* bitmap_buffer, v2 pos, v4 color) {
   v2 end = { pos.x, pos.y };
@@ -105,7 +105,7 @@ draw_pixel(Loaded_bmp* bitmap_buffer, v2 pos, v4 color) {
   draw_rect_old(bitmap_buffer, pos, end, color);
 }
 
-internal
+static
 void
 draw_circle(Loaded_bmp* bitmap_buffer, v2 start, f32 radius, v4 color) {
   // y = sin (angle) * r
@@ -119,7 +119,7 @@ draw_circle(Loaded_bmp* bitmap_buffer, v2 start, f32 radius, v4 color) {
   }
 }
 
-internal
+static
 void
 draw_line(Loaded_bmp* bitmap_buffer, v2 start, v2 end, v4 color, u32 points = 100) {
   f32 dx = end.x - start.x;
@@ -137,7 +137,7 @@ draw_line(Loaded_bmp* bitmap_buffer, v2 start, v2 end, v4 color, u32 points = 10
   }
 }
 
-internal
+static
 void
 vectors_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) {
   clear_screen(bitmap_buffer, color_black_byte);
@@ -216,7 +216,7 @@ int mandelbrot(f32 cx, f32  cy) {
   }
 }
 
-internal
+static
 void
 sin_cos_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) {
   clear_screen(bitmap_buffer, color_black_byte);
@@ -312,7 +312,7 @@ sin_cos_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) 
   }
 }
 
-internal
+static
 void
 each_pixel(Loaded_bmp* bitmap_buffer, Game_state* state, f32 time_delta) {
   clear_screen(bitmap_buffer, color_black_byte);
@@ -336,7 +336,7 @@ each_pixel(Loaded_bmp* bitmap_buffer, Game_state* state, f32 time_delta) {
   draw_pixel(bitmap_buffer, v2 { pixel_state->x, pixel_state->y }, red_v4);
 }
 
-internal
+static
 void
 drops_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) {
   
@@ -407,7 +407,7 @@ drops_update(Loaded_bmp* bitmap_buffer, Game_state* state, Game_input* input) {
 #endif
 
 
-internal
+static
 void
 subpixel_test_update(Loaded_bmp* buffer, Game_state* game_state, Game_input* input, v3 color) {
   
@@ -463,7 +463,7 @@ subpixel_test_update(Loaded_bmp* buffer, Game_state* game_state, Game_input* inp
   *pixel_two = color_hex;
 }
 
-internal
+static
 Add_low_entity_result
 add_low_entity(Game_state* game_state, Entity_type type, World_position pos) {
   assert(game_state->low_entity_count < array_count(game_state->low_entity_list));
@@ -485,7 +485,7 @@ add_low_entity(Game_state* game_state, Entity_type type, World_position pos) {
   return result;
 }
 
-internal
+static
 void
 init_hit_points(Low_entity* entity_low, u32 hit_point_count) {
   assert(hit_point_count <= array_count(entity_low->sim.hit_point));
@@ -498,7 +498,7 @@ init_hit_points(Low_entity* entity_low, u32 hit_point_count) {
   }
 }
 
-internal 
+static 
 Add_low_entity_result
 add_grounded_entity(Game_state* game_state, Entity_type type, World_position pos, Sim_entity_collision_group* collision)
 {
@@ -508,7 +508,7 @@ add_grounded_entity(Game_state* game_state, Entity_type type, World_position pos
   return entity;
 }
 
-internal
+static
 World_position
 chunk_pos_from_tile_pos(World* world, i32 abs_tile_x, i32 abs_tile_y, i32 abs_tile_z, v3 additional_offset = v3{0,0,0}) {
   
@@ -528,7 +528,7 @@ chunk_pos_from_tile_pos(World* world, i32 abs_tile_x, i32 abs_tile_y, i32 abs_ti
   return result;
 }
 
-internal
+static
 Add_low_entity_result
 add_std_room(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
   
@@ -540,7 +540,7 @@ add_std_room(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_til
   return entity;
 }
 
-internal
+static
 Add_low_entity_result
 add_sword(Game_state* game_state) {
   Add_low_entity_result entity = add_low_entity(game_state, Entity_type_sword, null_position());
@@ -551,7 +551,7 @@ add_sword(Game_state* game_state) {
   return entity;
 }
 
-internal
+static
 Add_low_entity_result
 add_player(Game_state* game_state) {
   
@@ -572,7 +572,7 @@ add_player(Game_state* game_state) {
   return entity;
 }
 
-internal
+static
 Add_low_entity_result
 add_monster(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
   
@@ -586,7 +586,7 @@ add_monster(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile
   return entity;
 }
 
-internal
+static
 Add_low_entity_result
 add_familiar(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
   
@@ -598,7 +598,7 @@ add_familiar(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_til
   return entity;
 }
 
-internal
+static
 Add_low_entity_result
 add_wall(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
   
@@ -610,7 +610,7 @@ add_wall(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z)
   return entity;
 }
 
-internal
+static
 Add_low_entity_result
 add_stairs(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_z) {
   
@@ -629,7 +629,7 @@ add_stairs(Game_state* game_state, u32 abs_tile_x, u32 abs_tile_y, u32 abs_tile_
 #include "ray.h"
 extern "C"
 void game_update_render(thread_context* thread, Game_memory* memory, Game_input* input, Game_bitmap_buffer* bitmap_buffer) {
-  local_persist u32 counter = 120;
+  static u32 counter = 120;
   if (counter++ >= 120) {
     clear_screen(bitmap_buffer, color_gray_byte);
     counter = 0;
@@ -705,7 +705,7 @@ make_simple_grounded_collision(Game_state* game_state, v3 dim) {
   return group;
 }
 
-internal
+static
 Task_with_memory*
 begin_task_with_mem(Transient_state *tran_state) {
   
@@ -725,7 +725,7 @@ begin_task_with_mem(Transient_state *tran_state) {
   return found_task;
 }
 
-internal
+static
 void
 end_task_with_mem(Task_with_memory *task) {
   end_temp_memory(task->memory_flush);
@@ -743,7 +743,7 @@ struct Fill_ground_chunk_work {
   Task_with_memory *task;
 };
 
-internal
+static
 PLATFORM_WORK_QUEUE_CALLBACK(fill_ground_chunk_work) {
   
   timed_function();
@@ -844,7 +844,7 @@ PLATFORM_WORK_QUEUE_CALLBACK(fill_ground_chunk_work) {
   end_task_with_mem(work->task);
 }
 
-internal
+static
 void
 fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_buffer* ground_buffer, World_position* chunk_pos) {
   
@@ -867,7 +867,7 @@ fill_ground_chunk(Transient_state* tran_state, Game_state* game_state, Ground_bu
   
 }
 
-internal
+static
 void
 clear_bitmap(Loaded_bmp* bitmap) {
   if (bitmap->memory) {
@@ -877,7 +877,7 @@ clear_bitmap(Loaded_bmp* bitmap) {
   }
 }
 
-internal
+static
 Loaded_bmp
 make_empty_bitmap(Memory_arena* arena, i32 width, i32 height, bool clear_to_zero = true) {
   Loaded_bmp result = {};
@@ -901,7 +901,7 @@ make_empty_bitmap(Memory_arena* arena, i32 width, i32 height, bool clear_to_zero
   return result;
 }
 
-internal
+static
 void
 make_pyramid_normal_map(Loaded_bmp* bitmap, f32 roughness) {
   
@@ -956,7 +956,7 @@ make_pyramid_normal_map(Loaded_bmp* bitmap, f32 roughness) {
   }
 }
 
-internal
+static
 void
 make_sphere_diffuse_map(Loaded_bmp* bitmap, f32 cx = 1.0f, f32 cy = 1.0f) {
   
@@ -1004,7 +1004,7 @@ make_sphere_diffuse_map(Loaded_bmp* bitmap, f32 cx = 1.0f, f32 cy = 1.0f) {
 }
 
 
-internal
+static
 void
 make_sphere_normal_map(Loaded_bmp* bitmap, f32 roughness, f32 cx = 1.0f, f32 cy = 1.0f) {
   
@@ -1052,7 +1052,7 @@ make_sphere_normal_map(Loaded_bmp* bitmap, f32 roughness, f32 cx = 1.0f, f32 cy 
   }
 }
 
-internal
+static
 void
 make_cylinder_normal_map_x(Loaded_bmp* bitmap, f32 roughness) {
   
@@ -1104,7 +1104,7 @@ make_cylinder_normal_map_x(Loaded_bmp* bitmap, f32 roughness) {
 Game_memory* debug_global_memory;
 #endif
 
-internal
+static
 void
 bezier_curves(Loaded_bmp* draw_buffer, Game_input* input, Game_state* game_state) {
   auto input_state = get_gamepad(input, 0);
@@ -1663,6 +1663,8 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *b
   
   Temp_memory render_memory = begin_temp_memory(&tran_state->arena);
   
+  v2 mouse_pos = V2(input->mouse_x, input->mouse_y);
+  
   bool render_in_background = false;
   Render_group* render_group = allocate_render_group(tran_state->asset_list, &tran_state->arena, megabytes(4), render_in_background);
   begin_render(render_group);
@@ -1941,6 +1943,12 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *b
         
       }
       
+      
+      if (!is_set(entity, Entity_flag_non_spatial) &&
+          is_set(entity, Entity_flag_moveable)) {
+        move_entity(game_state, sim_region, entity, input->time_delta, &move_spec, ddp);
+      }
+      
       render_group->transform.offset_pos = get_entity_ground_point(entity);
       
       // post physics
@@ -2017,11 +2025,39 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *b
         
       }
       
-      
-      if (!is_set(entity, Entity_flag_non_spatial) &&
-          is_set(entity, Entity_flag_moveable)) {
-        move_entity(game_state, sim_region, entity, input->time_delta, &move_spec, ddp);
+#if DEBUG_UI_draw_all_entity_outlines
+      bool show_all_volumes = true;
+      if (show_all_volumes) {
+        for (u32 volume_index = 0; volume_index < entity->collision->volume_count; volume_index++) {
+          Sim_entity_collision_volume* volume = entity->collision->volume_list + volume_index;
+          
+          push_rect_outline(render_group, volume->offset_pos - v3{0,0,0.5f*volume->dim.z}, volume->dim.xy, red_v4);
+        }
       }
+#endif 
+      
+#if DEBUG_UI_draw_entity_outlines
+      
+      v3 local_mouse_pos = unproject(render_group, mouse_pos);
+      push_rect(render_group, V3(local_mouse_pos.xy, 0), V2(.1,.1), cyan_v4);
+      //push_rect(render_group, V3(mouse_pos, 0), V2(1,1), red_v4);
+      
+      for (u32 volume_index = 0; volume_index < entity->collision->volume_count; volume_index++) {
+        Sim_entity_collision_volume *volume = entity->collision->volume_list + volume_index;
+        
+        bool over_entity = (local_mouse_pos.x > -.5f*volume->dim.x && 
+                            local_mouse_pos.x < +.5f*volume->dim.x &&
+                            local_mouse_pos.y > -.5f*volume->dim.y && 
+                            local_mouse_pos.y < +.5f*volume->dim.y);
+        
+        if (over_entity) {
+          v4 outline_color = yellow_v4;
+          
+          push_rect_outline(render_group, volume->offset_pos - V3(0,0, .5f*volume->dim.z), volume->dim.xy, outline_color, _(thickness).05f);
+        }
+      }
+      
+#endif
       
     }
   }

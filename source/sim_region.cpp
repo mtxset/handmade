@@ -9,7 +9,7 @@ store_entity_ref(Entity_ref* ref) {
   }
 }
 
-internal
+static
 Sim_entity_hash* 
 get_hash_from_storage_index(Sim_region* sim_region, u32 storage_index) {
   assert(storage_index);
@@ -32,7 +32,7 @@ get_hash_from_storage_index(Sim_region* sim_region, u32 storage_index) {
   return result;
 }
 
-internal
+static
 void
 map_storage_index_to_entity(Sim_region* sim_region, u32 storage_index, Sim_entity* entity) {
   Sim_entity_hash* entry = get_hash_from_storage_index(sim_region, storage_index);
@@ -73,7 +73,7 @@ entity_overlaps_rect(v3 pos, Sim_entity_collision_volume volume, Rect3 rect) {
   return result;
 }
 
-internal
+static
 Sim_entity* 
 add_entity(Game_state* game_state, Sim_region* sim_region, u32 storage_index, Low_entity* source, v3* simulation_pos);
 
@@ -96,7 +96,7 @@ load_entity_ref(Game_state* game_state, Sim_region* sim_region, Entity_ref* ref)
   ref->pointer = entry->pointer;
 }
 
-internal
+static
 Sim_entity* 
 add_entity_raw(Game_state* game_state, Sim_region* sim_region, u32 storage_index, Low_entity* source) {
   
@@ -134,7 +134,7 @@ add_entity_raw(Game_state* game_state, Sim_region* sim_region, u32 storage_index
   return entity;
 }
 
-internal
+static
 Sim_entity* 
 add_entity(Game_state* game_state, Sim_region* sim_region, u32 storage_index, Low_entity* source, v3* simulation_pos) {
   
@@ -152,7 +152,7 @@ add_entity(Game_state* game_state, Sim_region* sim_region, u32 storage_index, Lo
   return dest;
 }
 
-internal
+static
 Sim_region*
 begin_sim(Memory_arena* sim_arena, Game_state* game_state, World* world, World_position origin, Rect3 bounds, f32 dt) {
   
@@ -207,7 +207,7 @@ begin_sim(Memory_arena* sim_arena, Game_state* game_state, World* world, World_p
   return sim_region;
 }
 
-internal
+static
 void
 end_sim(Sim_region* region, Game_state* game_state) {
   
@@ -270,7 +270,7 @@ struct Test_wall {
   v3 normal;
 };
 
-internal
+static
 bool 
 test_wall(f32 wall_x, f32 rel_x, f32 rel_y, f32 player_delta_x, f32 player_delta_y, f32* t_min, f32 min_y, f32 max_y) {
   
@@ -295,7 +295,7 @@ test_wall(f32 wall_x, f32 rel_x, f32 rel_y, f32 player_delta_x, f32 player_delta
   return hit;
 }
 
-internal
+static
 void
 add_collision_rule(Game_state* game_state, u32 storage_index_a, u32 storage_index_b, bool can_collide) {
   
@@ -335,7 +335,7 @@ add_collision_rule(Game_state* game_state, u32 storage_index_a, u32 storage_inde
   }
 }
 
-internal
+static
 bool
 handle_collision(Game_state* game_state, Sim_entity* a_entity, Sim_entity* b_entity) {
   bool stops_on_collision = false;
@@ -362,7 +362,7 @@ handle_collision(Game_state* game_state, Sim_entity* a_entity, Sim_entity* b_ent
   return stops_on_collision;
 }
 
-internal
+static
 void
 clear_collision_rule(Game_state* game_state, u32 storage_index) {
   for (u32 hash_bucket = 0; hash_bucket < array_count(game_state->collision_rule_hash); hash_bucket++) {
@@ -384,7 +384,7 @@ clear_collision_rule(Game_state* game_state, u32 storage_index) {
   }
 }
 
-internal
+static
 bool
 can_collide(Game_state* game_state, Sim_entity* a_entity, Sim_entity* b_entity) {
   bool result = false;
@@ -416,7 +416,7 @@ can_collide(Game_state* game_state, Sim_entity* a_entity, Sim_entity* b_entity) 
   return result;
 }
 
-internal
+static
 bool
 can_overlap(Game_state* game_state, Sim_entity* mover, Sim_entity* region) {
   bool result = false;
@@ -430,7 +430,7 @@ can_overlap(Game_state* game_state, Sim_entity* mover, Sim_entity* region) {
   return result;
 }
 
-internal
+static
 void
 handle_overlap(Game_state* game_state, Sim_entity* mover, Sim_entity* region, f32 time_delta, f32* ground) {
   if (region->type == Entity_type_stairwell) {
@@ -438,7 +438,7 @@ handle_overlap(Game_state* game_state, Sim_entity* mover, Sim_entity* region, f3
   }
 }
 
-internal
+static
 bool
 speculative_collide(Sim_entity* mover, Sim_entity* region, v3 test_pos) {
   
@@ -461,7 +461,7 @@ speculative_collide(Sim_entity* mover, Sim_entity* region, v3 test_pos) {
   return result;
 }
 
-internal
+static
 bool
 entities_overlap(Sim_entity* entity, Sim_entity* test_entity, v3 epsilon = v3{0,0,0}) {
   
@@ -493,7 +493,7 @@ entities_overlap(Sim_entity* entity, Sim_entity* test_entity, v3 epsilon = v3{0,
   return overlapped;
 }
 
-internal
+static
 void
 move_entity(Game_state* game_state, Sim_region* sim_region, Sim_entity* entity, f32 time_delta, Move_spec* move_spec, v3 player_acceleration_dd) {
   

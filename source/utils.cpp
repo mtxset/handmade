@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include "types.h"
 
-internal
+static
 void
 win32_debug_msg(char* format, ...) {
   va_list args;

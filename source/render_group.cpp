@@ -191,9 +191,8 @@ push_rect(Render_group *group, Rect2 rect, f32 z, v4 color = white_v4) {
 
 inline
 void
-push_rect_outline(Render_group* group, v3 offset, v2 dim, v4 color = white_v4) {
+push_rect_outline(Render_group* group, v3 offset, v2 dim, v4 color = white_v4, f32 thickness = 0.1f) {
   
-  f32 thickness = 0.1f;
   push_rect(group, offset - v3{0, 0.5f * dim.y, 0}, v2{dim.x, thickness}, color);
   push_rect(group, offset + v3{0, 0.5f * dim.y, 0} ,v2{dim.x, thickness}, color);
   
@@ -201,7 +200,7 @@ push_rect_outline(Render_group* group, v3 offset, v2 dim, v4 color = white_v4) {
   push_rect(group, offset + v3{0.5f * dim.x, 0, 0}, v2{thickness, dim.y}, color);
 }
 
-internal
+static
 void
 draw_rect_old(Loaded_bmp* buffer, v2 start, v2 end, v4 color) {
   timed_function();
@@ -230,7 +229,7 @@ draw_rect_old(Loaded_bmp* buffer, v2 start, v2 end, v4 color) {
   }
 }
 
-internal
+static
 void
 draw_rect(Loaded_bmp* buffer, v2 v_min, v2 v_max, v4 color, Rect2i clip_rect, bool even) {
   
@@ -362,7 +361,7 @@ distance_from_map_z - how far the map is from sample point in z, in meters
   return result;
 }
 
-internal
+static
 void
 draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Loaded_bmp* bitmap, Loaded_bmp* normal_map, Env_map* top, Env_map* middle, Env_map* bottom, f32 pixel_to_meter) {
   timed_function();
@@ -589,7 +588,7 @@ draw_rect_slow(Loaded_bmp* buffer, v2 origin, v2 x_axis, v2 y_axis, v4 color, Lo
   
 }
 
-internal
+static
 void
 change_saturation(Loaded_bmp* bitmap_buffer, f32 level) {
   
@@ -633,7 +632,7 @@ change_saturation(Loaded_bmp* bitmap_buffer, f32 level) {
   }
 }
 
-internal
+static
 void
 draw_bitmap(Loaded_bmp* bitmap_buffer, Loaded_bmp* bitmap, v2 start, f32 c_alpha = 1.0f) {
   
@@ -734,7 +733,7 @@ draw_bitmap(Loaded_bmp* bitmap_buffer, Loaded_bmp* bitmap, v2 start, f32 c_alpha
   }
 }
 
-internal
+static
 void
 render_group_to_output(Render_group* render_group, Loaded_bmp* output_target, Rect2i clip_rect, bool even) {
   
@@ -843,7 +842,7 @@ struct Tile_render_work
   Rect2i clip_rect;
 };
 
-internal
+static
 PLATFORM_WORK_QUEUE_CALLBACK(do_tile_render_work)
 {
   Tile_render_work *work = (Tile_render_work*)data;
@@ -855,7 +854,7 @@ PLATFORM_WORK_QUEUE_CALLBACK(do_tile_render_work)
   render_group_to_output(work->render_group, work->output_target, work->clip_rect, not_even);
 }
 
-internal
+static
 void
 render_group_to_output(Render_group *render_group, Loaded_bmp *output_target) {
   
@@ -880,7 +879,7 @@ render_group_to_output(Render_group *render_group, Loaded_bmp *output_target) {
 }
 
 
-internal
+static
 void
 tiled_render_group_to_output(Platform_work_queue *render_queue, 
                              Render_group *render_group, Loaded_bmp *output_target) {
@@ -934,7 +933,7 @@ tiled_render_group_to_output(Platform_work_queue *render_queue,
   platform.complete_all_work(render_queue);
 }
 
-internal
+static
 Render_group*
 allocate_render_group(Game_asset_list *asset_list, Memory_arena* arena, u32 max_push_buffer_size, bool renders_in_background) {
   
@@ -980,11 +979,10 @@ perspective(Render_group *render_group, u32 pixel_width, u32 pixel_height, f32 m
   render_group->transform.meters_to_pixels = meters_to_pixels;
   render_group->transform.focal_length = focal_length;
   render_group->transform.dist_above_target = dist_above_target;
-  render_group->transform.screen_center = {
-    0.5f * pixel_width,
-    0.5f * pixel_height 
-  };
+  render_group->transform.screen_center = V2(0.5f * pixel_width, 0.5f * pixel_height);
   render_group->transform.orthographic = false;
+  render_group->transform.offset_pos = v3_zero;
+  render_group->transform.scale = 1.0f;
 }
 
 inline
@@ -1001,11 +999,10 @@ ortographic(Render_group *render_group, u32 pixel_width, u32 pixel_height, f32 m
   render_group->transform.meters_to_pixels = meters_to_pixels;
   render_group->transform.focal_length = 1.0f;
   render_group->transform.dist_above_target = 1.0f;
-  render_group->transform.screen_center = {
-    0.5f * pixel_width,
-    0.5f * pixel_height 
-  };
+  render_group->transform.screen_center = V2(0.5f * pixel_width, 0.5f * pixel_height);
   render_group->transform.orthographic = true;
+  render_group->transform.offset_pos = v3_zero;
+  render_group->transform.scale = 1.0f;
 }
 
 inline
@@ -1059,20 +1056,43 @@ push_coord_system(Render_group* group, v2 origin, v2 x_axis, v2 y_axis, v4 color
 }
 
 inline
-v2
-unproject(Render_group* render_group, v2 projected_xy, f32 at_dist_from_cam) {
-  v2 raw_xy = (at_dist_from_cam / render_group->transform.focal_length) * projected_xy;
+v3
+unproject(Render_group* render_group, v2 pixels_xy) {
   
-  return raw_xy;
+  Render_transform *transform = &render_group->transform;
+  
+  v2 unprojected;
+  
+  if (transform->orthographic) {
+    unprojected = (1.0f / transform->meters_to_pixels) * (pixels_xy - transform->screen_center);
+  }
+  else {
+    v2 a = (pixels_xy - transform->screen_center) * (1.0f / transform->meters_to_pixels);
+    unprojected = ((transform->dist_above_target - transform->offset_pos.z) / transform->focal_length) * a;
+  }
+  
+  v3 result = V3(unprojected, transform->offset_pos.z);
+  result -= transform->offset_pos;
+  
+  return result;
+}
+
+inline
+v2
+unproject_old(Render_group *render_group, v2 projected_xy, f32 at_dist_from_cam) {
+  
+  v2 world_xy = (at_dist_from_cam / render_group->transform.focal_length) * projected_xy;
+  
+  return world_xy;
 }
 
 inline
 Rect2 
-get_cam_rect_at_z(Render_group* group, f32 dist_from_cam) {
+get_cam_rect_at_distance(Render_group* group, f32 dist_from_cam) {
   
   Rect2 result;
   
-  v2 raw_xy = unproject(group, group->monitor_half_dim_meters, dist_from_cam);
+  v2 raw_xy = unproject_old(group, group->monitor_half_dim_meters, dist_from_cam);
   
   result = rect_center_half_dim(v2{0,0}, raw_xy);
   
@@ -1082,9 +1102,7 @@ get_cam_rect_at_z(Render_group* group, f32 dist_from_cam) {
 inline
 Rect2
 get_cam_rect_at_target(Render_group* group) {
-  Rect2 result;
-  
-  result = get_cam_rect_at_z(group, group->transform.dist_above_target);
+  Rect2 result =get_cam_rect_at_distance(group, group->transform.dist_above_target);
   
   return result;
 }

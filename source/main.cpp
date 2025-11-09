@@ -1,4 +1,5 @@
-// https://youtu.be/FvWcZ9Tti2k?t=3022
+// https://youtu.be/3RPdhDditMY?t=41
+// https://youtu.be/FkDJL8zmVFY?t=1404 unprojecting mouse
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include "types.h"
@@ -170,7 +171,7 @@ debug_write_entire_file(char* file_name, u32 memory_size, void* memory) {
   return false;
 }
 
-internal
+static
 void
 win32_get_exe_filename(Win32_state* win_state) {
   auto current_file_name_size = GetModuleFileNameA(0, win_state->exe_file_name, sizeof(win_state->exe_file_name));
@@ -199,14 +200,14 @@ string_concat(size_t src_a_count, char* src_a, size_t src_b_count, char* src_b, 
   *dest++ = 0;
 }
 
-internal
+static
 void
 win32_build_exe_filename(Win32_state* win_state, char* filename, i32 dest_count, char* dest) {
   string_concat(win_state->last_slash - win_state->exe_file_name, win_state->exe_file_name, 
                 string_len(filename), filename, dest_count, dest);
 }
 
-internal
+static
 void
 win32_get_input_file_location(Win32_state* win_state, i32 index, i32 dest_count, char* dest) {
   char* file_name = "game.input";
@@ -216,7 +217,7 @@ win32_get_input_file_location(Win32_state* win_state, i32 index, i32 dest_count,
 // disgusting
 #include "record_memory.cpp"
 
-internal
+static
 void
 win32_init_direct_sound(HWND window, i32 samples_per_second, i32 buffer_size) {
   // NOTE: Load the library
@@ -281,7 +282,7 @@ win32_init_direct_sound(HWND window, i32 samples_per_second, i32 buffer_size) {
   }
 }
 
-internal
+static
 void
 win32_clear_sound_buffer(Win32_sound_output* sound_output) {
   void* region_one;
@@ -309,7 +310,7 @@ win32_clear_sound_buffer(Win32_sound_output* sound_output) {
   Global_sound_buffer->Unlock(region_one, region_one_size, region_two, region_two_size);
 }
 
-internal
+static
 void
 win32_fill_sound_buffer(Win32_sound_output* sound_output, DWORD bytes_to_lock, DWORD bytes_to_write, Game_sound_buffer* source_buffer) {
   void* region_one;
@@ -348,7 +349,7 @@ win32_fill_sound_buffer(Win32_sound_output* sound_output, DWORD bytes_to_lock, D
   Global_sound_buffer->Unlock(region_one, region_one_size, region_two, region_two_size);
 }
 
-internal
+static
 f32
 win32_xinput_cutoff_deadzone(SHORT thumb_value) {
   f32 result = 0;
@@ -362,7 +363,7 @@ win32_xinput_cutoff_deadzone(SHORT thumb_value) {
   return result;
 }
 
-internal
+static
 FILETIME
 win32_get_last_write_time(char* filename) {
   FILETIME result = {};
@@ -375,7 +376,7 @@ win32_get_last_write_time(char* filename) {
   return result;
 }
 
-internal
+static
 Win32_game_code
 win32_load_game_code(char* source_dll_filepath, char* source_temp_filepath, char* lock_filepath) {
   Win32_game_code result = {};
@@ -411,7 +412,7 @@ win32_load_game_code(char* source_dll_filepath, char* source_temp_filepath, char
   return result;
 }
 
-internal
+static
 void
 win32_unload_game_code(Win32_game_code* game_code) {
   if (game_code->game_code_dll) {
@@ -425,7 +426,7 @@ win32_unload_game_code(Win32_game_code* game_code) {
   game_code->debug_frame_end   = 0;
 }
 
-internal
+static
 bool
 win32_load_xinput() {
   // looks locally, looks in windows
@@ -451,7 +452,7 @@ win32_load_xinput() {
   return true;
 }
 
-internal
+static
 Win32_window_dimensions
 get_window_dimensions(HWND window) {
   
@@ -467,7 +468,7 @@ get_window_dimensions(HWND window) {
 }
 
 // DIB - device independant section
-internal
+static
 void
 win32_resize_dib_section(Win32_bitmap_buffer* bitmap_buffer, i32 width, i32 height) {
   
@@ -493,7 +494,7 @@ win32_resize_dib_section(Win32_bitmap_buffer* bitmap_buffer, i32 width, i32 heig
   bitmap_buffer->memory = VirtualAlloc(0, bitmap_memory_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 }
 
-internal
+static
 void
 win32_display_buffer_to_window(Win32_bitmap_buffer* bitmap_buffer, HDC device_context, i32 window_width, i32 window_height) {
 #if 0
@@ -566,14 +567,14 @@ win32_display_buffer_to_window(Win32_bitmap_buffer* bitmap_buffer, HDC device_co
 #endif
 }
 
-internal
+static
 void
 win32_process_xinput_button(DWORD xinput_button_state, DWORD button_bit, Game_button_state* old_state, Game_button_state* new_state) {
   new_state->ended_down = (xinput_button_state & button_bit) == button_bit;
   new_state->half_transition_count = old_state->ended_down != new_state->ended_down ? 1 : 0;
 }
 
-internal
+static
 void
 win32_process_keyboard_input(Game_button_state* new_state, bool is_down) {
   if (new_state->ended_down != is_down){ 
@@ -588,7 +589,7 @@ win32_process_keyboard_input(Game_button_state* new_state, bool is_down) {
     * this will just set window to take "fullscreen" but it won't be able to affect refresh rate
 * for that use: ChangeDisplaySettings
 */
-internal
+static
 void
 toggle_fullscreen(HWND window_handle) {
   DWORD style = GetWindowLong(window_handle, GWL_STYLE);
@@ -621,7 +622,7 @@ toggle_fullscreen(HWND window_handle) {
   }
 }
 
-internal
+static
 void 
 win32_handle_messages(Win32_state* win_state, Game_controller_input* keyboard_input) {
   MSG message;
@@ -771,7 +772,7 @@ win32_get_seconds_elapsed(LARGE_INTEGER start, LARGE_INTEGER end) {
   return (f32)(end.QuadPart - start.QuadPart) / Global_perf_freq;
 }
 
-internal 
+static 
 void 
 win32_debug_draw_vertical_line(Win32_bitmap_buffer* backbuffer, i32 x, i32 top, i32 bottom, u32 color) {
   
@@ -871,7 +872,7 @@ win32_debug_sync_display(Win32_bitmap_buffer* backbuffer, i32 marker_count, i32 
   }
 }
 
-internal
+static
 HWND
 create_default_window(LRESULT win32_window_processor, HINSTANCE current_instance, char* class_name) {
   
@@ -904,7 +905,7 @@ create_default_window(LRESULT win32_window_processor, HINSTANCE current_instance
 }
 
 #if 0
-internal
+static
 void
 handle_debug_cycle_count(Game_memory* memory) {
 #if INTERNAL
@@ -957,7 +958,7 @@ struct String_entry {
   char *str;
 };
 
-internal
+static
 void
 win32_add_entry(Platform_work_queue *queue, Platform_work_queue_callback *callback, void *data) {
   u32 new_entry_to_write = (queue->next_entry_to_write + 1) % array_count(queue->entry_list);
@@ -980,7 +981,7 @@ win32_add_entry(Platform_work_queue *queue, Platform_work_queue_callback *callba
   ReleaseSemaphore(queue->semaphore, 1, 0);
 }
 
-internal
+static
 bool
 win32_do_next_work_q_entry(Platform_work_queue *queue) {
   bool we_should_sleep = false;
@@ -1130,7 +1131,7 @@ win32_get_all_files_of_type_end(Platform_file_group *file_group) {
   }
 }
 
-internal
+static
 void
 win32_complete_all_work(Platform_work_queue* queue) {
   while (queue->completion_goal != queue->completion_count) {
@@ -1141,7 +1142,7 @@ win32_complete_all_work(Platform_work_queue* queue) {
   queue->completion_goal = 0;
 }
 
-internal
+static
 PLATFORM_WORK_QUEUE_CALLBACK(do_worker_work) {
   
   char buffer[256];
@@ -1169,7 +1170,7 @@ convert_to_wchar(char* str) {
   //return wide_string;
 }
 
-internal
+static
 void
 win32_make_queue(Platform_work_queue *queue, u32 thread_count) {
   
@@ -1505,8 +1506,10 @@ main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLinePa
       // we need to call screen to client because mouse positions we're getting are global, but our window's position is not aligned
       ScreenToClient(window_handle, &mouse_pos);
       
-      new_input->mouse_x = (-.5f * (f32)Global_backbuffer.width  + .5f) + (f32)mouse_pos.x;
-      new_input->mouse_y = (+.5f * (f32)Global_backbuffer.height - .5f) - (f32)mouse_pos.y;
+      new_input->mouse_x = (f32)mouse_pos.x;
+      new_input->mouse_y = (f32)(Global_backbuffer.height - 1) - (f32)mouse_pos.y;
+      
+      //NewInput->MouseY = (r32)((GlobalBackbuffer.Height - 1) - MouseP.y);
       
       DWORD win_button_id[Game_input_mouse_button_count] = {
         VK_LBUTTON,

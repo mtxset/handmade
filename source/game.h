@@ -203,7 +203,7 @@ struct Transient_state {
   Game_asset_list *asset_list;
 };
 
-internal
+static
 Low_entity* get_low_entity(Game_state* game_state, u32 index) {
   Low_entity* entity = 0;
   
@@ -214,8 +214,8 @@ Low_entity* get_low_entity(Game_state* game_state, u32 index) {
   return entity;
 }
 
-internal Task_with_memory* begin_task_with_mem(Transient_state *tran_state);
-internal void end_task_with_mem(Task_with_memory *task);
+static Task_with_memory* begin_task_with_mem(Transient_state *tran_state);
+static void end_task_with_mem(Task_with_memory *task);
 
 static Platform_api platform;
 

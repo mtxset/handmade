@@ -1069,7 +1069,7 @@ debug_end(Debug_state *debug_state, Game_input *input, Loaded_bmp *draw_buffer) 
   mem_zero_struct(debug_state->next_hot_interaction);
   Debug_record *hot_record = 0;
   
-  v2 mouse_pos = V2(input->mouse_x, input->mouse_y);
+  v2 mouse_pos = unproject(debug_state->render_group, V2(input->mouse_x, input->mouse_y)).xy;
   debug_draw_main_menu(debug_state, render_group, mouse_pos);
   debug_interact(debug_state, input, mouse_pos);
   

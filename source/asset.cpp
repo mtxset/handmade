@@ -73,7 +73,7 @@ load_asset_work_directly(Load_asset_work *work) {
   work->asset->state = work->final_state;
 }
 
-internal 
+static 
 PLATFORM_WORK_QUEUE_CALLBACK(load_asset_work) {
   
   Load_asset_work *work = (Load_asset_work*)data;
@@ -475,7 +475,7 @@ load_sound(Game_asset_list *asset_list, Sound_id id) {
   }
 }
 
-internal
+static
 u32
 get_best_match_asset_from(Game_asset_list *asset_list, Asset_type_id type_id, Asset_vector *match_vector, Asset_vector *weight_vector) {
   
@@ -511,7 +511,7 @@ get_best_match_asset_from(Game_asset_list *asset_list, Asset_type_id type_id, As
   return result;
 }
 
-internal
+static
 u32
 get_random_slot_from(Game_asset_list *asset_list, Asset_type_id type_id, Random_series *series) {
   u32 result = 0;
@@ -528,7 +528,7 @@ get_random_slot_from(Game_asset_list *asset_list, Asset_type_id type_id, Random_
   return result;
 }
 
-internal
+static
 u32
 get_first_slot_from(Game_asset_list* asset_list, Asset_type_id type_id) {
   
@@ -659,7 +659,7 @@ get_starting_baseline_y(Hha_font *info) {
   return result;
 }
 
-internal
+static
 Game_asset_list*
 allocate_game_asset_list(Memory_arena *arena, size_t size, Transient_state *tran_state) {
   

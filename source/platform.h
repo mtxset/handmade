@@ -32,11 +32,11 @@
 
 #define BITMAP_BYTES_PER_PIXEL 4
 
-global_var f32 MAX_F32 = 3.402823466e+38F;
-global_var f32 MIN_F32 = 1.175494351e-38F;
+static f32 MAX_F32 = 3.402823466e+38F;
+static f32 MIN_F32 = 1.175494351e-38F;
 
-global_var const float PI = 3.14159265358979323846f;
-global_var const float TAU = 6.28318530717958647692f;;
+static const float PI = 3.14159265358979323846f;
+static const float TAU = 6.28318530717958647692f;;
 
 #ifndef max
 #define max(a,b) (((a) > (b)) ? (a) : (b))

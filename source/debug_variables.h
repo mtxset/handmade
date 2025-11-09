@@ -163,6 +163,13 @@ debug_create_vars(Debug_var_definition_context *ctx) {
 #define debug_variable_listing(name) debug_add_var(ctx, #name, DEBUG_UI_##name);
   
   {
+    debug_begin_variable_group(ctx, "entities");
+    debug_variable_listing(draw_entity_outlines);
+    debug_variable_listing(draw_all_entity_outlines);
+    debug_end_variable_group(ctx);
+  }
+  
+  {
     debug_begin_variable_group(ctx, "chunks");
     debug_variable_listing(ground_chunks_outlines);
     debug_variable_listing(ground_chunk_checker_board);

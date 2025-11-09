@@ -25,11 +25,4 @@ typedef uintptr_t          uintptr;
 
 #define _(x)
 
-#if !defined(internal)
-#define internal static
-#endif
-
-#define global_var static
-#define local_persist static
-
 #endif //TYPES_H

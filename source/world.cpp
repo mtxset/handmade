@@ -1,9 +1,9 @@
 
 #include "stdint.h"
 
-global_var const i32 TILE_CHUNK_SAFE_MARGIN = (INT32_MAX / 64);
-global_var const i32 TILE_CHUNK_UNINITIALIZED = INT32_MAX;
-global_var const i32 TILES_PER_CHUNK = 8;
+static const i32 TILE_CHUNK_SAFE_MARGIN = (INT32_MAX / 64);
+static const i32 TILE_CHUNK_UNINITIALIZED = INT32_MAX;
+static const i32 TILES_PER_CHUNK = 8;
 
 inline
 bool is_position_valid(World_position pos) {
@@ -90,7 +90,7 @@ bool is_canonical(World* world, v3 offset) {
   return result;
 }
 
-internal
+static
 void 
 recanonicalize_coord(f32 chunk_dim, i32* tile, f32* tile_relative) {
   i32 offset = round_f32_i32((*tile_relative) / chunk_dim);
@@ -114,7 +114,7 @@ map_into_chunk_space(World* world, World_position base_pos, v3 offset) {
   return result;
 }
 
-internal
+static
 bool are_in_same_chunk(World* world, World_position* pos_x, World_position* pos_y) {
   
   assert(is_canonical(world, pos_x->_offset));
@@ -126,7 +126,7 @@ bool are_in_same_chunk(World* world, World_position* pos_x, World_position* pos_
   return result;
 }
 
-internal
+static
 v3
 subtract_pos(World* world, World_position* pos_a, World_position* pos_b) {
   v3 result = {};
@@ -142,7 +142,7 @@ subtract_pos(World* world, World_position* pos_a, World_position* pos_b) {
   return result;
 }
 
-internal
+static
 World_position 
 centered_chunk_point(u32 chunk_x, u32 chunk_y, u32 chunk_z) {
   
@@ -155,7 +155,7 @@ centered_chunk_point(u32 chunk_x, u32 chunk_y, u32 chunk_z) {
   return result;
 }
 
-internal
+static
 World_position 
 centered_chunk_point(World_chunk* chunk) {
   
@@ -166,7 +166,7 @@ centered_chunk_point(World_chunk* chunk) {
   return result;
 }
 
-internal
+static
 void init_world(World* world, v3 chunk_dim_meters) {
   world->chunk_dim_meters = chunk_dim_meters;
   world->first_free = 0;
@@ -249,7 +249,7 @@ void change_entity_location_raw(Memory_arena* arena, World* world, u32 low_entit
   }
 }
 
-internal
+static
 void 
 change_entity_location(Memory_arena* arena, World* world, u32 low_entity_index, Low_entity* low_entity, World_position new_pos_init) {
   

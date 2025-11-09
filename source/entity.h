@@ -3,7 +3,7 @@
 #ifndef ENTITY_H
 #define ENTITY_H
 
-global_var const v3 Global_invalid_pos = v3{100000.0f, 100000.0f, 100000.0f};
+static const v3 Global_invalid_pos = v3{100000.0f, 100000.0f, 100000.0f};
 
 inline
 bool 
@@ -38,7 +38,7 @@ make_entity_spatial(Sim_entity* entity, v3 pos, v3 velocity_d) {
   entity->velocity_d = velocity_d;
 }
 
-internal
+static
 f32
 get_stair_ground(Sim_entity* entity, v3 ground_point) {
   
@@ -54,7 +54,7 @@ get_stair_ground(Sim_entity* entity, v3 ground_point) {
   return result;
 }
 
-internal
+static
 v3
 get_entity_ground_point(Sim_entity* entity, v3 for_entity_pos) {
   
@@ -63,7 +63,7 @@ get_entity_ground_point(Sim_entity* entity, v3 for_entity_pos) {
   return result;
 }
 
-internal
+static
 v3
 get_entity_ground_point(Sim_entity* entity) {
   

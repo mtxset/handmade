@@ -1,8 +1,8 @@
 \
 #include "game.h"
 
-#if !defined(internal)
-#define internal
+#if !defined(static)
+#define static
 #endif
 
 #if 0

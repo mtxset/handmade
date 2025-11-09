@@ -7,8 +7,8 @@
         #define DEBUG_UI_familiar_follows_hero true
         // #define DEBUG_UI_renderer 
             // #define DEBUG_UI_camera 
-                #define DEBUG_UI_use_room_based_camera true
-                #define DEBUG_UI_debug_camera_distance 48.600002f
+                #define DEBUG_UI_use_room_based_camera false
+                #define DEBUG_UI_debug_camera_distance 49.999985f
                 #define DEBUG_UI_use_debug_camera false
             #define DEBUG_UI_test_weird_draw_buffer_size false
             #define DEBUG_UI_show_lighting_samples false
@@ -19,3 +19,6 @@
             #define DEBUG_UI_redo_ground_chunks_on_recompile false
             #define DEBUG_UI_ground_chunk_checker_board false
             #define DEBUG_UI_ground_chunks_outlines false
+        // #define DEBUG_UI_entities 
+            #define DEBUG_UI_draw_all_entity_outlines true
+            #define DEBUG_UI_draw_entity_outlines false
