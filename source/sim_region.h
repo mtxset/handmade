@@ -46,12 +46,12 @@ enum Sim_entity_flags {
   Entity_flag_simming     = (1 << 30),
 };
 
-struct Sim_entity_collision_volume {
+introspect(category:"sim_region") struct Sim_entity_collision_volume {
   v3 offset_pos;
   v3 dim;
 };
 
-struct Sim_entity_collision_group {
+introspect(category:"sim_region") struct Sim_entity_collision_volume_group {
   
   Sim_entity_collision_volume total_volume;
   
@@ -71,7 +71,7 @@ introspect(category:"test") struct Sim_entity {
   Entity_type type;
   u32 flags;
   
-  Sim_entity_collision_group* collision;
+  Sim_entity_collision_volume_group* collision;
   
   i32 d_abs_tile_z;
   
@@ -92,7 +92,7 @@ struct Sim_entity_hash {
   u32 index;
 };
 
-struct Sim_region {
+introspect(category:"sim_region") struct Sim_region {
   World* world;
   
   f32 max_entity_radius;

@@ -1060,6 +1060,81 @@ debug_interact(Debug_state *debug_state, Game_input *input, v2 mouse_pos) {
 
 static
 void
+debug_dump_struct(u32 member_count, Member_definition *member_defs, void *struct_ptr, u32 indent_level = 0) {
+  
+  for (u32 memeber_index = 0; memeber_index < member_count; memeber_index++) {
+    char text_buffer_base[256];
+    char *text_buffer = text_buffer_base;
+    
+    for (u32 indent = 0; indent < indent_level; indent++) {
+      *text_buffer++ = ' ';
+    }
+    text_buffer[0] = 0;
+    
+    size_t text_buffer_left = (text_buffer_base + sizeof(text_buffer_base)) - text_buffer;
+    
+    Member_definition *member = member_defs + memeber_index;
+    
+    void *member_ptr = (((u8 *)struct_ptr) + member->offset);
+    
+    if (member->flags & Meta_member_flag_is_pointer) {
+      member_ptr = *(void **)member_ptr;
+    }
+    
+    if (member_ptr) {
+      
+      switch (member->type) {
+        
+        case Meta_type_u32:
+        {
+          _snprintf_s(text_buffer, text_buffer_left, text_buffer_left, "%s: %u", member->name, *(u32 *)member_ptr);
+        } break;
+        
+        case Meta_type_bool:
+        {
+          _snprintf_s(text_buffer, text_buffer_left, text_buffer_left, "%s: %u", member->name, *(bool*)member_ptr);
+        } break;
+        
+        case Meta_type_i32:
+        {
+          _snprintf_s(text_buffer, text_buffer_left, text_buffer_left, "%s: %d", member->name, *(i32*)member_ptr);
+        } break;
+        
+        case Meta_type_f32:
+        {
+          _snprintf_s(text_buffer, text_buffer_left, text_buffer_left, "%s: %f", member->name, *(f32*)member_ptr);
+        } break;
+        
+        case Meta_type_v2:
+        {
+          _snprintf_s(text_buffer, text_buffer_left, text_buffer_left, "%s: {%f,%f}",
+                      member->name,
+                      ((v2*)member_ptr)->x,
+                      ((v2*)member_ptr)->y);
+        } break;
+        
+        case Meta_type_v3:
+        {
+          _snprintf_s(text_buffer, text_buffer_left, text_buffer_left, "%s: {%f,%f,%f}",
+                      member->name,
+                      ((v3*)member_ptr)->x,
+                      ((v3*)member_ptr)->y,
+                      ((v3*)member_ptr)->z);
+        } break;
+        
+        Meta_type_dump(member_ptr, indent_level + 1);
+      }
+    }
+    
+    if (text_buffer[0]) {
+      debug_text_line(text_buffer_base);
+    }
+  }
+  
+}
+
+static
+void
 debug_end(Debug_state *debug_state, Game_input *input, Loaded_bmp *draw_buffer) {
   
   timed_function();
@@ -1072,6 +1147,29 @@ debug_end(Debug_state *debug_state, Game_input *input, Loaded_bmp *draw_buffer) 
   v2 mouse_pos = unproject(debug_state->render_group, V2(input->mouse_x, input->mouse_y)).xy;
   debug_draw_main_menu(debug_state, render_group, mouse_pos);
   debug_interact(debug_state, input, mouse_pos);
+  
+  {
+    Sim_entity_collision_volume volume_list[] = {
+      {{10, 11, 12}, {13, 14, 15}},
+      {{16, 17, 18}, {19, 20, 21}},
+    };
+    
+    Sim_entity_collision_volume_group test_collision_volume_group = {};
+    test_collision_volume_group.total_volume.offset_pos = V3(9, 8, 7);
+    test_collision_volume_group.total_volume.dim = V3(4, 5, 6);
+    test_collision_volume_group.volume_count = 2;
+    test_collision_volume_group.volume_list = volume_list;
+    
+    Sim_entity entity = {};
+    entity.distance_limit = 10.0f;
+    entity.t_bob = 0.1f;
+    entity.facing_direction = 360.0f;
+    entity.d_abs_tile_z = 4;
+    entity.collision = &test_collision_volume_group;
+    
+    debug_text_line("sim_entity:");
+    debug_dump_struct(array_count(members_of_Sim_entity), members_of_Sim_entity, &entity);
+  }
   
   if (debug_state->compiling) {
     Debug_process_state state = platform.debug_get_process_state(debug_state->compiler);

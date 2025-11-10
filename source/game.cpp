@@ -8,6 +8,7 @@
 #include "entity.cpp"
 #include "asset.cpp"
 #include "audio.cpp"
+#include "meta.cpp"
 
 #if 0
 #define RUN_RAY
@@ -500,7 +501,7 @@ init_hit_points(Low_entity* entity_low, u32 hit_point_count) {
 
 static 
 Add_low_entity_result
-add_grounded_entity(Game_state* game_state, Entity_type type, World_position pos, Sim_entity_collision_group* collision)
+add_grounded_entity(Game_state* game_state, Entity_type type, World_position pos, Sim_entity_collision_volume_group* collision)
 {
   Add_low_entity_result entity = add_low_entity(game_state, type, pos);
   entity.low->sim.collision = collision;
@@ -673,9 +674,9 @@ draw_hitpoints(Render_group* piece_group, Sim_entity* entity) {
   }
 }
 
-Sim_entity_collision_group*
+Sim_entity_collision_volume_group*
 make_null_collision(Game_state* game_state) {
-  Sim_entity_collision_group* group = mem_push_struct(&game_state->world_arena, Sim_entity_collision_group);
+  Sim_entity_collision_volume_group* group = mem_push_struct(&game_state->world_arena, Sim_entity_collision_volume_group);
   group->volume_count = 0;
   group->volume_list = 0;
   group->total_volume.offset_pos = v3 {0, 0, 0};
@@ -684,12 +685,12 @@ make_null_collision(Game_state* game_state) {
   return group;
 }
 
-Sim_entity_collision_group*
+Sim_entity_collision_volume_group*
 make_simple_grounded_collision(Game_state* game_state, f32 x, f32 y, f32 z) {
   
   timed_function();
   
-  Sim_entity_collision_group* group = mem_push_struct(&game_state->world_arena, Sim_entity_collision_group);
+  Sim_entity_collision_volume_group* group = mem_push_struct(&game_state->world_arena, Sim_entity_collision_volume_group);
   group->volume_count = 1;
   group->volume_list = mem_push_array(&game_state->world_arena, group->volume_count, Sim_entity_collision_volume);
   group->total_volume.offset_pos = v3 {0, 0, 0.5f * z};
@@ -699,9 +700,9 @@ make_simple_grounded_collision(Game_state* game_state, f32 x, f32 y, f32 z) {
   return group;
 }
 
-Sim_entity_collision_group*
+Sim_entity_collision_volume_group*
 make_simple_grounded_collision(Game_state* game_state, v3 dim) {
-  Sim_entity_collision_group* group = make_simple_grounded_collision(game_state, dim.x, dim.y, dim.z);
+  Sim_entity_collision_volume_group* group = make_simple_grounded_collision(game_state, dim.x, dim.y, dim.z);
   return group;
 }
 
@@ -2054,6 +2055,8 @@ game_update_render(Game_memory* memory, Game_input* input, Game_bitmap_buffer *b
           v4 outline_color = yellow_v4;
           
           push_rect_outline(render_group, volume->offset_pos - V3(0,0, .5f*volume->dim.z), volume->dim.xy, outline_color, _(thickness).05f);
+          
+          //debug_dump_struct(array_count(members_of_Sim_entity), members_of_Sim_entity, &entity);
         }
       }
       
@@ -2371,8 +2374,8 @@ game_get_sound_samples(Game_memory *memory, Game_sound_buffer *sound_buffer) {
 #else
 void debug_start(Game_asset_list *asset_list, u32 width, u32 height) {};
 void debug_end(Game_input *input, Loaded_bmp *draw_buffer) {};
-extern "C"
 
+extern "C"
 Debug_table*
 debug_game_frame_end(Game_memory* memory, Game_input *input, Game_bitmap_buffer *bitmap_buffer) {return 0;}
 static Debug_game_frame_end_signature *signature_check = debug_game_frame_end;

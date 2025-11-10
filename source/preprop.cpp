@@ -1,5 +1,6 @@
 #include <intrin.h>
 #include <stdio.h>
+#include <memory.h>
 
 typedef signed char        i8;
 typedef short              i16;
@@ -14,8 +15,16 @@ typedef unsigned long long u64;
 typedef float              f32;
 typedef double             f64;
 
+#define array_count(array) (sizeof(array) / sizeof((array)[0]))
+
 #define assert(expr) if (!(expr)) {*(i32*)0 = 0;}
 #define _(x)
+
+struct Meta_struct {
+  char *name;
+  Meta_struct *next;
+};
+static Meta_struct *first_meta_struct;
 
 static
 char*
@@ -256,7 +265,7 @@ parse_introspection_param(Tokenizer *tokenizer) {
 
 static
 void
-parse_member(Tokenizer *tokenizer, Token member) {
+parse_member(Tokenizer *tokenizer, Token struct_type_token, Token member_type_token) {
   bool parsing = true;
   bool is_pointer = false;
   
@@ -270,7 +279,12 @@ parse_member(Tokenizer *tokenizer, Token member) {
       } break;
       
       case Token_identifier: {
-        printf("{type: %.*s, \"%.*s\"},\n", (int)member.text_length, member.text, (int)token.text_length, token.text);                
+        printf(" {%s, Meta_type_%.*s, \"%.*s\", (u32)(size_t)&((%.*s*)0)->%.*s},\n",
+               is_pointer ? "Meta_member_flag_is_pointer" : "0",
+               (int)member_type_token.text_length, member_type_token.text,
+               (int)token.text_length, token.text,
+               (int)struct_type_token.text_length, struct_type_token.text,
+               (int)token.text_length, token.text);                
       } break;
       
       case Token_semi_colon:
@@ -291,8 +305,7 @@ parse_struct(Tokenizer *tokenizer) {
   
   if (require_token(tokenizer, Token_open_brace)) {
     
-    printf("members of: %.*s[] = \n", (int)token.text_length, token.text);
-    printf("{\n");
+    printf("Member_definition members_of_%.*s[] = {\n", (int)token.text_length, token.text);
     
     for (;;) {
       Token member = get_token(tokenizer);
@@ -300,10 +313,17 @@ parse_struct(Tokenizer *tokenizer) {
       if (member.type == Token_close_brace)
         break;
       else
-        parse_member(tokenizer, member);
+        parse_member(tokenizer, token, member);
     }
     
-    printf("}\n");
+    printf("};\n\n");
+    
+    Meta_struct *meta = (Meta_struct*)malloc(sizeof(Meta_struct));
+    meta->name = (char*)malloc(token.text_length + 1);
+    memcpy(meta->name, token.text, token.text_length);
+    meta->name[token.text_length] = 0;
+    meta->next = first_meta_struct;
+    first_meta_struct = meta;
   }
   
 }
@@ -334,34 +354,50 @@ parse_introspect(Tokenizer *tokenizer) {
 i32
 main(i32 arg_count, char **args) {
   
-  char *file_content = read_entire_file("../source/sim_region.h");
+  char *file_names[] = {
+    "../source/sim_region.h",
+    "../source/world.h"
+  };
   
-  Tokenizer tokenizer = {};
-  tokenizer.at = file_content;
-  
-  bool parsing = true;
-  
-  while (parsing) {
-    Token token = get_token(&tokenizer);
+  for (u32 file_index = 0; file_index < array_count(file_names); file_index++) {
+    char *file_content = read_entire_file(file_names[file_index]);
     
-    switch (token.type) {
-      case Token_end_of_stream: parsing = false; break;
-      case Token_unknown: break;
+    Tokenizer tokenizer = {};
+    tokenizer.at = file_content;
+    
+    bool parsing = true;
+    
+    while (parsing) {
+      Token token = get_token(&tokenizer);
       
-      case Token_identifier: {
+      switch (token.type) {
+        case Token_end_of_stream: parsing = false; break;
+        case Token_unknown: break;
         
-        if (token_equals(token, "introspect")) {
-          parse_introspect(&tokenizer);
-        }
+        case Token_identifier: {
+          
+          if (token_equals(token, "introspect")) {
+            parse_introspect(&tokenizer);
+          }
+          
+        } break;
         
-      } break;
+        default: {
+          
+        } break;
+      }
       
-      default: {
-        
-      } break;
+      //printf("%d: %.*s\n", token.type, (int)token.text_length, token.text);
     }
+  }
+  
+  printf("#define Meta_type_dump(member_ptr, next_ident_level) \\\n");
+  
+  for (Meta_struct *meta = first_meta_struct; meta; meta = meta->next) {
     
-    //printf("%d: %.*s\n", token.type, (int)token.text_length, token.text);
+    printf("case Meta_type_%s: { debug_text_line(member->name); debug_dump_struct(array_count(members_of_%s), members_of_%s, member_ptr, (next_ident_level)); } break; %s\n %s\n",
+           meta->name, meta->name, meta->name, meta->next ? "\\" : "", meta->next ? "\\" : "");
+    
   }
   
   return 0;

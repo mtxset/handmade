@@ -28,9 +28,15 @@ del *.rdi > NUL 2> NUL
 for /F "tokens=1-4 delims=:.," %%a in ("%time%") do (
    set /A "start=(((%%a*60)+1%%b %% 100)*60+1%%c %% 100)*100+1%%d %% 100"
 )
-:: 32-bit
-:: cl.exe %common_compiler_flags% "..\source\main.cpp" /link -subsystem:windows,5.1  %common_linker_flags%
 
+:: pre processor 
+:: -D_CRT_SECURE_NO_WARNINGS
+cl %common_compiler_flags% ..\source\preprop.cpp /link %common_linker_flags%
+pushd ..\source
+..\build\preprop.exe > generated.h
+popd
+
+:: asset builder
 :: cl.exe %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=0 "..\source\asset_builder.cpp" /link %common_linker_flags%
 
 :: 64-bit
@@ -44,18 +50,14 @@ echo Waiting for pbd > lock.tmp
 :: ml64.exe -nologo /c /Zd masm.obj ..\source\masm.asm
 
 :: optimized.cpp
-:: cl %include_iaca% %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=1 -O2 -c ..\source\optimized.cpp -Fooptimized.obj -LD
+cl %include_iaca% %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=1 -O2 -c ..\source\optimized.cpp -Fooptimized.obj -LD
 
 :: game.cpp
-:: cl.exe %include_iaca% %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=0 "..\source\game.cpp" optimized.obj masm.obj /LD /link -incremental:no -opt:ref -PDB:game%random%.pdb  -EXPORT:game_get_sound_samples -EXPORT:game_update_render -EXPORT:debug_game_frame_end
+cl.exe %include_iaca% %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=0 "..\source\game.cpp" optimized.obj masm.obj /LD /link -incremental:no -opt:ref -PDB:game%random%.pdb  -EXPORT:game_get_sound_samples -EXPORT:game_update_render -EXPORT:debug_game_frame_end
 
 del lock.tmp
 
-:: pre processor 
-::  -D_CRT_SECURE_NO_WARNINGS
-cl %common_compiler_flags% ..\source\preprop.cpp /link %common_linker_flags%
-
-:: cl.exe %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=2 "..\source\main.cpp" masm.obj /link %common_linker_flags%
+cl.exe %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=2 "..\source\main.cpp" masm.obj /link %common_linker_flags%
 popd
 
 :: -Zo      - enables additional debug info, so you can debug "better" with optimizations on otherwise you won't have vars in watch, because code is different

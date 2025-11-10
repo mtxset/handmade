@@ -8,6 +8,9 @@
 #include "platform.h"
 #include "memory.h"
 #include "file_formats.h"
+#include "meta.h"
+
+#define introspect(x)
 
 #include "intrinsics.h"
 #include "math.h"
@@ -19,8 +22,6 @@
 #include "random.h"
 #include "audio.h"
 #include "debug.h"
-
-#define introspect(x)
 
 struct drop {
   bool active;
@@ -137,14 +138,14 @@ struct Game_state {
   Pairwise_collision_rule* collision_rule_hash[256];
   Pairwise_collision_rule* first_free_collsion_rule;
   
-  Sim_entity_collision_group* null_collision;
-  Sim_entity_collision_group* sword_collision;
-  Sim_entity_collision_group* stairs_collision;
-  Sim_entity_collision_group* player_collision;
-  Sim_entity_collision_group* monster_collision;
-  Sim_entity_collision_group* familiar_collision;
-  Sim_entity_collision_group* wall_collision;
-  Sim_entity_collision_group* std_room_collision;
+  Sim_entity_collision_volume_group* null_collision;
+  Sim_entity_collision_volume_group* sword_collision;
+  Sim_entity_collision_volume_group* stairs_collision;
+  Sim_entity_collision_volume_group* player_collision;
+  Sim_entity_collision_volume_group* monster_collision;
+  Sim_entity_collision_volume_group* familiar_collision;
+  Sim_entity_collision_volume_group* wall_collision;
+  Sim_entity_collision_volume_group* std_room_collision;
   
   f32 time;
   

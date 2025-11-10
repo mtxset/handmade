@@ -1,6 +1,6 @@
-// https://youtu.be/3RPdhDditMY?t=41
+// https://youtu.be/3_7IMU6l6Pc?t=275
 
-// https://www.youtube.com/watch?v=1IwYEJsvdcs 206 - simple parses
+// https://www.youtube.com/watch?v=1IwYEJsvdcs 206 - simple parser - moving to metaprograming
 // https://youtu.be/FkDJL8zmVFY?t=1404 204 -unprojecting mouse
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
