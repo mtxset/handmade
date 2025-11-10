@@ -1,5 +1,7 @@
 // https://youtu.be/3RPdhDditMY?t=41
-// https://youtu.be/FkDJL8zmVFY?t=1404 unprojecting mouse
+
+// https://www.youtube.com/watch?v=1IwYEJsvdcs 206 - simple parses
+// https://youtu.be/FkDJL8zmVFY?t=1404 204 -unprojecting mouse
 // there is some bug which was introduced on day 78 with bottom stairs not having collision
 
 #include "types.h"
@@ -1245,7 +1247,7 @@ static Debug_table global_debug_table_;
 Debug_table *global_debug_table = &global_debug_table_;
 
 i32
-main(HINSTANCE current_instance, HINSTANCE previousInstance, LPSTR commandLineParams, i32 nothing) {
+main(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR cmd_line_params, i32 nothing) {
   
   u64 ticks = GetTickCount64();
   u64 ticks_asm = asm_get_tick_count_64();

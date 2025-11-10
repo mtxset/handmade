@@ -41,17 +41,21 @@ echo Waiting for pbd > lock.tmp
 
 :: MASM 
 :: https://learn.microsoft.com/en-us/cpp/assembler/masm/ml-and-ml64-command-line-reference?view=msvc-170
-ml64.exe -nologo /c /Zd masm.obj ..\source\masm.asm
+:: ml64.exe -nologo /c /Zd masm.obj ..\source\masm.asm
 
 :: optimized.cpp
-cl %include_iaca% %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=1 -O2 -c ..\source\optimized.cpp -Fooptimized.obj -LD
+:: cl %include_iaca% %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=1 -O2 -c ..\source\optimized.cpp -Fooptimized.obj -LD
 
 :: game.cpp
-cl.exe %include_iaca% %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=0 "..\source\game.cpp" optimized.obj masm.obj /LD /link -incremental:no -opt:ref -PDB:game%random%.pdb  -EXPORT:game_get_sound_samples -EXPORT:game_update_render -EXPORT:debug_game_frame_end
+:: cl.exe %include_iaca% %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=0 "..\source\game.cpp" optimized.obj masm.obj /LD /link -incremental:no -opt:ref -PDB:game%random%.pdb  -EXPORT:game_get_sound_samples -EXPORT:game_update_render -EXPORT:debug_game_frame_end
 
 del lock.tmp
 
-cl.exe %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=2 "..\source\main.cpp" masm.obj /link %common_linker_flags%
+:: pre processor 
+::  -D_CRT_SECURE_NO_WARNINGS
+cl %common_compiler_flags% ..\source\preprop.cpp /link %common_linker_flags%
+
+:: cl.exe %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=2 "..\source\main.cpp" masm.obj /link %common_linker_flags%
 popd
 
 :: -Zo      - enables additional debug info, so you can debug "better" with optimizations on otherwise you won't have vars in watch, because code is different

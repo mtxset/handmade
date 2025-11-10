@@ -20,6 +20,8 @@
 #include "audio.h"
 #include "debug.h"
 
+#define introspect(x)
+
 struct drop {
   bool active;
   f32 a;

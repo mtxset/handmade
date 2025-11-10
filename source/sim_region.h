@@ -3,7 +3,7 @@
 #ifndef SIM_REGION_H
 #define SIM_REGION_H
 
-#include "intrinsics.h"
+// #include "intrinsics.h"
 
 struct Move_spec {
   bool max_acceleration_vector;
@@ -59,7 +59,7 @@ struct Sim_entity_collision_group {
   Sim_entity_collision_volume* volume_list;
 };
 
-struct Sim_entity {
+introspect(category:"test") struct Sim_entity {
   u32 storage_index;
   bool updatable;
   
