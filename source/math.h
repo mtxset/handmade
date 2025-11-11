@@ -930,7 +930,7 @@ lerp_p4(v2 a, v2 b, v2 c, v2 d, f32 t) {
 
 // Rect2 START
 
-struct Rect2 {
+introspect(category:"rect2") struct Rect2 {
   v2 min;
   v2 max;
 };
@@ -1156,7 +1156,7 @@ get_barycentric(Rect2 a, v2 pos) {
 
 // Rect3 START
 
-struct Rect3 {
+introspect(category:"rect2") struct Rect3 {
   v3 min;
   v3 max;
 };

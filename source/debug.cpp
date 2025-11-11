@@ -1171,6 +1171,14 @@ debug_end(Debug_state *debug_state, Game_input *input, Loaded_bmp *draw_buffer) 
     debug_dump_struct(array_count(members_of_Sim_entity), members_of_Sim_entity, &entity);
   }
   
+  {
+    Sim_region region = {};
+    region.bounds = rect_min_max(V3(1, 2, 3), V3(4, 5, 6));
+    
+    debug_text_line("sim_region:");
+    debug_dump_struct(array_count(members_of_Sim_region), members_of_Sim_region, &region);
+  }
+  
   if (debug_state->compiling) {
     Debug_process_state state = platform.debug_get_process_state(debug_state->compiler);
     

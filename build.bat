@@ -29,15 +29,30 @@ for /F "tokens=1-4 delims=:.," %%a in ("%time%") do (
    set /A "start=(((%%a*60)+1%%b %% 100)*60+1%%c %% 100)*100+1%%d %% 100"
 )
 
+set run_pre_prop=1
+::set run_asset_builder=1
+::set run_asm=1
+set run_main_and_game=1
+
 :: pre processor 
 :: -D_CRT_SECURE_NO_WARNINGS
+if defined run_pre_prop (
 cl %common_compiler_flags% ..\source\preprop.cpp /link %common_linker_flags%
 pushd ..\source
 ..\build\preprop.exe > generated.h
 popd
+)
 
 :: asset builder
-:: cl.exe %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=0 "..\source\asset_builder.cpp" /link %common_linker_flags%
+if defined run_asset_builder ( 
+cl.exe %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=0 "..\source\asset_builder.cpp" /link %common_linker_flags%
+)
+
+:: MASM 
+:: https://learn.microsoft.com/en-us/cpp/assembler/masm/ml-and-ml64-command-line-reference?view=msvc-170
+if defined run_asm (
+ml64.exe -nologo /c /Zd masm.obj ..\source\masm.asm
+)
 
 :: 64-bit
 :: /O2 /Oi /fp:fast - optimizations
@@ -45,20 +60,22 @@ popd
 :: game wont load new code till there is lock file
 echo Waiting for pbd > lock.tmp
 
-:: MASM 
-:: https://learn.microsoft.com/en-us/cpp/assembler/masm/ml-and-ml64-command-line-reference?view=msvc-170
-:: ml64.exe -nologo /c /Zd masm.obj ..\source\masm.asm
-
 :: optimized.cpp
+if defined run_main_and_game (
 cl %include_iaca% %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=1 -O2 -c ..\source\optimized.cpp -Fooptimized.obj -LD
+)
 
 :: game.cpp
+if defined run_main_and_game (
 cl.exe %include_iaca% %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=0 "..\source\game.cpp" optimized.obj masm.obj /LD /link -incremental:no -opt:ref -PDB:game%random%.pdb  -EXPORT:game_get_sound_samples -EXPORT:game_update_render -EXPORT:debug_game_frame_end
+)
 
 del lock.tmp
 
+if defined run_main_and_game (
 cl.exe %common_compiler_flags% -DTRANSLATION_UNIT_INDEX=2 "..\source\main.cpp" masm.obj /link %common_linker_flags%
 popd
+)
 
 :: -Zo      - enables additional debug info, so you can debug "better" with optimizations on otherwise you won't have vars in watch, because code is different
 :: -Od      - disable all optimizations

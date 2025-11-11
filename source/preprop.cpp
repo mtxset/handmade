@@ -155,7 +155,7 @@ eat_all_whitespaces(Tokenizer *tokenizer) {
 inline
 bool
 is_alpha(char ch) {
-  bool result = (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z');
+  bool result = (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_';
   
   return result;
 }
@@ -356,6 +356,7 @@ main(i32 arg_count, char **args) {
   
   char *file_names[] = {
     "../source/sim_region.h",
+    "../source/math.h",
     "../source/world.h"
   };
   

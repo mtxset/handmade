@@ -41,7 +41,30 @@ Member_definition members_of_Sim_region[] = {
  {0, Meta_type_Sim_entity_hash, "hash", (u32)(size_t)&((Sim_region*)0)->hash},
 };
 
+Member_definition members_of_Rect2[] = {
+ {0, Meta_type_v2, "min", (u32)(size_t)&((Rect2*)0)->min},
+ {0, Meta_type_v2, "max", (u32)(size_t)&((Rect2*)0)->max},
+};
+
+Member_definition members_of_Rect3[] = {
+ {0, Meta_type_v3, "min", (u32)(size_t)&((Rect3*)0)->min},
+ {0, Meta_type_v3, "max", (u32)(size_t)&((Rect3*)0)->max},
+};
+
+Member_definition members_of_World_position[] = {
+ {0, Meta_type_i32, "chunk_x", (u32)(size_t)&((World_position*)0)->chunk_x},
+ {0, Meta_type_i32, "chunk_y", (u32)(size_t)&((World_position*)0)->chunk_y},
+ {0, Meta_type_i32, "chunk_z", (u32)(size_t)&((World_position*)0)->chunk_z},
+ {0, Meta_type_v3, "_offset", (u32)(size_t)&((World_position*)0)->_offset},
+};
+
 #define Meta_type_dump(member_ptr, next_ident_level) \
+case Meta_type_World_position: { debug_text_line(member->name); debug_dump_struct(array_count(members_of_World_position), members_of_World_position, member_ptr, (next_ident_level)); } break; \
+ \
+case Meta_type_Rect3: { debug_text_line(member->name); debug_dump_struct(array_count(members_of_Rect3), members_of_Rect3, member_ptr, (next_ident_level)); } break; \
+ \
+case Meta_type_Rect2: { debug_text_line(member->name); debug_dump_struct(array_count(members_of_Rect2), members_of_Rect2, member_ptr, (next_ident_level)); } break; \
+ \
 case Meta_type_Sim_region: { debug_text_line(member->name); debug_dump_struct(array_count(members_of_Sim_region), members_of_Sim_region, member_ptr, (next_ident_level)); } break; \
  \
 case Meta_type_Sim_entity: { debug_text_line(member->name); debug_dump_struct(array_count(members_of_Sim_entity), members_of_Sim_entity, member_ptr, (next_ident_level)); } break; \
